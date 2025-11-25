@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Procesar Factura{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h5 mb-0">Cargar Factura de Proveedor</h1>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">← Volver</a>
+    </div>
+
+    {% if msg_success %}
+        <div class="alert alert-success text-center">
+            <i class="fas fa-check-circle mb-2 display-6"></i><br>
+            {{ msg_success }}
+        </div>
+        <div class="text-center mb-4">
+            <a href="{% url 'procesar_factura' %}" class="btn btn-primary">Subir otra factura</a>
+        </div>
+    {% endif %}
+
+    {% if not preview and not msg_success %}
+    <!-- PASO 1: SUBIDA -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row align-items-end">
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Seleccionar Archivo</label>
+                        {{ form.archivo }}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-robot me-1"></i> Analizar Automáticamente
+                        </button>
+                    </div>
+                </div>
+                <div class="form-text mt-2">
+                    <i class="fas fa-info-circle"></i> Soporta imágenes (JPG, PNG) y documentos PDF (Digitales o Escaneados).
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Historial -->
+    {% if ultimas_facturas %}
+    <div class="card">
+        <div class="card-header">Últimas facturas procesadas</div>
+        <ul class="list-group list-group-flush">
+            {% for f in ultimas_facturas %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>#{{ f.id }}</strong> <small class="text-muted">({{ f.fecha_subida|date:"d/m/Y" }})</small>
+                </div>
+                <span class="badge bg-secondary rounded-pill">{{ f.items.count }} ítems</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if preview %}
+    <!-- PASO 2: REVISIÓN -->
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="confirmar_factura" value="1">
+
+        <div class="row">
+            <!-- Visor de Documento -->
+            <div class="col-lg-5 mb-4">
+                <div class="card h-100 border-0 shadow-sm sticky-top" style="top: 20px; z-index: 1;">
+                    <div class="card-header bg-dark text-white">
+                        <i class="fas fa-file-alt me-1"></i> Documento Original
+                    </div>
+                    <div class="card-body p-0 bg-light d-flex align-items-center justify-content-center" style="min-height: 500px; overflow: hidden;">
+                        {% if es_pdf %}
+                            <embed src="{{ factura_url }}" type="application/pdf" width="100%" height="600px" />
+                        {% else %}
+                            <img src="{{ factura_url }}" class="img-fluid" style="max-height: 80vh; object-fit: contain;" alt="Factura">
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulario de Datos -->
+            <div class="col-lg-7">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Datos Detectados</span>
+                        <div class="d-flex align-items-center">
+                            <label class="me-2 small text-white-50">Fecha:</label>
+                            <input type="date" name="fecha_factura" value="{{ fecha_detectada }}" class="form-control form-control-sm w-auto">
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 text-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 30px;"><input type="checkbox" checked onclick="toggleAll(this)"></th>
+                                        <th style="width: 70px;">Cant.</th>
+                                        <th>Descripción</th>
+                                        <th style="width: 100px;">Precio Unit.</th>
+                                        <th style="width: 90px;" class="text-end">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in items %}
+                                    <tr>
+                                        <td>
+                                            <input type="checkbox" name="item_{{ forloop.counter0 }}_check" checked class="form-check-input item-check">
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="item_{{ forloop.counter0 }}_cantidad" value="{{ item.cantidad }}" class="form-control form-control-sm text-center">
+                                        </td>
+                                        <td>
+                                            <input type="text" name="item_{{ forloop.counter0 }}_producto" value="{{ item.producto }}" class="form-control form-control-sm">
+                                        </td>
+                                        <td>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" step="0.01" name="item_{{ forloop.counter0 }}_precio" value="{{ item.precio_unitario }}" class="form-control text-end">
+                                            </div>
+                                        </td>
+                                        <td class="text-end fw-bold text-muted">
+                                            ${{ item.subtotal }}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-center py-5 text-muted">
+                                            <i class="fas fa-search mb-3 display-6 text-secondary"></i><br>
+                                            No se pudieron detectar ítems automáticamente.<br>
+                                            <small>Por favor, verifica la calidad de la imagen.</small>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between align-items-center">
+                        <small class="text-muted"><i class="fas fa-info-circle"></i> Revisa y corrige los datos antes de guardar.</small>
+                        <div>
+                            <a href="{% url 'procesar_factura' %}" class="btn btn-outline-secondary me-2">Cancelar</a>
+                            <button type="submit" class="btn btn-success fw-bold">
+                                <i class="fas fa-save me-1"></i> Confirmar y Guardar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Debug -->
+                <div class="accordion mt-3" id="debugAcc">
+                    <div class="accordion-item border-0 shadow-sm">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-light text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#colDebug">
+                                <i class="fas fa-bug me-2"></i> Ver texto crudo (Debug)
+                            </button>
+                        </h2>
+                        <div id="colDebug" class="accordion-collapse collapse">
+                            <div class="accordion-body bg-dark text-white p-3">
+                                <pre class="small m-0" style="white-space: pre-wrap;">{{ raw_text }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+    
+    <script>
+        function toggleAll(source) {
+            document.querySelectorAll('.item-check').forEach(cb => cb.checked = source.checked);
+        }
+    </script>
+    {% endif %}
+</div>
+{% endblock %}
