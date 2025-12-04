@@ -27,6 +27,7 @@ class ProductoPrecio(models.Model):
     nombre_publico = models.CharField(max_length=255)
     
     precio = models.DecimalField(max_digits=10, decimal_places=2)
+    imagen = models.ImageField(upload_to='productos/', null=True, blank=True)
     ultima_actualizacion = models.DateTimeField(auto_now=True)
 
     def __str__(self):

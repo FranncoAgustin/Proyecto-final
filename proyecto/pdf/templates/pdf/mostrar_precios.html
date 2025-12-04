@@ -1,64 +1,35 @@
 {% extends "pdf/base.html" %}
 
-{% block title %}Catálogo de Precios{% endblock %}
+{% block title %}Catálogo{% endblock %}
 
 {% block content %}
-<div class="container py-3">
-    <div class="d-flex align-items-center justify-content-between mb-4">
-        <h1 class="h5 mb-0">Catálogo de Productos Actualizado</h1>
-        <div>
-            <a href="{% url 'exportar_csv_catalogo' %}" class="btn btn-sm btn-outline-success me-2">
-                <i class="fas fa-file-csv me-1"></i> Exportar a CSV
-            </a>
-            <a href="{% url 'importar_pdf' %}" class="btn btn-sm btn-primary">
-                <i class="fas fa-upload me-1"></i> Importar PDF
-            </a>
-        </div>
-    </div>
+<div class="container py-4">
 
-    {% if productos %}
-        <div class="card shadow-sm">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="min-width: 150px;">SKU</th>
-                                <th style="min-width: 250px;">Nombre Público</th>
-                                <th class="text-end" style="min-width: 100px;">Precio Actual</th>
-                                <th style="min-width: 180px;">Última Actualización</th>
-                                <th>Lista Origen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for producto in productos %}
-                            <tr>
-                                <td><code class="text-secondary">{{ producto.sku }}</code></td>
-                                <td><strong>{{ producto.nombre_publico }}</strong></td>
-                                <td class="text-end fw-bold text-success">
-                                    ${{ producto.precio|floatformat:2 }}
-                                </td>
-                                <td>{{ producto.ultima_actualizacion|date:"d M Y H:i" }}</td>
-                                <td>
-                                    {% if producto.lista_pdf %}
-                                        <span class="badge text-bg-info">{{ producto.lista_pdf.nombre|truncatechars:25 }}</span>
-                                    {% else %}
-                                        —
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <h2 class="mb-4">Catálogo de productos</h2>
+
+    <div class="row g-4">
+
+        {% for producto in productos %}
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+            <a href="{% url 'detalle_producto' producto.id %}" class="text-decoration-none text-dark">
+                <div class="card h-100 shadow-sm">
+                    {% if producto.imagen %}
+                        <img src="{{ producto.imagen.url }}" class="card-img-top" style="height:200px; object-fit:contain;">
+                    {% else %}
+                        <div class="d-flex justify-content-center align-items-center bg-light" style="height:200px;">
+                            <span class="text-muted">Sin imagen</span>
+                        </div>
+                    {% endif %}
+
+                    <div class="card-body">
+                        <h6 class="card-title">{{ producto.nombre_publico }}</h6>
+                        <p class="fw-bold text-success">${{ producto.precio }}</p>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
-        <p class="text-muted small mt-3">Total de productos en catálogo: {{ productos|length }}</p>
-    {% else %}
-        <div class="alert alert-warning text-center">
-            Aún no hay productos en el catálogo. ¡Sube tu primera lista de precios!
-        </div>
-    {% endif %}
+        {% endfor %}
 
+    </div>
 </div>
 {% endblock %}
