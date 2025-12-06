@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi cuenta - Mundo Personalizado{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <h1 class="h4 mb-3">Mi cuenta</h1>
+
+    <div class="text-center mb-3">
+      {% if usuario.profile.avatar %}
+        <img src="{{ usuario.profile.avatar.url }}" alt="Avatar"
+             class="rounded-circle mb-2"
+             style="width:100px;height:100px;object-fit:cover;">
+      {% else %}
+        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center mb-2"
+             style="width:100px;height:100px;">
+          <span class="fs-3">
+            {{ usuario.first_name|default:usuario.username|first|upper }}
+          </span>
+        </div>
+      {% endif %}
+      <div class="fw-semibold">
+        {{ usuario.first_name }} {{ usuario.last_name }}
+      </div>
+      <div class="text-muted small">
+        {{ usuario.email }}
+      </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="mb-2">
+        <label class="form-label">Teléfono</label>
+        {{ form.telefono }}
+        <div class="form-text">Ej: +54 11 1234 5678</div>
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Localidad</label>
+        {{ form.localidad }}
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Foto de perfil</label>
+        {{ form.avatar }}
+        <div class="form-text">Opcional. JPG/PNG, tamaño pequeño.</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 mb-3">
+        Guardar cambios
+      </button>
+    </form>
+
+    <hr>
+
+    <p class="mb-1">
+      <a href="{% url 'mis_compras' %}">Ver mis compras</a>
+    </p>
+    <p class="mb-0">
+      <a href="{% url 'logout' %}" class="text-danger">Cerrar sesión</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

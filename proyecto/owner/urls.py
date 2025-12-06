@@ -14,7 +14,7 @@ from .views import (
 )
 
 urlpatterns = [
-    path("", AdminDashboardView.as_view(), name="admin_panel"),
+    path("", AdminDashboardView.as_view(), name="home"),
 
     path("historia/", HistoriaIngresosView.as_view(), name="historia_ingresos"),
     path("historia/listas/", historia_listas, name="historia_listas"),

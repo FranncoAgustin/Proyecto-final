@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Mis favoritos - Mundo Personalizado{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-4">Mis favoritos</h1>
+
+{% if items %}
+  <div class="row g-3">
+    {% for item in items %}
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100">
+          {% if item.imagen_url %}
+          <img src="{{ item.imagen_url }}" class="card-img-top" alt="{{ item.producto.nombre_publico }}">
+          {% endif %}
+          <div class="card-body d-flex flex-column">
+            <h2 class="h6 card-title text-truncate">
+              {{ item.producto.nombre_publico }}
+            </h2>
+            <p class="mb-2">
+              ${{ item.producto.precio }}
+            </p>
+            <div class="mt-auto d-flex gap-2">
+              <a href="{% url 'detalle_producto' item.producto.id %}" class="btn btn-sm btn-outline-primary">
+                Ver
+              </a>
+              <a href="{% url 'agregar_al_carrito' item.producto.id %}?next={% url 'mis_favoritos' %}"
+                 class="btn btn-sm btn-primary">
+                Agregar al carrito
+              </a>
+              <a href="{% url 'eliminar_favorito' item.producto.id %}?next={% url 'mis_favoritos' %}"
+                 class="btn btn-sm btn-outline-danger">
+                Quitar
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="alert alert-info">
+    Todavía no tenés productos en favoritos.
+  </div>
+  <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-primary">
+    Ver productos
+  </a>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi carrito - Mundo Personalizado{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-4">Mi carrito</h1>
+
+{% if items %}
+  <div class="table-responsive mb-3">
+    <table class="table align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Producto</th>
+          <th class="text-center">Cantidad</th>
+          <th class="text-end">Precio</th>
+          <th class="text-end">Subtotal</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>
+            <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none">
+              {{ item.producto.nombre_publico }}
+            </a>
+          </td>
+          <td class="text-center" style="max-width:120px;">
+            <form action="{% url 'actualizar_cantidad' item.producto.id %}" method="post" class="d-inline-flex">
+              {% csrf_token %}
+              <input type="number" name="cantidad" min="0" class="form-control form-control-sm me-2"
+                     value="{{ item.cantidad }}">
+              <button class="btn btn-sm btn-outline-primary" type="submit">
+                Actualizar
+              </button>
+            </form>
+          </td>
+          <td class="text-end">
+            ${{ item.producto.precio }}
+          </td>
+          <td class="text-end">
+            ${{ item.subtotal }}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'eliminar_del_carrito' item.producto.id %}"
+               class="btn btn-sm btn-outline-danger">
+              <i class="fa-solid fa-trash-can"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center">
+    <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-outline-secondary">
+      Seguir comprando
+    </a>
+
+    <div class="text-end">
+      <div class="fw-semibold fs-5">
+        Total: ${{ total }}
+      </div>
+      <div class="mt-2 d-flex gap-2 justify-content-end">
+        <a href="{% url 'vaciar_carrito' %}" class="btn btn-outline-danger btn-sm">
+          Vaciar carrito
+        </a>
+        <!-- Acá más adelante va el botón de ir a checkout -->
+        <button class="btn btn-primary btn-sm" type="button" disabled>
+          Finalizar compra (próximamente)
+        </button>
+      </div>
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-info">
+    Tu carrito está vacío.
+  </div>
+  <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-primary">
+    Ver productos
+  </a>
+{% endif %}
+{% endblock %}
