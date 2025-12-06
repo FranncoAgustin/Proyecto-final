@@ -32,6 +32,22 @@ def exportar_csv_catalogo(request):
 
     return response
 
+def detalle_producto(request, pk):
+    producto = get_object_or_404(ProductoPrecio, pk=pk)
+    return render(request, 'pdf/detalle_producto.html', {'producto': producto})
+
+
+# Carrito simple usando session
+def agregar_al_carrito(request, pk):
+    producto = get_object_or_404(ProductoPrecio, pk=pk)
+    
+    carrito = request.session.get('carrito', {})
+
+    carrito[str(producto.id)] = carrito.get(str(producto.id), 0) + 1
+
+    request.session['carrito'] = carrito
+    return redirect('detalle_producto', pk=pk)
+
 # --- VISTA PRINCIPAL (Fusiona los 3 pasos: Carga, Previsualización, Confirmación) ---
 
 def importar_pdf(request):
@@ -218,3 +234,4 @@ def importar_pdf(request):
         'listas_procesadas': listas_procesadas,
         'update_only': False
     })
+

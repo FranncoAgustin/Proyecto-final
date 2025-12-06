@@ -1,21 +1,27 @@
 from django.contrib import admin
 from django.urls import path, include
-# Importamos las vistas de la aplicación 'pdf' y le damos un alias 'pdf_views'
+
+# Importamos las vistas de la app 'pdf' y les damos un alias
 from pdf import views as pdf_views 
 
-# La línea 'from . import views' causaba conflicto y se elimina si solo necesitas vistas de 'pdf'.
-# Si necesitas vistas de la carpeta actual del proyecto (main), usa un alias.
-
 urlpatterns = [
+    # Panel de administración de Django
     path('admin/', admin.site.urls),
 
-    # Usa el alias 'pdf_views' para la vista de inicio.
-    path('', pdf_views.importar_pdf, name='home'), 
+    # Página de inicio (usa la vista importar_pdf)
+    path('', pdf_views.importar_pdf, name='home'),
 
-    path('pdf/', include('pdf.urls')),
+    # Incluye las URLs de la app pdf (por ejemplo detalle de producto, carrito, etc.)
+    path('pdf/', include('pdf.urls')),    
 
-    # Usa el alias 'pdf_views' para las vistas de catálogo y exportación.
-    path('catalogo/', pdf_views.mostrar_precios, name='ver_catalogo_completo'), 
+    # Catálogo donde se listan todos los productos
+    path('catalogo/', pdf_views.mostrar_precios, name='ver_catalogo_completo'),
 
+    # Exportación del catálogo a CSV
     path('exportar/csv/', pdf_views.exportar_csv_catalogo, name='exportar_csv_catalogo'),
 ]
+
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

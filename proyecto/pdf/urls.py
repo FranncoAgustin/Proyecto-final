@@ -12,4 +12,7 @@ urlpatterns = [
     path('exportar/csv/', views.exportar_csv_catalogo, name='exportar_csv_catalogo'),
     
     # NOTA: Las rutas 'confirmar/' ya no son necesarias.
+
+    path('detalle/<int:pk>/', views.detalle_producto, name='detalle_producto'),
+    path('agregar/<int:pk>/', views.agregar_al_carrito, name='agregar_al_carrito'),
 ]
