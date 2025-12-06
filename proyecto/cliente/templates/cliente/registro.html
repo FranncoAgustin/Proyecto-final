@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Crear cuenta - Mundo Personalizado{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <h1 class="h4 mb-3">Crear cuenta</h1>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="mb-2">
+        <label class="form-label">Nombre</label>
+        {{ form.first_name|as_widget:attrs }}
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Apellido</label>
+        {{ form.last_name }}
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Email</label>
+        {{ form.email }}
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Teléfono</label>
+        {{ form.telefono }}
+        <div class="form-text">{{ form.telefono.help_text }}</div>
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Localidad</label>
+        {{ form.localidad }}
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Contraseña</label>
+        {{ form.password1 }}
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Repetir contraseña</label>
+        {{ form.password2 }}
+      </div>
+
+      {% if form.errors %}
+      <div class="alert alert-danger">
+        Por favor revisá los datos del formulario.
+      </div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary w-100 mb-3">
+        Crear cuenta
+      </button>
+
+      <div class="text-center">
+        ¿Ya tenés cuenta?
+        <a href="{% url 'login' %}">Iniciar sesión</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

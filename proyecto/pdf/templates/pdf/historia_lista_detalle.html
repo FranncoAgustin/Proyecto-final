@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de lista{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h5 mb-1">📄 Detalle de lista</h1>
+      <p class="text-muted mb-0">
+        Lista de Precios {{ lista.nombre }} — Importado el {{ lista.fecha_subida|date:"d/m/Y H:i" }}
+      </p>
+    </div>
+    <a href="{% url 'historia_listas' %}" class="btn btn-sm btn-outline-secondary">
+      ← Volver a historia de listas
+    </a>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card shadow-sm border-0">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">Productos de esta lista</span>
+        <small class="text-muted">Editá los campos y luego guardá los cambios.</small>
+      </div>
+
+      <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 70vh; overflow-y:auto;">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 26%;">SKU</th>
+                <th style="width: 26%;">Nombre público</th>
+                <th style="width: 12%;" class="text-center">Cantidad</th>
+                <th style="width: 12%;" class="text-end">Precio</th>
+                <th style="width: 8%;" class="text-center">Eliminar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in productos %}
+              <tr>
+                <!-- SKU -->
+                <td>
+                  <input
+                    type="text"
+                    name="prod_{{ p.id }}_sku"
+                    value="{{ p.sku }}"
+                    class="form-control form-control-sm"
+                  >
+                </td>
+
+                <!-- Nombre público -->
+                <td>
+                  <input
+                    type="text"
+                    name="prod_{{ p.id }}_nombre"
+                    value="{{ p.nombre_publico }}"
+                    class="form-control form-control-sm"
+                  >
+                </td>
+
+                <!-- Cantidad -->
+                <td class="text-center">
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    name="prod_{{ p.id }}_cantidad"
+                    value="{{ p.cantidad|default:0 }}"
+                    class="form-control form-control-sm text-center"
+                  >
+                </td>
+
+                <!-- Precio -->
+                <td class="text-end">
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text">$</span>
+                    <input
+                      type="text"
+                      name="prod_{{ p.id }}_precio"
+                      value="{{ p.precio }}"
+                      class="form-control form-control-sm text-end"
+                    >
+                  </div>
+                </td>
+
+                <!-- Eliminar -->
+                <td class="text-center">
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      name="prod_{{ p.id }}_eliminar"
+                      id="prod_{{ p.id }}_eliminar"
+                    >
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  No hay productos en esta lista.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card-footer d-flex justify-content-between align-items-center">
+        <small class="text-muted">
+          Marcá <strong>Eliminar</strong> para borrar el producto de esta lista. Esta acción es permanente.
+        </small>
+        <button type="submit" class="btn btn-primary">
+          💾 Guardar cambios
+        </button>
+      </div>
+    </div>
+  </form>
+
+</div>
+{% endblock %}
