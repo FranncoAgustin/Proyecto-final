@@ -1,0 +1,110 @@
+{# templates/owner/historia_ingresos.html #}
+{% extends "base.html" %}
+
+{% block title %}Historia de ingresos{% endblock %}
+
+{% block content %}
+<div class="container-fluid my-4">
+  <h1 class="h4 mb-3">Historia de ingresos</h1>
+
+  <div class="row g-3">
+
+    <!-- Listas de precios PDF -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header fw-semibold">Listas de precios PDF cargadas</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Nombre</th>
+                  <th>Fecha subida</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for l in listas_pdf %}
+                <tr>
+                  <td>{{ l.nombre }}</td>
+                  <td>{{ l.fecha_subida|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" class="text-muted text-center py-3">Sin listas registradas.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Facturas de proveedor -->
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-semibold">Facturas de proveedor</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Proveedor</th>
+                  <th>Fecha factura</th>
+                  <th>Fecha subida</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for f in facturas %}
+                <tr>
+                  <td>{{ f.id }}</td>
+                  <td>{{ f.nombre_proveedor|default:"—" }}</td>
+                  <td>{{ f.fecha_factura|date:"d/m/Y"|default:"—" }}</td>
+                  <td>{{ f.fecha_subida|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-muted text-center py-3">Sin facturas registradas.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Ítems de factura -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header fw-semibold">Ítems de factura</div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 480px; overflow-y:auto;">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Factura (ID)</th>
+                  <th>Producto</th>
+                  <th class="text-end">Cant.</th>
+                  <th class="text-end">P. unit.</th>
+                  <th class="text-end">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for i in items_factura %}
+                <tr>
+                  <td>{{ i.factura.id }}</td>
+                  <td>{{ i.producto }}</td>
+                  <td class="text-end">{{ i.cantidad }}</td>
+                  <td class="text-end">{{ i.precio_unitario }}</td>
+                  <td class="text-end">{{ i.subtotal }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-muted text-center py-3">Sin ítems registrados.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

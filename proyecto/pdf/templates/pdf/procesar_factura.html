@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container py-3">
     <div class="d-flex align-items-center justify-content-between mb-3">
-        <h1 class="h5 mb-0">Cargar Factura de Proveedor</h1>
+        <h1 class="h5 mb-0">Cargar Factura de Proveedor (PDF)</h1>
         <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">← Volver</a>
     </div>
 
@@ -27,7 +27,7 @@
                 {% csrf_token %}
                 <div class="row align-items-end">
                     <div class="col-md-8">
-                        <label class="form-label fw-bold">Seleccionar Archivo</label>
+                        <label class="form-label fw-bold">Seleccionar Archivo PDF</label>
                         {{ form.archivo }}
                     </div>
                     <div class="col-md-4 text-end">
@@ -37,7 +37,7 @@
                     </div>
                 </div>
                 <div class="form-text mt-2">
-                    <i class="fas fa-info-circle"></i> Soporta imágenes (JPG, PNG) y documentos PDF (Digitales o Escaneados).
+                    <i class="fas fa-info-circle"></i> Sube tu factura escaneada en formato PDF.
                 </div>
             </form>
         </div>
@@ -72,14 +72,10 @@
             <div class="col-lg-5 mb-4">
                 <div class="card h-100 border-0 shadow-sm sticky-top" style="top: 20px; z-index: 1;">
                     <div class="card-header bg-dark text-white">
-                        <i class="fas fa-file-alt me-1"></i> Documento Original
+                        <i class="fas fa-file-pdf me-1"></i> Documento Original
                     </div>
                     <div class="card-body p-0 bg-light d-flex align-items-center justify-content-center" style="min-height: 500px; overflow: hidden;">
-                        {% if es_pdf %}
-                            <embed src="{{ factura_url }}" type="application/pdf" width="100%" height="600px" />
-                        {% else %}
-                            <img src="{{ factura_url }}" class="img-fluid" style="max-height: 80vh; object-fit: contain;" alt="Factura">
-                        {% endif %}
+                        <embed src="{{ factura_url }}" type="application/pdf" width="100%" height="600px" />
                     </div>
                 </div>
             </div>
@@ -96,36 +92,52 @@
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0 text-sm">
+                            <table class="table table-hover align-middle mb-0 text-sm" id="tablaItems">
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width: 30px;"><input type="checkbox" checked onclick="toggleAll(this)"></th>
                                         <th style="width: 70px;">Cant.</th>
-                                        <th>Descripción</th>
-                                        <th style="width: 100px;">Precio Unit.</th>
-                                        <th style="width: 90px;" class="text-end">Subtotal</th>
+                                        <!-- 🌟 AUMENTO DE ANCHO AQUÍ 🌟 -->
+                                        <th style="min-width: 250px;">Descripción</th>
+                                        <!-- 🌟 SÍMBOLO $ EN ENCABEZADO 🌟 -->
+                                        <th style="width: 100px;">Precio Unit. ($)</th>
+                                        <th style="width: 100px;" class="text-end">Subtotal ($)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for item in items %}
-                                    <tr>
+                                    <tr id="row_{{ forloop.counter0 }}" class="align-middle">
                                         <td>
-                                            <input type="checkbox" name="item_{{ forloop.counter0 }}_check" checked class="form-check-input item-check">
+                                            <input type="checkbox" name="item_{{ forloop.counter0 }}_check" 
+                                                   id="check_{{ forloop.counter0 }}"
+                                                   checked class="form-check-input item-check"
+                                                   onchange="toggleRowVisibility({{ forloop.counter0 }})">
                                         </td>
                                         <td>
-                                            <input type="number" step="0.01" name="item_{{ forloop.counter0 }}_cantidad" value="{{ item.cantidad }}" class="form-control form-control-sm text-center">
+                                            <!-- Agregamos ID único y evento oninput -->
+                                            <!-- 🌟 CAMBIO: step="1" para solo enteros 🌟 -->
+                                            <input type="number" step="1" 
+                                                   name="item_{{ forloop.counter0 }}_cantidad" 
+                                                   id="cant_{{ forloop.counter0 }}"
+                                                   value="{{ item.cantidad|floatformat:0 }}" 
+                                                   class="form-control form-control-sm text-center"
+                                                   oninput="calcularFila({{ forloop.counter0 }})">
                                         </td>
                                         <td>
                                             <input type="text" name="item_{{ forloop.counter0 }}_producto" value="{{ item.producto }}" class="form-control form-control-sm">
                                         </td>
                                         <td>
-                                            <div class="input-group input-group-sm">
-                                                <span class="input-group-text">$</span>
-                                                <input type="number" step="0.01" name="item_{{ forloop.counter0 }}_precio" value="{{ item.precio_unitario }}" class="form-control text-end">
-                                            </div>
+                                            <!-- 🌟 CAMBIO: Input sin span '$' al lado para más espacio 🌟 -->
+                                            <input type="number" step="0.01" 
+                                                   name="item_{{ forloop.counter0 }}_precio" 
+                                                   id="prec_{{ forloop.counter0 }}"
+                                                   value="{{ item.precio_unitario }}" 
+                                                   class="form-control form-control-sm text-end"
+                                                   oninput="calcularFila({{ forloop.counter0 }})">
                                         </td>
                                         <td class="text-end fw-bold text-muted">
-                                            ${{ item.subtotal }}
+                                            <!-- Span con ID para actualizar el texto -->
+                                            <span id="subtotal_{{ forloop.counter0 }}">{{ item.subtotal }}</span>
                                         </td>
                                     </tr>
                                     {% empty %}
@@ -133,11 +145,20 @@
                                         <td colspan="5" class="text-center py-5 text-muted">
                                             <i class="fas fa-search mb-3 display-6 text-secondary"></i><br>
                                             No se pudieron detectar ítems automáticamente.<br>
-                                            <small>Por favor, verifica la calidad de la imagen.</small>
+                                            <small>Asegúrate de escanear el PDF con OCR habilitado.</small>
                                         </td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
+                                <!-- 🌟 TOTAL GENERAL AL FINAL DE LA TABLA 🌟 -->
+                                <tfoot class="table-light border-top">
+                                    <tr>
+                                        <td colspan="4" class="text-end fw-bold">Total Seleccionado:</td>
+                                        <td class="text-end fw-bold fs-5 text-primary">
+                                            $<span id="totalGeneral">0.00</span>
+                                        </td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
@@ -172,8 +193,76 @@
     </form>
     
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Calcular total inicial al cargar la página
+            actualizarTotalGeneral();
+        });
+
         function toggleAll(source) {
-            document.querySelectorAll('.item-check').forEach(cb => cb.checked = source.checked);
+            document.querySelectorAll('.item-check').forEach(cb => {
+                cb.checked = source.checked;
+                // Disparar evento onchange manualmente para actualizar visibilidad
+                cb.dispatchEvent(new Event('change'));
+            });
+            actualizarTotalGeneral();
+        }
+
+        function toggleRowVisibility(index) {
+            const checkbox = document.getElementById(`check_${index}`);
+            const row = document.getElementById(`row_${index}`);
+            
+            // Inputs y elementos a ocultar/mostrar visualmente (opacidad)
+            // Nota: No usamos display:none para mantener el alineamiento de la fila
+            const inputs = row.querySelectorAll('input[type="number"], input[type="text"]');
+            const subtotalSpan = document.getElementById(`subtotal_${index}`);
+            
+            if (checkbox.checked) {
+                row.classList.remove('text-muted', 'bg-light');
+                row.style.opacity = '1';
+                inputs.forEach(input => input.disabled = false);
+            } else {
+                row.classList.add('text-muted', 'bg-light');
+                row.style.opacity = '0.5'; // Efecto "desactivado"
+                // Opcional: Deshabilitar inputs para que no se envíen (aunque tu backend ya filtra por checkbox)
+                // inputs.forEach(input => input.disabled = true);
+            }
+            
+            actualizarTotalGeneral();
+        }
+
+        // 🌟 NUEVA FUNCIÓN PARA CÁLCULO EN VIVO 🌟
+        function calcularFila(index) {
+            // 1. Obtener los inputs por su ID único
+            const cantInput = document.getElementById(`cant_${index}`);
+            const precInput = document.getElementById(`prec_${index}`);
+            const subtotalSpan = document.getElementById(`subtotal_${index}`);
+
+            // 2. Obtener valores (0 si está vacío o es inválido)
+            const cantidad = parseFloat(cantInput.value) || 0;
+            const precio = parseFloat(precInput.value) || 0;
+
+            // 3. Calcular
+            const total = cantidad * precio;
+
+            // 4. Actualizar el texto del subtotal (con 2 decimales)
+            subtotalSpan.textContent = total.toFixed(2);
+            
+            actualizarTotalGeneral();
+        }
+
+        function actualizarTotalGeneral() {
+            let total = 0;
+            const checkboxes = document.querySelectorAll('.item-check:checked');
+            
+            checkboxes.forEach(cb => {
+                // Extraer el índice del ID (check_0 -> 0)
+                const index = cb.id.split('_')[1];
+                const subtotalSpan = document.getElementById(`subtotal_${index}`);
+                // Sumar el valor numérico del span
+                total += parseFloat(subtotalSpan.textContent) || 0;
+            });
+
+            document.getElementById('totalGeneral').textContent = total.toFixed(2);
         }
     </script>
     {% endif %}

@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de administración{% endblock %}
+
+{% block content %}
+<div class="container-fluid my-4">
+
+  <!-- Encabezado general -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h1 class="h4 mb-1">Panel de administración</h1>
+      <p class="text-muted mb-0">
+        Solo visible para dueño/admin. Acá manejás catálogo, listas de precios y facturas.
+      </p>
+    </div>
+    <div class="btn-group">
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{% url 'ver_catalogo_completo_directo' %}"
+         target="_blank">
+        🛍️ Ver catálogo público
+      </a>
+    </div>
+  </div>
+
+  <!-- ACCIONES RÁPIDAS -->
+  <div class="card mb-3 shadow-sm border-0">
+    <div class="card-body py-2">
+      <div class="btn-toolbar gap-2" role="toolbar">
+        <div class="btn-group btn-group-sm flex-wrap" role="group">
+          <a href="{% url 'historia_listas' %}" class="btn btn-outline-primary">
+            📚 Historia de listas / facturas
+          </a>
+          <a class="btn btn-outline-light border" href="{% url 'admin_panel' %}">
+            🔄 Limpiar / refrescar
+          </a>
+        </div>
+      </div>
+      <small class="text-muted d-block mt-1">
+        Después podemos sumar más botones (dashboard, estadísticas, etc.).
+      </small>
+    </div>
+  </div>
+
+  <!-- ========== CATÁLOGO (ProductoPrecio) ========== -->
+  <div class="card mb-3 shadow-sm border-0">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Catálogo de precios</span>
+      <span class="badge bg-primary">
+        {{ total_productos_precio|default:0 }} productos
+      </span>
+    </div>
+    <div class="card-body">
+
+      <!-- Búsqueda -->
+      <form class="mb-3" method="get">
+        <div class="input-group">
+          <input type="text"
+                 class="form-control"
+                 name="q"
+                 value="{{ q }}"
+                 placeholder="Buscar por SKU o nombre público">
+          {% if t %}
+          <input type="hidden" name="t" value="{{ t }}">
+          {% endif %}
+          {% if o %}
+          <input type="hidden" name="o" value="{{ o }}">
+          {% endif %}
+          {% if show_inactive %}
+          <input type="hidden" name="show_inactive" value="1">
+          {% endif %}
+          <button class="btn btn-outline-secondary" type="submit">Buscar</button>
+          {% if q or t or o or show_inactive %}
+          <a class="btn btn-outline-light border" href="{% url 'admin_panel' %}">Limpiar</a>
+          {% endif %}
+        </div>
+      </form>
+
+      <!-- Filtros por técnica -->
+      {% with tl=t|default:''|lower %}
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <a class="btn btn-sm {% if not tl %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if o %}o={{ o }}&{% endif %}{% if show_inactive %}show_inactive=1{% endif %}">
+          Todo
+        </a>
+        <a class="btn btn-sm {% if tl == 'sub' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=sub{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+          Sublimación
+        </a>
+        <a class="btn btn-sm {% if tl == 'laser' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=laser{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+          Grabado láser
+        </a>
+        <a class="btn btn-sm {% if tl == '3d' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=3d{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+          Impresión 3D
+        </a>
+        <a class="btn btn-sm {% if tl == 'otr' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=otr{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+          Otro
+        </a>
+      </div>
+      {% endwith %}
+
+      <!-- Orden y mostrar inactivos -->
+      <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <div class="btn-group btn-group-sm" role="group">
+          <a class="btn btn-outline-secondary {% if not o %}active{% endif %}"
+             href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}{% if show_inactive %}show_inactive=1&{% endif %}">
+            Nombre
+          </a>
+          <a class="btn btn-outline-secondary {% if o == 'recientes' %}active{% endif %}"
+             href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=recientes{% if show_inactive %}&show_inactive=1{% endif %}">
+            Más recientes
+          </a>
+          <a class="btn btn-outline-secondary {% if o == 'antiguos' %}active{% endif %}"
+             href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=antiguos{% if show_inactive %}&show_inactive=1{% endif %}">
+            Más antiguos
+          </a>
+          <a class="btn btn-outline-secondary {% if o == 'precio_desc' %}active{% endif %}"
+             href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=precio_desc{% if show_inactive %}&show_inactive=1{% endif %}">
+            Mayor precio
+          </a>
+          <a class="btn btn-outline-secondary {% if o == 'precio_asc' %}active{% endif %}"
+             href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=precio_asc{% if show_inactive %}&show_inactive=1{% endif %}">
+            Menor precio
+          </a>
+        </div>
+
+        <form method="get" class="ms-auto d-flex align-items-center gap-2">
+          <input type="hidden" name="q" value="{{ q }}">
+          <input type="hidden" name="t" value="{{ t }}">
+          <input type="hidden" name="o" value="{{ o }}">
+          <div class="form-check form-switch">
+            <input class="form-check-input"
+                   type="checkbox"
+                   id="showInactiveSwitch"
+                   name="show_inactive"
+                   value="1"
+                   {% if show_inactive %}checked{% endif %}
+                   onchange="this.form.submit()">
+            <label class="form-check-label" for="showInactiveSwitch">
+              Mostrar inactivos
+            </label>
+          </div>
+        </form>
+      </div>
+
+      <!-- FORM ACCIONES MASIVAS -->
+      <form id="bulkForm" method="post" action="{% url 'owner_productos_acciones_masivas' %}">
+        {% csrf_token %}
+        <input type="hidden" name="accion" id="bulkAccion">
+
+        <!-- Tabla catálogo -->
+        <div class="table-responsive">
+          <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 3%;">
+                  <input type="checkbox" class="form-check-input" onclick="toggleSelectAll(this)">
+                </th>
+                <th style="width: 18%;">SKU</th>
+                <th>Nombre público</th>
+                <th style="width: 12%;" class="text-center">Técnica</th>
+                <th style="width: 10%;" class="text-center">Stock</th>
+                <th style="width: 12%;" class="text-end">Precio</th>
+                <th style="width: 18%;">Última actualización</th>
+                <th style="width: 18%;" class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in products %}
+              <tr class="{% if not p.activo %}table-secondary{% endif %}">
+                <td>
+                  <input type="checkbox"
+                         class="form-check-input chk-producto"
+                         name="ids"
+                         value="{{ p.id }}">
+                </td>
+                <td class="small">
+                  {{ p.sku }}
+                </td>
+                <td>
+                  {{ p.nombre_publico }}
+                  {% if not p.activo %}
+                    <span class="badge text-bg-secondary ms-1">Inactivo</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if p.tech %}
+                    <span class="badge text-bg-light">
+                      {% if p.tech == 'SUB' %}Sublimación{% elif p.tech == 'LAS' %}
+                      Láser{% elif p.tech == '3D' %}3D{% else %}Otro{% endif %}
+                    </span>
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if p.stock > 0 %}
+                    <span class="badge text-bg-success">{{ p.stock }}</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary">0</span>
+                  {% endif %}
+                </td>
+                <td class="text-end fw-semibold">
+                  $ {{ p.precio|floatformat:2 }}
+                </td>
+                <td class="small text-muted">
+                  {{ p.ultima_actualizacion|date:"d/m/Y H:i" }}
+                </td>
+                <td class="text-end">
+                  <div class="btn-group btn-group-sm">
+                    <a class="btn btn-outline-primary"
+                       href="{% url 'owner_producto_editar' p.id %}">
+                      Editar
+                    </a>
+                    <!-- Acciones rápidas usando el mismo form masivo -->
+                    {% if p.activo %}
+                      <button type="button"
+                              class="btn btn-outline-warning"
+                              onclick="accionFila({{ p.id }}, 'baja')">
+                        Baja
+                      </button>
+                    {% else %}
+                      <button type="button"
+                              class="btn btn-outline-success"
+                              onclick="accionFila({{ p.id }}, 'alta')">
+                        Alta
+                      </button>
+                    {% endif %}
+                    <button type="button"
+                            class="btn btn-outline-danger"
+                            onclick="accionFila({{ p.id }}, 'eliminar')">
+                      Eliminar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                  No hay productos para mostrar con los filtros actuales.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if products %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <span class="small text-muted">
+            Con los seleccionados:
+          </span>
+          <div class="btn-group btn-group-sm">
+            <button type="submit"
+                    class="btn btn-outline-warning"
+                    onclick="document.getElementById('bulkAccion').value='baja';">
+              Dar de baja
+            </button>
+            <button type="submit"
+                    class="btn btn-outline-success"
+                    onclick="document.getElementById('bulkAccion').value='alta';">
+              Dar de alta
+            </button>
+            <button type="submit"
+                    class="btn btn-outline-danger"
+                    onclick="if(confirm('¿Eliminar definitivamente los productos seleccionados?')){document.getElementById('bulkAccion').value='eliminar';}else{return false;}">
+              Eliminar seleccionados
+            </button>
+          </div>
+        </div>
+        {% endif %}
+      </form>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggleSelectAll(source) {
+    document.querySelectorAll('.chk-producto').forEach(function (ch) {
+      ch.checked = source.checked;
+    });
+  }
+
+  function accionFila(id, accion) {
+    const form = document.getElementById('bulkForm');
+    const accInput = document.getElementById('bulkAccion');
+
+    // Desmarcar todos
+    document.querySelectorAll('.chk-producto').forEach(function (ch) {
+      ch.checked = false;
+    });
+
+    // Marcar solo el de esta fila
+    const filaChk = document.querySelector('.chk-producto[value="' + id + '"]');
+    if (filaChk) filaChk.checked = true;
+
+    if (accion === 'eliminar') {
+      if (!confirm('¿Eliminar definitivamente este producto?')) {
+        return;
+      }
+    }
+
+    accInput.value = accion;
+    form.submit();
+  }
+</script>
+{% endblock %}

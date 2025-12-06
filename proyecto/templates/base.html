@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}Mundo Personalizado{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Font Awesome (para los íconos flotantes) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+  <style>
+    /* Utilidades para tarjetas/imágenes de producto (por si usás catálogo visual más adelante) */
+    .product-thumb {
+      position: relative;
+      width: 100%;
+      padding-top: 100%;
+      background: #f7f7f7;
+      border-radius: .75rem .75rem 0 0;
+      overflow: hidden;
+    }
+    .product-thumb img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .variant-chip {
+      display: inline-block;
+      font-size: .8rem;
+      padding: .2rem .5rem;
+      background: #f1f5f9;
+      border-radius: 999px;
+      margin: 0 .25rem .25rem 0;
+    }
+
+    /* Botones flotantes */
+    .floating-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1050;
+    }
+    .floating-btn a {
+      display: block;
+      margin-top: 10px;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+
+  {% block head %}{% endblock %}
+</head>
+
+<body class="bg-light">
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-body-tertiary border-bottom mb-3">
+    <div class="container">
+      <!-- Brand: lleva al panel admin (home_admin) -->
+      <a class="navbar-brand fw-semibold" href="{% url 'home' %}">
+        Mundo Personalizado
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="Alternar navegación">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div id="mainNav" class="collapse navbar-collapse">
+        <!-- Buscador: apunta al catálogo de precios -->
+        <form class="d-flex ms-auto my-2 my-lg-0" role="search" method="get"
+              action="{% url 'ver_catalogo_completo_directo' %}">
+          <input class="form-control me-2" name="q" type="search" placeholder="Buscar productos…"
+                 value="{{ request.GET.q|default:'' }}">
+          <button class="btn btn-outline-primary" type="submit">Buscar</button>
+        </form>
+
+        <ul class="navbar-nav ms-3 align-items-lg-center">
+
+          {% if request.user.is_staff %}
+          <!-- Link al panel admin (por si entran desde otra página) -->
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'home' %}">Panel admin</a>
+          </li>
+
+          <!-- Link al catálogo de precios completo -->
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'ver_catalogo_completo_directo' %}">Catálogo precios</a>
+          </li>
+
+          <!-- Si en pdf/urls tenés name='importar_pdf' -->
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'importar_pdf' %}">Importar lista PDF</a>
+          </li>
+
+          <!-- Si en pdf/urls tenés name='procesar_factura' -->
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'procesar_factura' %}">Procesar factura</a>
+          </li>
+
+          <!-- Historia de ingresos (owner) -->
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'historia_listas' %}">Historia ingresos</a>
+          </li>
+          {% endif %}
+
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Contenido -->
+  <main class="container mb-5">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-top py-4 mt-auto">
+    <div class="container">
+      <div class="d-flex flex-column flex-md-row gap-3 justify-content-center">
+        <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-success">
+          <i class="fab fa-whatsapp me-1"></i> ¿Tenés dudas? ¡Escribinos!
+        </a>
+        <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-danger">
+          <i class="fab fa-instagram me-1"></i> Nuestro Instagram
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Botones flotantes -->
+  <div class="floating-btn">
+    <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-success shadow">
+      <i class="fab fa-whatsapp"></i>
+    </a>
+    <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-danger shadow">
+      <i class="fab fa-instagram"></i>
+    </a>
+  </div>
+
+  <!-- Mensajes (Django messages) -->
+  {% if messages %}
+  <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1080;">
+    <div class="toast-container">
+      {% for message in messages %}
+      <div class="toast align-items-center text-bg-{{ message.tags|default:'primary' }} border-0 show mb-2"
+           role="alert">
+        <div class="d-flex">
+          <div class="toast-body">{{ message }}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                  aria-label="Cerrar"></button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Utilidades globales -->
+  <script>
+    // CSRF para fetch
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
