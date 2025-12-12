@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load account socialaccount %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+
+          <h2 class="text-center mb-3">Crear cuenta</h2>
+          <p class="text-muted text-center mb-4">
+            Registrate para comenzar a comprar en la tienda 🛒
+          </p>
+
+          {# FORMULARIO DE REGISTRO NORMAL #}
+          <form method="post" action="{% url 'account_signup' %}">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              {{ form.email|add_class:"form-control" }}
+              {{ form.email.errors }}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Contraseña</label>
+              {{ form.password1|add_class:"form-control" }}
+              {{ form.password1.errors }}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Repetir contraseña</label>
+              {{ form.password2|add_class:"form-control" }}
+              {{ form.password2.errors }}
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">
+              Registrarme
+            </button>
+          </form>
+
+          <div class="text-center mt-3">
+            <small>
+              ¿Ya tenés cuenta?
+              <a href="{% url 'account_login' %}">Iniciar sesión</a>
+            </small>
+          </div>
+
+          <hr class="my-4">
+
+          {# OPCIÓN DE GOOGLE (SI ESTÁ CONFIGURADO) #}
+          {% get_providers as socialaccount_providers %}
+          {% if socialaccount_providers %}
+            <div class="text-center mb-2">
+              <small class="text-muted">O registrate con</small>
+            </div>
+            {% for provider in socialaccount_providers %}
+              <a href="{% provider_login_url provider.id %}"
+                 class="btn btn-outline-danger w-100 mb-2">
+                <i class="fab fa-google me-1"></i>
+                Continuar con {{ provider.name }}
+              </a>
+            {% endfor %}
+          {% endif %}
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

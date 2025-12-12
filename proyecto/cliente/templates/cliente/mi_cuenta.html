@@ -1,66 +1,85 @@
 {% extends 'base.html' %}
+{% load widget_tweaks %}
 
 {% block title %}Mi cuenta - Mundo Personalizado{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-6 col-lg-5">
-    <h1 class="h4 mb-3">Mi cuenta</h1>
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7 col-lg-5">
 
-    <div class="text-center mb-3">
-      {% if usuario.profile.avatar %}
-        <img src="{{ usuario.profile.avatar.url }}" alt="Avatar"
-             class="rounded-circle mb-2"
-             style="width:100px;height:100px;object-fit:cover;">
-      {% else %}
-        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center mb-2"
-             style="width:100px;height:100px;">
-          <span class="fs-3">
-            {{ usuario.first_name|default:usuario.username|first|upper }}
-          </span>
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-4">
+
+          <h2 class="text-center mb-4 fw-bold">
+            <i class="fa-regular fa-user me-2"></i>Mi cuenta
+          </h2>
+
+          <!-- AVATAR -->
+          <div class="text-center mb-4">
+            {% if usuario.profile.avatar %}
+              <img src="{{ usuario.profile.avatar.url }}" alt="Avatar"
+                   class="rounded-circle shadow-sm"
+                   style="width:110px;height:110px;object-fit:cover;">
+            {% else %}
+              <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center shadow-sm"
+                   style="width:110px;height:110px;font-size:40px;">
+                {{ usuario.first_name|default:usuario.username|first|upper }}
+              </div>
+            {% endif %}
+
+            <div class="fw-semibold mt-2 fs-5">
+              {{ usuario.first_name }} {{ usuario.last_name }}
+            </div>
+            <div class="text-muted small">
+              {{ usuario.email }}
+            </div>
+          </div>
+
+          <!-- FORMULARIO PERFIL -->
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Teléfono</label>
+              {{ form.telefono|add_class:"form-control" }}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Localidad</label>
+              {{ form.localidad|add_class:"form-control" }}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Foto de perfil</label>
+              {{ form.avatar|add_class:"form-control" }}
+              <div class="form-text">Opcional. JPG/PNG, tamaño pequeño.</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+              <i class="fa-solid fa-floppy-disk me-1"></i>
+              Guardar cambios
+            </button>
+          </form>
+
+          <hr class="my-4">
+
+          <div class="text-center">
+            <a href="{% url 'mis_compras' %}" class="d-block mb-2 fw-semibold">
+              <i class="fa-solid fa-bag-shopping me-1"></i>
+              Ver mis compras
+            </a>
+
+            <a href="{% url 'logout' %}" class="text-danger fw-semibold">
+              <i class="fa-solid fa-right-from-bracket me-1"></i>
+              Cerrar sesión
+            </a>
+          </div>
+
         </div>
-      {% endif %}
-      <div class="fw-semibold">
-        {{ usuario.first_name }} {{ usuario.last_name }}
       </div>
-      <div class="text-muted small">
-        {{ usuario.email }}
-      </div>
+
     </div>
-
-    <form method="post" enctype="multipart/form-data">
-      {% csrf_token %}
-
-      <div class="mb-2">
-        <label class="form-label">Teléfono</label>
-        {{ form.telefono }}
-        <div class="form-text">Ej: +54 11 1234 5678</div>
-      </div>
-
-      <div class="mb-2">
-        <label class="form-label">Localidad</label>
-        {{ form.localidad }}
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Foto de perfil</label>
-        {{ form.avatar }}
-        <div class="form-text">Opcional. JPG/PNG, tamaño pequeño.</div>
-      </div>
-
-      <button type="submit" class="btn btn-primary w-100 mb-3">
-        Guardar cambios
-      </button>
-    </form>
-
-    <hr>
-
-    <p class="mb-1">
-      <a href="{% url 'mis_compras' %}">Ver mis compras</a>
-    </p>
-    <p class="mb-0">
-      <a href="{% url 'logout' %}" class="text-danger">Cerrar sesión</a>
-    </p>
   </div>
 </div>
 {% endblock %}

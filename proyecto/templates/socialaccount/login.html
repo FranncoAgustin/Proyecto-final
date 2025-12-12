@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load socialaccount %}
+
+{% block content %}
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+
+          <h2 class="text-center mb-3">
+            Iniciar sesión con {{ provider.name }}
+          </h2>
+
+          <p class="text-muted text-center mb-4">
+            Te estamos redirigiendo para iniciar sesión usando tu cuenta de
+            {{ provider.name }}. Confirmá para continuar.
+          </p>
+
+          <form method="post" action="">
+            {% csrf_token %}
+            {# allauth suele meter campos ocultos en form, por las dudas: #}
+            {% for field in form.hidden_fields %}
+              {{ field }}
+            {% endfor %}
+
+            <button type="submit" class="btn btn-danger w-100">
+              {% comment %} Si tenés FontAwesome cargado {% endcomment %}
+              <i class="fab fa-google me-1"></i>
+              Continuar con {{ provider.name }}
+            </button>
+          </form>
+
+          <div class="text-center mt-3">
+            <small>
+              ¿Preferís usar tu cuenta de la página?
+              <a href="{% url 'account_login' %}">Iniciar sesión con email</a>
+            </small>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

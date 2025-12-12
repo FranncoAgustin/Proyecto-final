@@ -51,14 +51,16 @@ AUTHENTICATION_BACKENDS = [
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-SITE_ID = 1
+SITE_ID = 3
 
 LOGIN_REDIRECT_URL = "/mi-cuenta/"
-LOGOUT_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/ver_catalogo_completo/"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_VERIFICATION = "none"  # en dev
+SOCIALACCOUNT_AUTO_SIGNUP = True
+#SOCIALACCOUNT_ADAPTER = "cliente.adapters.MySocialAccountAdapter"
 
 # ==============================
 # MIDDLEWARE
