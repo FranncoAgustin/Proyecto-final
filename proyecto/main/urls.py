@@ -29,6 +29,8 @@ urlpatterns = [
 
     # URLs de allauth (Google, etc.)
     path("accounts/", include("allauth.urls")),
+    path("login/",    RedirectView.as_view(pattern_name="account_login",  permanent=False), name="login"),
+    path("registro/", RedirectView.as_view(pattern_name="account_signup", permanent=False), name="registro"),
 
     # Catálogo donde se listan todos los productos
     path("catalogo/", pdf_views.mostrar_precios, name="ver_catalogo_completo"),

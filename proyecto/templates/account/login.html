@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load account socialaccount %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+  <div class="col-md-4">
+
+    <h2 class="mb-3 text-center">Iniciar sesión</h2>
+
+    {# FORMULARIO LOGIN NORMAL (mail + contraseña) #}
+    <form method="post" action="{% url 'account_login' %}">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+
+      <div class="mb-3">
+        <label for="id_login" class="form-label">Email</label>
+        {{ form.login }}
+        {{ form.login.errors }}
+      </div>
+
+      <div class="mb-3">
+        <label for="id_password" class="form-label">Contraseña</label>
+        {{ form.password }}
+        {{ form.password.errors }}
+      </div>
+
+      {% if form.remember %}
+        <div class="form-check mb-3">
+          {{ form.remember }}
+          <label class="form-check-label" for="id_remember">Recordarme</label>
+        </div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary w-100">
+        Entrar
+      </button>
+    </form>
+
+    <div class="text-center mt-3">
+      <small>
+        ¿No tenés cuenta?
+        <a href="{% url 'account_signup' %}">Crear cuenta</a>
+      </small>
+    </div>
+
+    <hr>
+
+    {# LOGIN CON GOOGLE, SOLO SI EL PROVIDER EXISTE #}
+    {% get_providers as socialaccount_providers %}
+    {% if socialaccount_providers %}
+      <div class="text-center">
+        <p class="small mb-2">O entrar con</p>
+
+        {% for provider in socialaccount_providers %}
+          <a href="{% provider_login_url provider.id %}"
+             class="btn btn-outline-danger w-100 mb-2">
+            <i class="fab fa-google me-1"></i>
+            Continuar con {{ provider.name }}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

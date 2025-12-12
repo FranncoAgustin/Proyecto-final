@@ -20,6 +20,4 @@ urlpatterns = [
     path("mi-cuenta/", views.mi_cuenta, name="mi_cuenta"),
     path("mis-compras/", views.mis_compras, name="mis_compras"),
     path("logout/", views.logout_view, name="logout"),
-    path("login/", views.login_view, name="login"),
-    path("registro/", views.registro_view, name="registro"),
 ]

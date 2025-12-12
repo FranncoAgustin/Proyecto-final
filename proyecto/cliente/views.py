@@ -165,8 +165,8 @@ def mi_cuenta(request):
         form = ProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
-            messages.success(request, "Tu perfil se actualizó correctamente.")
-            return redirect("mi_cuenta")
+            messages.success(request, "¡Tus datos se guardaron correctamente! 🎉")
+            return redirect("ver_catalogo_completo")
     else:
         form = ProfileForm(instance=profile)
 
@@ -191,7 +191,7 @@ def mis_compras(request):
 def logout_view(request):
     logout(request)
     messages.info(request, "Cerraste sesión correctamente.")
-    return redirect("home")
+    return redirect("ver_catalogo_completo")
 
 
 # =========================
@@ -199,43 +199,15 @@ def logout_view(request):
 # =========================
 
 def registro_view(request):
+    # Si ya está logueado, lo mandamos a su cuenta
     if request.user.is_authenticated:
         return redirect("mi_cuenta")
-
-    if request.method == "POST":
-        form = RegistroForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            # logueamos directamente
-            login(request, user)
-            messages.success(request, "Cuenta creada correctamente.")
-            return redirect("mi_cuenta")
-    else:
-        form = RegistroForm()
-
-    return render(request, "cliente/registro.html", {"form": form})
-
-
-class LoginForm(forms.Form):
-    email = forms.EmailField(label="Email")
-    password = forms.CharField(label="Contraseña", widget=forms.PasswordInput)
+    # Si no, usamos el signup de allauth
+    return redirect("account_signup")
 
 
 def login_view(request):
     if request.user.is_authenticated:
         return redirect("mi_cuenta")
-
-    form = LoginForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        email = form.cleaned_data["email"].lower()
-        password = form.cleaned_data["password"]
-
-        user = authenticate(request, username=email, password=password)
-        if user is not None:
-            login(request, user)
-            messages.success(request, "Bienvenido/a de nuevo.")
-            return redirect("mi_cuenta")
-        else:
-            messages.error(request, "Email o contraseña incorrectos.")
-
-    return render(request, "cliente/login.html", {"form": form})
+    # Usamos el login de allauth
+    return redirect("account_login")
