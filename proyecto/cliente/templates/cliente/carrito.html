@@ -19,39 +19,68 @@
       </thead>
       <tbody>
         {% for item in items %}
-        <tr>
-          <td>
-            <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none">
-              {{ item.producto.nombre_publico }}
-            </a>
-          </td>
-          <td class="text-center" style="max-width:120px;">
-            <form action="{% url 'actualizar_cantidad' item.producto.id %}" method="post" class="d-inline-flex">
-              {% csrf_token %}
-              <input type="number" name="cantidad" min="0" class="form-control form-control-sm me-2"
-                     value="{{ item.cantidad }}">
-              <button class="btn btn-sm btn-outline-primary" type="submit">
-                Actualizar
-              </button>
-            </form>
-          </td>
-          <td class="text-end">
-            ${{ item.producto.precio }}
-          </td>
-          <td class="text-end">
-            ${{ item.subtotal }}
-          </td>
-          <td class="text-end">
-            <a href="{% url 'eliminar_del_carrito' item.producto.id %}"
-               class="btn btn-sm btn-outline-danger">
-              <i class="fa-solid fa-trash-can"></i>
-            </a>
-          </td>
-        </tr>
+          <tr>
+            <td>
+              <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none">
+                {{ item.producto.nombre_publico }}
+              </a>
+            </td>
+
+            <td class="text-center" style="max-width:120px;">
+              <form
+                action="{% url 'actualizar_cantidad' item.producto.id %}"
+                method="post"
+                class="d-inline-flex"
+              >
+                {% csrf_token %}
+                <input
+                  type="number"
+                  name="cantidad"
+                  min="0"
+                  class="form-control form-control-sm me-2"
+                  value="{{ item.cantidad }}"
+                >
+                <button class="btn btn-sm btn-outline-primary" type="submit">
+                  Actualizar
+                </button>
+              </form>
+            </td>
+
+            <td class="text-end">
+              {% if item.oferta %}
+                <del class="text-muted">
+                  ${{ item.precio_original }}
+                </del><br>
+                <strong>
+                  ${{ item.precio_final }}
+                </strong>
+                <span class="badge bg-success ms-1">
+                  -{{ item.oferta.descuento }}%
+                </span>
+              {% else %}
+                ${{ item.precio_original }}
+              {% endif %}
+            </td>
+
+            <td class="text-end">
+              ${{ item.subtotal }}
+            </td>
+
+            <td class="text-end">
+              <a
+                href="{% url 'eliminar_del_carrito' item.producto.id %}"
+                class="btn btn-sm btn-outline-danger"
+              >
+                <i class="fa-solid fa-trash-can"></i>
+              </a>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+{% endif %}
+
 
   <div class="d-flex justify-content-between align-items-center">
     <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-outline-secondary">
