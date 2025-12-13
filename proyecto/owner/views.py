@@ -290,3 +290,75 @@ def owner_productos_acciones_masivas(request):
         messages.error(request, "Acción masiva no reconocida.")
 
     return redirect("admin_panel")
+
+# ---------- CUPONES ----------
+from cupones.models import Cupon
+from cupones.forms import CuponForm
+
+def owner_cupon_list(request):
+    cupones = Cupon.objects.all().order_by('-creado')
+    return render(request, "owner/cupon_list.html", {"cupones": cupones})
+
+def owner_cupon_create(request):
+    if request.method == "POST":
+        form = CuponForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("owner_cupon_list")
+    else:
+        form = CuponForm()
+    return render(request, "owner/cupon_form.html", {"form": form, "modo": "Crear"})
+
+def owner_cupon_edit(request, cupon_id):
+    cupon = get_object_or_404(Cupon, id=cupon_id)
+    if request.method == "POST":
+        form = CuponForm(request.POST, instance=cupon)
+        if form.is_valid():
+            form.save()
+            return redirect("owner_cupon_list")
+    else:
+        form = CuponForm(instance=cupon)
+    return render(request, "owner/cupon_form.html", {"form": form, "modo": "Editar"})
+
+def owner_cupon_delete(request, cupon_id):
+    cupon = get_object_or_404(Cupon, id=cupon_id)
+    cupon.delete()
+    return redirect("owner_cupon_list")
+
+# ---------- OFERTAS ----------
+from ofertas.models import Oferta
+from ofertas.forms import OfertaForm
+
+# Lista de ofertas
+def owner_oferta_list(request):
+    ofertas = Oferta.objects.all()
+    return render(request, "owner/oferta_list.html", {"ofertas": ofertas})
+
+# Crear una nueva oferta
+def owner_oferta_create(request):
+    if request.method == "POST":
+        form = OfertaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("owner_oferta_list")
+    else:
+        form = OfertaForm()
+    return render(request, "owner/oferta_form.html", {"form": form, "modo": "Crear"})
+
+# Editar una oferta existente
+def owner_oferta_edit(request, oferta_id):
+    oferta = get_object_or_404(Oferta, id=oferta_id)
+    if request.method == "POST":
+        form = OfertaForm(request.POST, instance=oferta)
+        if form.is_valid():
+            form.save()
+            return redirect("owner_oferta_list")
+    else:
+        form = OfertaForm(instance=oferta)
+    return render(request, "owner/oferta_form.html", {"form": form, "modo": "Editar"})
+
+# Eliminar una oferta
+def owner_oferta_delete(request, oferta_id):
+    oferta = get_object_or_404(Oferta, id=oferta_id)
+    oferta.delete()
+    return redirect("owner_oferta_list")

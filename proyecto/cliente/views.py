@@ -10,6 +10,8 @@ from django.contrib.auth import logout, authenticate, login
 from cliente.forms import RegistroForm, ProfileForm
 from .models import Profile
 from pdf.models import ProductoPrecio  # tu modelo de productos
+from ofertas.models import Oferta
+from django.utils import timezone
 
 
 # =========================
@@ -33,6 +35,29 @@ def _save_favoritos(request, favs):
     request.session["favoritos"] = favs
     request.session.modified = True
 
+def precio_con_oferta(producto):
+    ahora = timezone.now()
+
+    oferta = (
+        Oferta.objects.filter(
+            activa=True,
+            fecha_inicio__lte=ahora,
+            fecha_fin__gte=ahora,
+        )
+        .filter(
+            tecnica__in=[producto.tech, "TODAS"]
+        )
+        .order_by("-descuento")
+        .first()
+    )
+
+    if not oferta:
+        return producto.precio, None
+
+    descuento = (producto.precio * oferta.descuento) / 100
+    precio_final = producto.precio - descuento
+
+    return precio_final, oferta
 
 # =========================
 # VISTAS: CARRITO
@@ -49,14 +74,29 @@ def ver_carrito(request):
             continue
 
         qty = int(qty)
-        subtotal = producto.precio * qty
+
+        precio_unitario, oferta = precio_con_oferta(producto)
+
+        subtotal = precio_unitario * qty
         total += subtotal
+
         items.append(
-            {"producto": producto, "cantidad": qty, "subtotal": subtotal}
+            {
+                "producto": producto,
+                "cantidad": qty,
+                "precio_original": producto.precio,
+                "precio_final": precio_unitario,
+                "oferta": oferta,
+                "subtotal": subtotal,
+            }
         )
 
-    contexto = {"items": items, "total": total}
+    contexto = {
+        "items": items,
+        "total": total,
+    }
     return render(request, "cliente/carrito.html", contexto)
+
 
 
 def agregar_al_carrito(request, pk):

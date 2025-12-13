@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mb-3">🎯 Lista de Ofertas</h2>
+
+<a href="{% url 'owner_oferta_create' %}" class="btn btn-primary mb-3">
+  + Crear oferta
+</a>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Nombre</th>
+      <th>Técnica</th>
+      <th>Descuento</th>
+      <th>Vigencia</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for oferta in ofertas %}
+      <tr>
+        <td>{{ oferta.nombre }}</td>
+        <td>{{ oferta.get_tecnica_display }}</td>
+        <td>{{ oferta.descuento }}%</td>
+        <td>{{ oferta.fecha_inicio }} - {{ oferta.fecha_fin }}</td>
+        <td>
+          <a href="{% url 'owner_oferta_edit' oferta.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+          <a href="{% url 'owner_oferta_delete' oferta.id %}" class="btn btn-sm btn-outline-danger">Eliminar</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr>
+        <td colspan="5">No hay ofertas creadas</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

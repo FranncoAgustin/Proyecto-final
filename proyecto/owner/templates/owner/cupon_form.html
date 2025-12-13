@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-4">
+
+  <h2 class="mb-3">{{ modo }} cupón</h2>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn btn-primary">Guardar</button>
+    <a href="{% url 'owner_cupon_list' %}" class="btn btn-secondary">Cancelar</a>
+  </form>
+
+</div>
+{% endblock %}
