@@ -79,11 +79,10 @@
       </tbody>
     </table>
   </div>
-{% endif %}
 
 
   <div class="d-flex justify-content-between align-items-center">
-    <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-outline-secondary">
+    <a href="{% url 'ver_catalogo_completo' %}" class="btn btn-outline-secondary">
       Seguir comprando
     </a>
 
@@ -106,7 +105,7 @@
   <div class="alert alert-info">
     Tu carrito está vacío.
   </div>
-  <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-primary">
+  <a href="{% url 'ver_catalogo_completo' %}" class="btn btn-primary">
     Ver productos
   </a>
 {% endif %}
