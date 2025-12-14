@@ -11,6 +11,7 @@ from .forms import ListaPrecioForm, FacturaProveedorForm
 from .models import ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ItemFactura
 from .utils import extraer_precios_de_pdf, get_similarity
 from .utils_ocr import extraer_datos_factura
+from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
 
 
 # ===================== CATÁLOGO / LISTAS =====================
@@ -90,12 +91,13 @@ def importar_pdf(request):
         'imported': 0,
         'updated': 0,
         'skipped': 0,
-        'usd_to_review': [],      # no lo usamos (todo ARS) pero lo espera el template
-        'not_found': [],
-        'not_seen_active': [],
+        'usd_to_review': [],      # productos detectados en USD
+        'not_found': [],          # productos que no estaban en DB en modo update_only
+        'not_seen_active': [],    # productos en DB que no aparecieron en el PDF
         'imported_items': [],
         'updated_items': [],
         'skipped_items': [],
+        'parse_errors': [],       # líneas del PDF que no se pudieron interpretar
     }
     msg = ""
     update_only = request.POST.get('update_only') in ('on', 'true', '1')
@@ -150,6 +152,7 @@ def importar_pdf(request):
 
             sku = nombre_final
             precio_nuevo = Decimal(producto['precio_nuevo'])
+            moneda = producto.get('moneda', 'ARS')
 
             # Búsqueda de producto existente
             producto_existente_db = None
@@ -165,9 +168,16 @@ def importar_pdf(request):
             # Crear base del ítem para el reporte
             item_reporte = {
                 'sku': sku,
-                'currency': 'ARS',
+                'currency': moneda,
                 'price': f'{precio_nuevo:.2f}',
             }
+
+            # Si está en USD lo marcamos para revisión
+            if moneda == 'USD':
+                report['usd_to_review'].append({
+                    'sku': sku,
+                    'price': f'{precio_nuevo:.2f}',
+                })
 
             # Si el usuario marcó IGNORAR → reporte y seguimos
             if accion == 'ignore':
@@ -276,8 +286,8 @@ def importar_pdf(request):
         )
         pdf_path = os.path.join(settings.MEDIA_ROOT, lista_pdf.archivo_pdf.name)
 
-        # Esta función es la tuya actual (nombre, precio)
-        productos_extraidos = extraer_precios_de_pdf(pdf_path)
+        # Nueva versión: items + errores de parseo
+        productos_extraidos, parse_errors = extraer_precios_de_pdf(pdf_path)
 
         candidates = []
         skus_existentes = {p.sku: p for p in ProductoPrecio.objects.all()}
@@ -289,6 +299,15 @@ def importar_pdf(request):
         for item in productos_extraidos:
             sku_original = item['nombre']
             precio_nuevo = item['precio']
+            moneda = item.get('moneda', 'ARS')
+
+            # Marcamos productos en USD para revisión
+            if moneda == 'USD':
+                report['usd_to_review'].append({
+                    'sku': sku_original,
+                    'price': str(precio_nuevo),
+                    'page': item.get('page'),
+                })
 
             contador_nombres[sku_original] = contador_nombres.get(sku_original, 0) + 1
 
@@ -306,7 +325,7 @@ def importar_pdf(request):
             c = {
                 'name': sku_original,
                 'price': precio_nuevo,
-                'currency': 'ARS',
+                'currency': moneda,
                 'dup_in_pdf': False,  # lo pisamos luego
                 'exact_db_id': exact_match.id if exact_match else None,
                 'exact_db_label': exact_match.nombre_publico if exact_match else None,
@@ -319,6 +338,7 @@ def importar_pdf(request):
             productos_a_revisar.append({
                 'sku_original': sku_original,
                 'precio_nuevo': str(precio_nuevo),
+                'moneda': moneda,
                 'coincidencia_id': c['exact_db_id'] or c['sug_id'],
             })
 
@@ -329,6 +349,9 @@ def importar_pdf(request):
         # Guardamos en sesión para el paso 2
         request.session['productos_a_revisar'] = productos_a_revisar
         request.session['lista_pdf_id'] = lista_pdf.id
+
+        # Guardamos también errores de parseo para mostrar en el template
+        report['parse_errors'] = parse_errors
 
         return render(
             request,
@@ -360,6 +383,7 @@ def importar_pdf(request):
 # ===================== FACTURAS PROVEEDOR =====================
 
 def procesar_factura(request):
+    # === PASO 2: CONFIRMAR Y GUARDAR ===
     if request.method == 'POST' and 'confirmar_factura' in request.POST:
         factura_id = request.session.get('factura_id')
         items_sesion = request.session.get('items_factura', [])
@@ -370,9 +394,12 @@ def procesar_factura(request):
 
         factura = get_object_or_404(FacturaProveedor, pk=factura_id)
 
+        # actualizar fecha si el usuario la cambió
         if fecha_detectada_str:
             try:
-                factura.fecha_factura = datetime.strptime(fecha_detectada_str, '%Y-%m-%d').date()
+                factura.fecha_factura = datetime.strptime(
+                    fecha_detectada_str, '%Y-%m-%d'
+                ).date()
             except Exception:
                 pass
         factura.save()
@@ -380,10 +407,20 @@ def procesar_factura(request):
         count_saved = 0
         for index, item_data in enumerate(items_sesion):
             if request.POST.get(f'item_{index}_check') == 'on':
-                prod = request.POST.get(f'item_{index}_producto', item_data['producto'])
-                cant = request.POST.get(f'item_{index}_cantidad', item_data['cantidad'])
-                prec = request.POST.get(f'item_{index}_precio', item_data['precio_unitario'])
+                prod = request.POST.get(
+                    f'item_{index}_producto',
+                    item_data['producto']
+                )
+                cant = request.POST.get(
+                    f'item_{index}_cantidad',
+                    item_data['cantidad']
+                )
+                prec = request.POST.get(
+                    f'item_{index}_precio',
+                    item_data['precio_unitario']
+                )
                 subtotal = Decimal(cant) * Decimal(prec)
+
                 ItemFactura.objects.create(
                     factura=factura,
                     producto=prod,
@@ -393,39 +430,58 @@ def procesar_factura(request):
                 )
                 count_saved += 1
 
+        # limpiar sesión
         request.session.pop('factura_id', None)
         request.session.pop('items_factura', None)
-        msg = f"Factura guardada con éxito. {count_saved} ítems registrados."
-        return render(request, 'pdf/procesar_factura.html', {
-            'msg_success': msg,
-            'form': FacturaProveedorForm(),
-        })
 
+        msg = f"Factura guardada con éxito. {count_saved} ítems registrados."
+        return render(
+            request,
+            'pdf/procesar_factura.html',
+            {
+                'msg_success': msg,
+                'form': FacturaProveedorForm(),
+            }
+        )
+
+    # === PASO 1: SUBIR Y ANALIZAR ===
     if request.method == 'POST' and 'archivo' in request.FILES:
         form = FacturaProveedorForm(request.POST, request.FILES)
         if form.is_valid():
             factura = form.save()
             file_path = os.path.join(settings.MEDIA_ROOT, factura.archivo.name)
-            resultado = extraer_precios_de_pdf(file_path)
+
+            # 1) texto manual opcional (pegado por vos)
+            texto_manual = (request.POST.get('texto_manual') or "").strip()
+
+            # 2) si no hay texto manual, intentamos leer desde el PDF
+            if texto_manual:
+                raw_text = texto_manual
+                es_pdf = False
+            else:
+                raw_text = extraer_texto_factura_simple(file_path)
+                es_pdf = True
+
+            # 3) parsear el texto para obtener items
+            resultado_items = parse_invoice_text(raw_text)
 
             items_serializables = []
-            for item in resultado:
-                cantidad = item.get('cantidad', 1)
-                precio = item['precio']
-                subtotal = cantidad * precio
+            for item in resultado_items:
+                cantidad = item.get('cantidad', Decimal('1'))
+                precio = item.get('precio_unitario', Decimal('0'))
+                subtotal = item.get('subtotal', cantidad * precio)
+
                 items_serializables.append({
-                    'producto': item['nombre'],
+                    'producto': item.get('producto', ''),
                     'cantidad': str(cantidad),
                     'precio_unitario': str(precio),
                     'subtotal': str(subtotal),
                 })
 
+            # si no detectamos nada, al menos dejamos el texto crudo para debug
             fecha_str = datetime.now().strftime('%Y-%m-%d')
             request.session['factura_id'] = factura.id
             request.session['items_factura'] = items_serializables
-
-            es_pdf = True
-            raw_text = "Extracción realizada con el motor de Listas de Precios."
 
             return render(
                 request,
@@ -442,11 +498,16 @@ def procesar_factura(request):
     else:
         form = FacturaProveedorForm()
 
+    # === GET o POST inválido: mostrar formulario inicial + historial ===
     ultimas = FacturaProveedor.objects.all().order_by('-fecha_subida')[:5]
-    return render(request, 'pdf/procesar_factura.html', {
-        'form': form,
-        'ultimas_facturas': ultimas,
-    })
+    return render(
+        request,
+        'pdf/procesar_factura.html',
+        {
+            'form': form,
+            'ultimas_facturas': ultimas,
+        }
+    )
 
 
 def historia_listas(request):

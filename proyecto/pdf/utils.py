@@ -2,80 +2,106 @@ import pdfplumber
 import re
 from decimal import Decimal
 from difflib import SequenceMatcher
+import difflib
 
-def get_similarity(a, b):
-    """Calcula el porcentaje de similitud entre dos cadenas."""
-    a = re.sub(r'[^a-zA-Z0-9]', '', a).lower()
-    b = re.sub(r'[^a-zA-Z0-9]', '', b).lower()
-    if not a or not b: return 0.0
-    return round(SequenceMatcher(None, a, b).ratio() * 100, 2)
-
-def extraer_precios_de_pdf(pdf_path):
+def get_similarity(a: str, b: str) -> int:
     """
-    Extrae productos, precios Y CANTIDADES de un PDF.
-    Intenta detectar patrones como:
-    - "5 Mate Imperial $15000" (Cantidad al inicio)
-    - "Mate Imperial ... 5 ... $15000" (Cantidad en medio)
+    Devuelve un porcentaje de similitud (0-100) entre dos strings.
+    Lo usamos para sugerir productos similares cuando el SKU no coincide exacto.
     """
-    productos_extraidos = []
-    
-    # Regex mejorada: Busca Cantidad (opcional) + Texto + Precio
-    # Grupo 1: Cantidad (opcional, dígitos al inicio)
-    # Grupo 2: Precio (con $)
-    line_pattern = re.compile(r'(?:^|\s)(\d+)?\s*(.+?)\s*\$\s*(\d+[\s\.\d]*\d+)', re.IGNORECASE)
+    if not a or not b:
+        return 0
+    ratio = difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
+    return int(ratio * 100)
 
-    with pdfplumber.open(pdf_path) as pdf:
-        lineas_anteriores = []
-        
-        for pagina in pdf.pages:
-            texto = pagina.extract_text()
-            if not texto: continue
 
-            for linea in texto.split('\n'):
-                linea = linea.strip()
-                if not linea: continue
 
-                match = line_pattern.search(linea)
-                
-                if match:
-                    cant_str = match.group(1) # Puede ser None
-                    texto_intermedio = match.group(2).strip()
-                    precio_str = match.group(3).replace(' ', '').replace('.', '').replace(',', '')
-                    
+
+def extraer_precios_de_pdf(path):
+    """
+    Lee todo el PDF y devuelve:
+      items: lista de dicts {nombre, precio, moneda, page}
+      parse_errors: lista de dicts con líneas que no se pudieron interpretar
+
+    Mantiene compatibilidad con tu código actual: cada item sigue teniendo
+    'nombre' y 'precio', pero agregamos campos extra que podés usar.
+    """
+    items = []
+    parse_errors = []
+
+    with pdfplumber.open(path) as pdf:
+        for page_index, page in enumerate(pdf.pages, start=1):
+            text = page.extract_text() or ""
+            # una línea por fila, sin vacías
+            lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+            current_name_lines = []
+
+            for line in lines:
+                # Saltamos headers/footers de la lista
+                if line.startswith("pág.") or "GENESIS INSUMOS" in line:
+                    continue
+
+                # Saltamos títulos de secciones tipo CARTON / CERAMICA / NAVIDAD
+                if line.isupper() and len(line.split()) <= 3:
+                    current_name_lines = []
+                    continue
+
+                # ¿es una línea con precio?
+                if "$" in line or re.search(r"\d{3,}", line):
+                    # moneda
+                    currency = "ARS"
+                    if re.search(r"U\$?D|US\$", line, re.I):
+                        currency = "USD"
+
+                    # tomar el último número grande de la línea como precio
+                    m_price = re.search(r"(\d[\d\.]*)\s*$", line)
+                    if not m_price:
+                        parse_errors.append({
+                            "page": page_index,
+                            "raw": line,
+                            "reason": "No pude leer el precio",
+                        })
+                        current_name_lines = []
+                        continue
+
+                    price_str = m_price.group(1).replace(".", "")
                     try:
-                        precio = Decimal(precio_str)
-                        
-                        # Determinar Cantidad
-                        cantidad = 1 # Default
-                        if cant_str and cant_str.isdigit():
-                            cantidad = int(cant_str)
-                        
-                        # Determinar Nombre
-                        # Si el texto intermedio es muy corto, quizás el nombre venía de la línea anterior
-                        nombre_producto = texto_intermedio
-                        if len(nombre_producto) < 4 and lineas_anteriores:
-                            nombre_producto = lineas_anteriores[-1] + " " + nombre_producto
-                        
-                        # Limpieza final de nombre
-                        nombre_producto = re.sub(r'pág\.\s*\d+', '', nombre_producto, flags=re.IGNORECASE).strip()
-                        
-                        if nombre_producto and precio > 0:
-                            # Heurística simple para decimales si el precio es enorme sin puntos
-                            if len(precio_str) > 5 and '.' not in match.group(3) and ',' not in match.group(3):
-                                # A veces 1250000 es 12.500,00 -> dividir por 100?
-                                # Por seguridad en listas argentinas, asumimos enteros salvo que haya coma explícita
-                                pass 
+                        price = Decimal(price_str)
+                    except Exception:
+                        parse_errors.append({
+                            "page": page_index,
+                            "raw": line,
+                            "reason": f"Precio inválido: {price_str}",
+                        })
+                        current_name_lines = []
+                        continue
 
-                            productos_extraidos.append({
-                                'nombre': nombre_producto,
-                                'precio': precio,
-                                'cantidad': cantidad # Nuevo campo
-                            })
+                    if not current_name_lines:
+                        # precio sin nombre previo
+                        parse_errors.append({
+                            "page": page_index,
+                            "raw": line,
+                            "reason": "Precio sin nombre antes",
+                        })
+                        continue
 
-                    except ValueError:
-                        pass
+                    name = " ".join(current_name_lines)
 
-                lineas_anteriores.append(linea)
-                lineas_anteriores = lineas_anteriores[-2:]
-                
-    return productos_extraidos
+                    # descartamos AGOTADO
+                    if "AGOTADO" in line.upper() or "AGOTADO" in name.upper():
+                        current_name_lines = []
+                        continue
+
+                    items.append({
+                        "nombre": name,
+                        "precio": price,
+                        "moneda": currency,
+                        "page": page_index,
+                    })
+                    current_name_lines = []
+                else:
+                    # asumimos que es parte del nombre
+                    current_name_lines.append(line)
+
+    return items, parse_errors

@@ -214,7 +214,7 @@ def owner_producto_editar(request, pk):
         producto.save()
 
         messages.success(request, "Producto actualizado correctamente.")
-        return redirect("admin_panel")
+        return redirect("home")
 
     return render(request, "owner/producto_editar.html", {"producto": producto})
 
@@ -236,7 +236,7 @@ def owner_producto_toggle_activo(request, pk):
     else:
         messages.warning(request, f"{producto.nombre_publico} se marcó como INACTIVO.")
 
-    return redirect("admin_panel")
+    return redirect("home")
 
 
 @login_required
@@ -252,7 +252,7 @@ def owner_producto_eliminar(request, pk):
     producto.delete()
 
     messages.success(request, f"Producto '{nombre}' eliminado definitivamente.")
-    return redirect("admin_panel")
+    return redirect("home")
 
 @login_required
 def owner_productos_acciones_masivas(request):
@@ -267,7 +267,7 @@ def owner_productos_acciones_masivas(request):
 
     if not ids:
         messages.warning(request, "No seleccionaste ningún producto.")
-        return redirect("admin_panel")
+        return redirect("home")
 
     qs = ProductoPrecio.objects.filter(pk__in=ids)
 
@@ -289,7 +289,7 @@ def owner_productos_acciones_masivas(request):
     else:
         messages.error(request, "Acción masiva no reconocida.")
 
-    return redirect("admin_panel")
+    return redirect("home")
 
 # ---------- CUPONES ----------
 from cupones.models import Cupon
