@@ -54,17 +54,37 @@
     {% if update_only %}<input type="hidden" name="update_only" value="on">{% endif %}
 
     <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <strong>Revisión de ítems detectados</strong>
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('apply')">
-            Marcar todo: Crear/Actualizar
-          </button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('ignore')">
-            Marcar todo: Ignorar
-          </button>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('apply')">
+              Marcar todo: Crear/Actualizar
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('ignore')">
+              Marcar todo: Ignorar
+            </button>
+          </div>
+
+          <div class="d-flex gap-1 align-items-center">
+            <select id="sortField" class="form-select form-select-sm">
+              <option value="name">Nombre (A-Z)</option>
+              <option value="price">Precio</option>
+              <option value="dup">Duplicado en PDF</option>
+              <option value="sug">Sugerencia similar</option>
+            </select>
+            <select id="sortDir" class="form-select form-select-sm">
+              <option value="asc">Asc</option>
+              <option value="desc">Desc</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="sortCandidates()">
+              Ordenar
+            </button>
+          </div>
         </div>
       </div>
+
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-sm table-hover align-middle mb-0">
@@ -79,9 +99,15 @@
                 <th style="min-width:220px">Acción</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="candidatesBody">
             {% for c in candidates %}
-              <tr>
+              <tr
+                class="candidate-row"
+                data-name="{{ c.name|lower }}"
+                data-price="{{ c.price }}"
+                data-dup="{% if c.dup_in_pdf %}1{% else %}0{% endif %}"
+                data-sug-score="{{ c.sug_score|default:0 }}"
+              >
                 <td class="fw-semibold">{{ c.name }}</td>
                 <td class="text-center">
                   {% if c.currency == 'USD' %}
@@ -162,6 +188,42 @@
           sel.value = 'apply';
         }
       });
+    }
+
+    function sortCandidates(){
+      const field = document.getElementById('sortField').value;
+      const dir = document.getElementById('sortDir').value === 'asc' ? 1 : -1;
+
+      const tbody = document.getElementById('candidatesBody');
+      if (!tbody) return;
+
+      const rows = Array.from(tbody.querySelectorAll('tr.candidate-row'));
+
+      const getVal = (row) => {
+        switch (field) {
+          case 'price':
+            return parseFloat(row.dataset.price || '0') || 0;
+          case 'dup':
+            return parseInt(row.dataset.dup || '0');
+          case 'sug':
+            return parseInt(row.dataset.sugScore || '0');
+          case 'name':
+          default:
+            return row.dataset.name || '';
+        }
+      };
+
+      rows.sort((a, b) => {
+        const va = getVal(a);
+        const vb = getVal(b);
+
+        if (typeof va === 'string' || typeof vb === 'string') {
+          return va.toString().localeCompare(vb.toString()) * dir;
+        }
+        return (va - vb) * dir;
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
     }
   </script>
   {% endif %}
@@ -258,7 +320,7 @@
             </table>
           </div>
           <div class="p-3 small text-muted">
-            <strong>USD</strong>: no se modifica el <em>base_price</em>; quedan listados para revisión.
+            <strong>Nota:</strong> Los ítems en USD quedan marcados para revisión manual.
           </div>
         </div>
       </div>
@@ -297,8 +359,8 @@
             </table>
           </div>
           <div class="p-3 small text-muted">
-            Ejemplos: <code>ignorado_por_usuario</code>, <code>precio_ARS_invalido_confirm</code>,
-            <code>update_only_sin_existente</code>.
+            Ejemplos: <code>Ignorado por usuario</code>, <code>update_only_sin_existente</code>,
+            <code>Precio sin cambios</code>, etc.
           </div>
         </div>
       </div>
@@ -318,9 +380,38 @@
         <div class="accordion-body p-0">
           <ul class="list-group list-group-flush">
             {% for it in report.usd_to_review %}
-              <li class="list-group-item d-flex justify-content-between">
-                <span>{{ it.sku }}</span>
-                <span class="text-muted">U$S {{ it.price_usd }}</span>
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <div>{{ it.sku }}</div>
+                  {% if it.page %}
+                    <div class="small text-muted">Pág. {{ it.page }}</div>
+                  {% endif %}
+                </div>
+                <span class="text-muted">U$S {{ it.price }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if report.parse_errors %}
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="headParseErr">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                data-bs-target="#colParseErr" aria-expanded="false" aria-controls="colParseErr">
+          Líneas no reconocidas ({{ report.parse_errors|length }})
+        </button>
+      </h2>
+      <div id="colParseErr" class="accordion-collapse collapse"
+           aria-labelledby="headParseErr" data-bs-parent="#pdfReportAccordion">
+        <div class="accordion-body p-0">
+          <ul class="list-group list-group-flush">
+            {% for e in report.parse_errors %}
+              <li class="list-group-item small">
+                <strong>Pág. {{ e.page }}:</strong> {{ e.raw }}<br>
+                <span class="text-muted">{{ e.reason }}</span>
               </li>
             {% endfor %}
           </ul>

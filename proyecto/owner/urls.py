@@ -39,12 +39,6 @@ urlpatterns = [
     path("ofertas/crear/", owner_oferta_create, name="owner_oferta_create"),
     path("ofertas/<int:oferta_id>/editar/", owner_oferta_edit, name="owner_oferta_edit"),
     path("ofertas/<int:oferta_id>/eliminar/", owner_oferta_delete, name="owner_oferta_delete"),
-
-    # 👇 NUEVO endpoint para acciones masivas
-    path(
-        "producto/acciones-masivas/",
-        owner_productos_acciones_masivas,
-        name="owner_productos_acciones_masivas",
-    ),
+    path("producto/acciones-masivas/",owner_productos_acciones_masivas,name="owner_productos_acciones_masivas",),
 ]
 
