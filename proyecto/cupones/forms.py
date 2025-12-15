@@ -11,6 +11,7 @@ class CuponForm(forms.ModelForm):
             "fecha_inicio",
             "fecha_fin",
             "activo",
+            "tecnica"
         ]
 
         widgets = {

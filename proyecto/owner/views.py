@@ -296,7 +296,7 @@ from cupones.models import Cupon
 from cupones.forms import CuponForm
 
 def owner_cupon_list(request):
-    cupones = Cupon.objects.all().order_by('-creado')
+    cupones = Cupon.objects.all().order_by("-fecha_inicio")
     return render(request, "owner/cupon_list.html", {"cupones": cupones})
 
 def owner_cupon_create(request):

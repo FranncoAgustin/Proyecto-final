@@ -9,22 +9,49 @@
 
     <div class="row g-4">
 
-        {% for producto in productos %}
+        {% for item in productos %}
         <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-            <a href="{% url 'detalle_producto' producto.id %}" class="text-decoration-none text-dark">
+            <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none text-dark">
                 <div class="card h-100 shadow-sm">
-                    {% if producto.imagen %}
-                        <img src="{{ producto.imagen.url }}" class="card-img-top" style="height:200px; object-fit:contain;">
-                    {% else %}
-                        <div class="d-flex justify-content-center align-items-center bg-light" style="height:200px;">
-                            <span class="text-muted">Sin imagen</span>
-                        </div>
-                    {% endif %}
+
+                    <div class="position-relative">
+                        {% if item.producto.imagen %}
+                            <img src="{{ item.producto.imagen.url }}"
+                                 class="card-img-top"
+                                 style="height:200px; object-fit:contain;">
+                        {% else %}
+                            <div class="d-flex justify-content-center align-items-center bg-light"
+                                 style="height:200px;">
+                                <span class="text-muted">Sin imagen</span>
+                            </div>
+                        {% endif %}
+
+                        {% if item.oferta %}
+                        <span class="badge bg-danger position-absolute top-0 start-0 m-2">
+                            -{{ item.oferta.valor }}%
+                        </span>
+                        {% endif %}
+                    </div>
 
                     <div class="card-body">
-                        <h6 class="card-title">{{ producto.nombre_publico }}</h6>
-                        <p class="fw-bold text-success">${{ producto.precio }}</p>
+                        <h6 class="card-title">
+                            {{ item.producto.nombre_publico }}
+                        </h6>
+
+                        {% if item.oferta %}
+                            <span class="text-muted text-decoration-line-through">
+                                ${{ item.precio_original }}
+                            </span><br>
+                            <span class="fw-bold text-success">
+                                ${{ item.precio_final }}
+                            </span>
+                        {% else %}
+                            <span class="fw-bold text-success">
+                                ${{ item.precio_original }}
+                            </span>
+                        {% endif %}
                     </div>
+
                 </div>
             </a>
         </div>

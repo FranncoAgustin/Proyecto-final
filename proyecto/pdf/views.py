@@ -16,10 +16,24 @@ from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
 
 # ===================== CATÁLOGO / LISTAS =====================
 
-def mostrar_precios(request):
-    productos = ProductoPrecio.objects.all().order_by('nombre_publico')
-    return render(request, 'pdf/mostrar_precios.html', {'productos': productos})
+from ofertas.utils import get_precio_con_oferta
 
+def mostrar_precios(request):
+    productos = ProductoPrecio.objects.filter(activo=True).order_by('nombre_publico')
+
+    productos_data = []
+    for p in productos:
+        data = get_precio_con_oferta(p)
+        productos_data.append({
+            "producto": p,
+            **data
+        })
+
+    return render(
+        request,
+        "pdf/mostrar_precios.html",
+        {"productos": productos_data}
+    )
 
 def exportar_csv_catalogo(request):
     response = HttpResponse(content_type='text/csv')
