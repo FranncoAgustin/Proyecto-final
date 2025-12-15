@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h1 class="h4">¡Pago recibido!</h1>
+  <p>Estamos confirmando el pago. Si ya fue aprobado, vas a ver el pedido como pagado.</p>
+  <a class="btn btn-primary" href="{% url 'ver_catalogo_completo' %}">Volver</a>
+</div>
+{% endblock %}

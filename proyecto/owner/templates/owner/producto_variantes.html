@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Variantes - {{ producto.nombre_publico }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h5 mb-1">Variantes</h1>
+      <div class="text-muted small">{{ producto.nombre_publico }} — SKU: {{ producto.sku }}</div>
+    </div>
+    <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">← Volver al panel</a>
+  </div>
+
+  <div class="row g-3">
+    <!-- Crear variante -->
+    <div class="col-lg-5">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-bold">Agregar variante</div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button class="btn btn-primary w-100" type="submit">Guardar variante</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Listado -->
+    <div class="col-lg-7">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-bold">Listado</div>
+        <div class="card-body">
+
+          {% for v in variantes %}
+            <div class="d-flex gap-3 align-items-center border rounded p-2 mb-2">
+
+              <div style="width:72px;">
+                {% if v.imagen %}
+                  <img src="{{ v.imagen.url }}" class="img-fluid rounded" alt="{{ v.nombre }}">
+                {% else %}
+                  <div class="bg-light border rounded text-center text-muted small py-4">Sin img</div>
+                {% endif %}
+              </div>
+
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ v.nombre }}</div>
+                <div class="text-muted small">{{ v.descripcion_corta|default:"(sin descripción)" }}</div>
+                <div class="small">
+                  <span class="badge bg-secondary">Stock: {{ v.stock }}</span>
+                  <span class="badge bg-info text-dark">Orden: {{ v.orden }}</span>
+                  {% if v.activo %}
+                    <span class="badge bg-success">Activo</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark">Inactivo</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="d-flex flex-column gap-2">
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{% url 'owner_variante_editar' v.id %}">
+                  Editar
+                </a>
+
+                <form method="post" action="{% url 'owner_variante_eliminar' v.id %}">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger w-100"
+                          onclick="return confirm('¿Eliminar variante?')">
+                    Eliminar
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          {% empty %}
+            <p class="text-muted mb-0">Todavía no hay variantes.</p>
+          {% endfor %}
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

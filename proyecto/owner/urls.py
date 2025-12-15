@@ -18,7 +18,11 @@ from .views import (
     owner_oferta_list, 
     owner_oferta_create, 
     owner_oferta_edit, 
-    owner_oferta_delete
+    owner_oferta_delete,
+    owner_producto_variantes,
+    owner_variante_editar,
+    owner_variante_eliminar,
+    
 )
 
 urlpatterns = [
@@ -29,6 +33,10 @@ urlpatterns = [
     path("historia/listas/<int:lista_id>/", historia_lista_detalle, name="historia_lista_detalle"),
 
     path("producto/<int:pk>/editar/", owner_producto_editar, name="owner_producto_editar"),
+    path("producto/<int:pk>/variantes/", owner_producto_variantes, name="owner_producto_variantes"),
+    path("variantes/<int:variante_id>/editar/", owner_variante_editar, name="owner_variante_editar"),
+    path("variantes/<int:variante_id>/eliminar/", owner_variante_eliminar, name="owner_variante_eliminar"),
+
     path("producto/<int:pk>/toggle-activo/", owner_producto_toggle_activo, name="owner_producto_toggle_activo"),
     path("producto/<int:pk>/eliminar/", owner_producto_eliminar, name="owner_producto_eliminar"),
     path("cupones/", owner_cupon_list, name="owner_cupon_list"),

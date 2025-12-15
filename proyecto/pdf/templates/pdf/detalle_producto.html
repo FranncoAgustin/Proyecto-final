@@ -1,29 +1,96 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ producto.nombre_publico }}{% endblock %}
 
 {% block content %}
 <div class="container py-4">
 
-    <div class="row">
-        <div class="col-md-6">
-            {% if producto.imagen %}
-                <img src="{{ producto.imagen.url }}" class="img-fluid border rounded">
-            {% else %}
-                <div class="bg-light p-5 border rounded text-center">Sin imagen</div>
-            {% endif %}
-        </div>
+  <div class="row g-4 align-items-start">
 
-        <div class="col-md-6">
-            <h2>{{ producto.nombre_publico }}</h2>
-            <p class="text-success h4">${{ producto.precio }}</p>
-            <p class="text-secondary">SKU: {{ producto.sku }}</p>
-
-            <a href="{% url 'agregar_al_carrito' producto.id %}" class="btn btn-primary btn-lg mt-3">
-                Agregar al carrito
-            </a>
+    <!-- ===================== -->
+    <!-- IMAGEN DEL PRODUCTO -->
+    <!-- ===================== -->
+    <div class="col-md-6 text-center">
+      <div class="border rounded p-3 bg-white shadow-sm">
+        {% if producto.imagen %}
+        <img id="product-image" src="{{ producto.imagen.url }}" class="img-fluid rounded"
+          alt="{{ producto.nombre_publico }}" style="max-height: 420px; object-fit: contain;">
+        {% else %}
+        <div class="bg-light p-5 border rounded text-muted">
+          Sin imagen
         </div>
+        {% endif %}
+      </div>
     </div>
 
+    <!-- ===================== -->
+    <!-- INFO DEL PRODUCTO -->
+    <!-- ===================== -->
+    <div class="col-md-6">
+
+      <h2 class="mb-1">{{ producto.nombre_publico }}</h2>
+
+      <div class="mb-3">
+        <span class="h3 text-success fw-bold">
+          ${{ producto.precio }}
+        </span>
+      </div>
+
+      <!-- ===================== -->
+      <!-- VARIANTES -->
+      <!-- ===================== -->
+      {% if variantes_ui %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold">
+          Variante
+        </label>
+
+        <select id="variant-select" class="form-select">
+          {% for v in variantes_ui %}
+          <option value="{{ v.id }}" {% if v.imagen %} data-image="{{ v.imagen.url }}" {% endif %}
+            data-desc="{{ v.descripcion_corta|default:'' }}">
+            {{ v.nombre }}
+            {% if v.es_principal %}
+            (Principal)
+            {% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- DESCRIPCIÓN VARIANTE -->
+      <div id="variant-desc" class="alert alert-light border small">
+        {{ variantes_ui.0.descripcion_corta }}
+      </div>
+      {% endif %}
+
+      <!-- ===================== -->
+      <!-- ACCIONES -->
+      <!-- ===================== -->
+      <div class="d-grid gap-2 mt-4">
+        <form method="post" action="{% url 'agregar_al_carrito' producto.id %}">
+          {% csrf_token %}
+
+          {% if variantes_ui %}
+          <input type="hidden" name="variante_id" id="variante_id_input" value="{{ variantes_ui.0.id }}">
+          {% else %}
+          <input type="hidden" name="variante_id" value="0">
+          {% endif %}
+
+          <button type="submit" class="btn btn-primary btn-lg">
+            🛒 Agregar al carrito
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
 </div>
+
+<!-- ===================== -->
+<!-- JS VARIANTES -->
+<!-- ===================== -->
+<script src="{% static 'js/producto_variantes.js' %}"></script>
 {% endblock %}

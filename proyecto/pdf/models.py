@@ -35,6 +35,8 @@ class ProductoPrecio(models.Model):
 
     # El nombre que verán los usuarios finales
     nombre_publico = models.CharField(max_length=255)
+
+    precio_costo = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     
     imagen = models.ImageField(upload_to='productos/', null=True, blank=True)
 
@@ -60,6 +62,8 @@ class ProductoPrecio(models.Model):
     ultima_actualizacion = models.DateTimeField(auto_now=True, null=True, blank=True)
     def __str__(self):
         return f"{self.nombre_publico} (SKU: {self.sku}) - ${self.precio}"
+    
+    
 
 
 class FacturaProveedor(models.Model):
@@ -85,3 +89,27 @@ class ItemFactura(models.Model):
 
     def __str__(self):
         return f"{self.cantidad} x {self.producto}"
+    
+class ProductoVariante(models.Model):
+    producto = models.ForeignKey(
+        "ProductoPrecio",
+        on_delete=models.CASCADE,
+        related_name="variantes",
+    )
+
+    nombre = models.CharField(max_length=120)  # ej: Rojo / Azul / Glitter
+    descripcion_corta = models.CharField(max_length=255, blank=True, default="")
+    imagen = models.ImageField(upload_to="productos/variantes/", null=True, blank=True)
+
+    stock = models.IntegerField(default=0)
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["orden", "id"]
+
+    def __str__(self):
+        return f"{self.producto.sku} - {self.nombre}"

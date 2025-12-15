@@ -9,7 +9,7 @@ from django.contrib.auth import logout, authenticate, login
 
 from cliente.forms import RegistroForm, ProfileForm
 from .models import Profile
-from pdf.models import ProductoPrecio  # tu modelo de productos
+from pdf.models import ProductoPrecio, ProductoVariante  # tu modelo de productos
 from django.utils import timezone
 from cupones.models import Cupon
 from django.shortcuts import redirect
@@ -37,22 +37,43 @@ def _save_favoritos(request, favs):
     request.session.modified = True
 
 
+def _parse_key(item_key: str):
+    try:
+        prod_id, var_id = item_key.split(":")
+        return int(prod_id), int(var_id)
+    except Exception:
+        return None, None
+
+
 # =========================
 # VISTAS: CARRITO
 # =========================
 
 def ver_carrito(request):
-    cart = _get_cart(request)
+    cart = _get_cart(request)  # ahora cart = {"prodId:varId": qty}
     items = []
     total = Decimal("0.00")
 
     # =====================
-    # Productos del carrito
+    # Items del carrito
     # =====================
-    for prod_id, qty in cart.items():
-        producto = ProductoPrecio.objects.filter(pk=prod_id).first()
+    for item_key, qty in cart.items():
+        prod_id, var_id = _parse_key(item_key)
+        if prod_id is None:
+            continue
+
+        producto = ProductoPrecio.objects.filter(pk=prod_id, activo=True).first()
         if not producto:
             continue
+
+        variante = None
+        if var_id and var_id != 0:
+            variante = ProductoVariante.objects.filter(
+                pk=var_id, producto=producto, activo=True
+            ).first()
+            # si la variante no existe, lo tratamos como sin variante
+            if not variante:
+                var_id = 0
 
         qty = int(qty)
 
@@ -64,7 +85,9 @@ def ver_carrito(request):
         total += subtotal
 
         items.append({
+            "key": item_key,                 # ✅ para actualizar/eliminar
             "producto": producto,
+            "variante": variante,            # ✅ para mostrar "Roja"
             "cantidad": qty,
             "precio_original": producto.precio,
             "precio_final": precio_unitario,
@@ -88,14 +111,13 @@ def ver_carrito(request):
                 fecha_fin__gte=timezone.now(),
             )
 
-            # Cupón global
             if cupon.tecnica == "TODAS":
                 descuento_cupon = total * Decimal(cupon.descuento) / Decimal("100")
             else:
                 subtotal_filtrado = sum(
-                    item["subtotal"]
-                    for item in items
-                    if item["producto"].tech == cupon.tecnica
+                    it["subtotal"]
+                    for it in items
+                    if it["producto"].tech == cupon.tecnica
                 )
                 descuento_cupon = subtotal_filtrado * Decimal(cupon.descuento) / Decimal("100")
 
@@ -116,6 +138,7 @@ def ver_carrito(request):
             "error_cupon": request.session.pop("error_cupon", None),
         }
     )
+
 def aplicar_cupon(request):
     if request.method == "POST":
         codigo = request.POST.get("codigo", "").strip()
