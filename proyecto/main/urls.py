@@ -40,6 +40,8 @@ urlpatterns = [
 
     # URLs del owner (panel admin, historia ingresos, etc.)
     path("owner/", include("owner.urls")),
+
+    path("integraciones/", include("integraciones.urls")),
 ]
 
 if settings.DEBUG:

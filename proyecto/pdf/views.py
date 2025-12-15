@@ -1,22 +1,64 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
-from django.db import IntegrityError
-from decimal import Decimal
+from django.db import IntegrityError, transaction
+from decimal import Decimal, InvalidOperation
+from django.views.decorators.http import require_POST
 from datetime import datetime
+from django.contrib import messages
 import os
 import csv
+import re
+from difflib import SequenceMatcher
+from django.db.models import F
 
 from .forms import ListaPrecioForm, FacturaProveedorForm
-from .models import ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ItemFactura
+from .models import ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ItemFactura, ProductoVariante
 from .utils import extraer_precios_de_pdf, get_similarity
 from .utils_ocr import extraer_datos_factura
 from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
-
+from ofertas.utils import get_precio_con_oferta
 
 # ===================== CATÁLOGO / LISTAS =====================
 
-from ofertas.utils import get_precio_con_oferta
+def _get_cart(request):
+    return request.session.get("carrito", {})
+
+
+def _save_cart(request, cart):
+    request.session["carrito"] = cart
+    request.session.modified = True
+
+
+def _make_key(prod_id: int, var_id: int | None):
+    var_id = int(var_id or 0)
+    return f"{int(prod_id)}:{var_id}"
+
+def _norm(s: str) -> str:
+    s = (s or "").lower()
+    s = re.sub(r"[^a-z0-9áéíóúñü\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+def _score(a: str, b: str) -> float:
+    return SequenceMatcher(None, _norm(a), _norm(b)).ratio()
+
+def sugerencias_para(nombre_item: str, productos, top=8):
+    # productos: iterable de (id, sku, nombre_publico)
+    scored = []
+    for pid, sku, nom in productos:
+        s = max(_score(nombre_item, nom), _score(nombre_item, sku))
+        scored.append((s, pid, sku, nom))
+    scored.sort(reverse=True, key=lambda x: x[0])
+    return scored[:top]
+
+def _to_decimal(v, default="0"):
+    """Convierte a Decimal soportando coma decimal."""
+    s = str(v).strip().replace(",", ".")
+    try:
+        return Decimal(s)
+    except (InvalidOperation, ValueError):
+        return Decimal(default)
 
 def mostrar_precios(request):
     productos = ProductoPrecio.objects.filter(activo=True).order_by('nombre_publico')
@@ -53,18 +95,62 @@ def exportar_csv_catalogo(request):
 
 def detalle_producto(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk)
-    return render(request, 'pdf/detalle_producto.html', {'producto': producto})
+    variantes = producto.variantes.all().order_by("orden")
 
+    # Variante principal implícita (producto base)
+    variante_principal = {
+        "id": 0,
+        "nombre": "Principal",
+        "imagen": producto.imagen,
+        "descripcion_corta": producto.nombre_publico,
+        "es_principal": True,
+    }
 
-# Carrito simple usando session
+    variantes_ui = [variante_principal]
+
+    for v in variantes:
+        variantes_ui.append({
+            "id": v.id,
+            "nombre": v.nombre,
+            "imagen": v.imagen,
+            "descripcion_corta": v.descripcion_corta,
+            "es_principal": False,
+        })
+
+    return render(
+        request,
+        "pdf/detalle_producto.html",
+        {
+            "producto": producto,
+            "variantes_ui": variantes_ui,
+        },
+    )
+
+@require_POST
 def agregar_al_carrito(request, pk):
-    producto = get_object_or_404(ProductoPrecio, pk=pk)
+    producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
 
-    carrito = request.session.get('carrito', {})
-    carrito[str(producto.id)] = carrito.get(str(producto.id), 0) + 1
+    variante_id = request.POST.get("variante_id", "0")
+    try:
+        variante_id = int(variante_id)
+    except ValueError:
+        variante_id = 0
 
-    request.session['carrito'] = carrito
-    return redirect('detalle_producto', pk=pk)
+    # Validar que la variante pertenece al producto
+    if variante_id:
+        ok = ProductoVariante.objects.filter(
+            pk=variante_id, producto=producto, activo=True
+        ).exists()
+        if not ok:
+            variante_id = 0
+
+    cart = _get_cart(request)
+    key = _make_key(producto.id, variante_id)
+
+    cart[key] = cart.get(key, 0) + 1
+    _save_cart(request, cart)
+
+    return redirect("detalle_producto", pk=pk)
 
 
 # --- VISTA PRINCIPAL (Fusiona los 3 pasos: Carga, Previsualización, Confirmación) ---
@@ -397,130 +483,196 @@ def importar_pdf(request):
 # ===================== FACTURAS PROVEEDOR =====================
 
 def procesar_factura(request):
-    # === PASO 2: CONFIRMAR Y GUARDAR ===
-    if request.method == 'POST' and 'confirmar_factura' in request.POST:
-        factura_id = request.session.get('factura_id')
-        items_sesion = request.session.get('items_factura', [])
-        fecha_detectada_str = request.POST.get('fecha_factura')
+
+    # ======================================================
+    # PASO 2 — CONFIRMAR Y GUARDAR
+    # ======================================================
+    if request.method == "POST" and "confirmar_factura" in request.POST:
+
+        factura_id = request.session.get("factura_id")
+        items_sesion = request.session.get("items_factura", [])
 
         if not factura_id:
-            return redirect('procesar_factura')
+            messages.error(request, "Sesión expirada. Volvé a cargar la factura.")
+            return redirect("procesar_factura")
 
         factura = get_object_or_404(FacturaProveedor, pk=factura_id)
 
-        # actualizar fecha si el usuario la cambió
-        if fecha_detectada_str:
+        # Fecha editable
+        fecha_str = request.POST.get("fecha_factura")
+        if fecha_str:
             try:
-                factura.fecha_factura = datetime.strptime(
-                    fecha_detectada_str, '%Y-%m-%d'
-                ).date()
+                factura.fecha_factura = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+                factura.save(update_fields=["fecha_factura"])
             except Exception:
                 pass
-        factura.save()
 
-        count_saved = 0
-        for index, item_data in enumerate(items_sesion):
-            if request.POST.get(f'item_{index}_check') == 'on':
-                prod = request.POST.get(
-                    f'item_{index}_producto',
-                    item_data['producto']
-                )
-                cant = request.POST.get(
-                    f'item_{index}_cantidad',
-                    item_data['cantidad']
-                )
-                prec = request.POST.get(
-                    f'item_{index}_precio',
-                    item_data['precio_unitario']
-                )
-                subtotal = Decimal(cant) * Decimal(prec)
+        with transaction.atomic():
 
+            for index, item in enumerate(items_sesion):
+
+                if f"item_{index}_check" not in request.POST:
+                    continue
+
+                producto_txt = request.POST.get(
+                    f"item_{index}_producto", item["producto"]
+                ).strip()
+
+                cantidad = _to_decimal(
+                    request.POST.get(f"item_{index}_cantidad", item["cantidad"]), "1"
+                )
+
+                precio = _to_decimal(
+                    request.POST.get(f"item_{index}_precio", item["precio_unitario"]), "0"
+                )
+
+                subtotal = cantidad * precio
+
+                # -------------------------
+                # Guardar ítem de factura
+                # -------------------------
                 ItemFactura.objects.create(
                     factura=factura,
-                    producto=prod,
-                    cantidad=Decimal(cant),
-                    precio_unitario=Decimal(prec),
+                    producto=producto_txt,
+                    cantidad=cantidad,
+                    precio_unitario=precio,
                     subtotal=subtotal,
                 )
-                count_saved += 1
 
-        # limpiar sesión
-        request.session.pop('factura_id', None)
-        request.session.pop('items_factura', None)
+                # -------------------------
+                # Vinculación con catálogo
+                # -------------------------
+                sku_input = (request.POST.get(
+                    f"item_{index}_catalogo_sku") or "").strip()
 
-        msg = f"Factura guardada con éxito. {count_saved} ítems registrados."
-        return render(
+                crear = f"item_{index}_crear_si_no_existe" in request.POST
+                upd_stock = f"item_{index}_upd_stock" in request.POST
+                upd_precio = f"item_{index}_upd_precio" in request.POST
+
+                # Definir SKU
+                if sku_input:
+                    sku = sku_input
+                elif crear:
+                    sku = (
+                        producto_txt.lower()
+                        .replace(" ", "_")
+                        .replace("/", "_")
+                        .replace("-", "_")[:50]
+                    )
+                else:
+                    continue
+
+                producto = ProductoPrecio.objects.filter(sku__iexact=sku).first()
+
+                # Crear producto si no existe
+                if not producto and crear:
+                    producto = ProductoPrecio.objects.create(
+                        sku=sku,
+                        nombre_publico=producto_txt or sku,
+                        precio=precio,   # 👉 costo por ahora
+                        stock=0,
+                        activo=True,
+                    )
+
+                if not producto:
+                    continue
+
+                # Actualizar stock
+                if upd_stock:
+                    ProductoPrecio.objects.filter(pk=producto.pk).update(
+                        stock=F("stock") + int(cantidad)
+                    )
+
+                # Actualizar costo (precio)
+                if upd_precio:
+                    producto.precio = precio
+                    producto.save(update_fields=["precio"])
+
+        # limpiar sesión UNA SOLA VEZ
+        request.session.pop("factura_id", None)
+        request.session.pop("items_factura", None)
+
+        messages.success(
             request,
-            'pdf/procesar_factura.html',
-            {
-                'msg_success': msg,
-                'form': FacturaProveedorForm(),
-            }
+            "Factura guardada y artículos procesados correctamente."
         )
+        return redirect("procesar_factura")
 
-    # === PASO 1: SUBIR Y ANALIZAR ===
-    if request.method == 'POST' and 'archivo' in request.FILES:
+    # ======================================================
+    # PASO 1 — SUBIR Y ANALIZAR
+    # ======================================================
+    if request.method == "POST" and "archivo" in request.FILES:
         form = FacturaProveedorForm(request.POST, request.FILES)
+
         if form.is_valid():
             factura = form.save()
-            file_path = os.path.join(settings.MEDIA_ROOT, factura.archivo.name)
+            path = os.path.join(settings.MEDIA_ROOT, factura.archivo.name)
 
-            # 1) texto manual opcional (pegado por vos)
-            texto_manual = (request.POST.get('texto_manual') or "").strip()
-
-            # 2) si no hay texto manual, intentamos leer desde el PDF
+            texto_manual = request.POST.get("texto_manual", "").strip()
             if texto_manual:
                 raw_text = texto_manual
+                factura_url = None
                 es_pdf = False
             else:
-                raw_text = extraer_texto_factura_simple(file_path)
+                raw_text = extraer_texto_factura_simple(path)
+                factura_url = factura.archivo.url
                 es_pdf = True
 
-            # 3) parsear el texto para obtener items
-            resultado_items = parse_invoice_text(raw_text)
+            resultado = parse_invoice_text(raw_text)
 
-            items_serializables = []
-            for item in resultado_items:
-                cantidad = item.get('cantidad', Decimal('1'))
-                precio = item.get('precio_unitario', Decimal('0'))
-                subtotal = item.get('subtotal', cantidad * precio)
+            productos = list(
+                ProductoPrecio.objects.values("id", "sku", "nombre_publico")
+            )
 
-                items_serializables.append({
-                    'producto': item.get('producto', ''),
-                    'cantidad': str(cantidad),
-                    'precio_unitario': str(precio),
-                    'subtotal': str(subtotal),
+            items = []
+            for r in resultado:
+                producto_txt = r.get("producto", "")
+                cantidad = r.get("cantidad", Decimal("1"))
+                precio = r.get("precio_unitario", Decimal("0"))
+
+                items.append({
+                    "producto": producto_txt,
+                    "cantidad": str(cantidad),
+                    "precio_unitario": str(precio),
+                    "subtotal": str(cantidad * precio),
+                    "suggest": sugerencias_para(producto_txt, productos),
                 })
 
-            # si no detectamos nada, al menos dejamos el texto crudo para debug
-            fecha_str = datetime.now().strftime('%Y-%m-%d')
-            request.session['factura_id'] = factura.id
-            request.session['items_factura'] = items_serializables
+            request.session["factura_id"] = factura.id
+            request.session["items_factura"] = [
+                {
+                    "producto": i["producto"],
+                    "cantidad": i["cantidad"],
+                    "precio_unitario": i["precio_unitario"],
+                    "subtotal": i["subtotal"],
+                }
+                for i in items
+            ]
 
             return render(
                 request,
-                'pdf/procesar_factura.html',
+                "pdf/procesar_factura.html",
                 {
-                    'preview': True,
-                    'items': items_serializables,
-                    'fecha_detectada': fecha_str,
-                    'factura_url': factura.archivo.url,
-                    'es_pdf': es_pdf,
-                    'raw_text': raw_text,
+                    "preview": True,
+                    "items": items,
+                    "productos_livianos": productos,
+                    "fecha_detectada": datetime.now().strftime("%Y-%m-%d"),
+                    "factura_url": factura_url,
+                    "es_pdf": es_pdf,
+                    "raw_text": raw_text,
                 },
             )
-    else:
-        form = FacturaProveedorForm()
 
-    # === GET o POST inválido: mostrar formulario inicial + historial ===
-    ultimas = FacturaProveedor.objects.all().order_by('-fecha_subida')[:5]
+    # ======================================================
+    # GET — FORMULARIO INICIAL
+    # ======================================================
+    form = FacturaProveedorForm()
+    ultimas = FacturaProveedor.objects.order_by("-fecha_subida")[:5]
+
     return render(
         request,
-        'pdf/procesar_factura.html',
-        {
-            'form': form,
-            'ultimas_facturas': ultimas,
-        }
+        "pdf/procesar_factura.html",
+        {"form": form, "ultimas_facturas": ultimas},
     )
 
 

@@ -9,7 +9,8 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import TemplateView
 
-from pdf.models import ItemFactura, ListaPrecioPDF, ProductoPrecio, FacturaProveedor
+from pdf.models import ItemFactura, ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ProductoVariante
+from owner.forms import ProductoVarianteForm
 
 
 # -------------------------------------------------------------------
@@ -181,42 +182,108 @@ def historia_lista_detalle(request, lista_id):
 @login_required
 def owner_producto_editar(request, pk):
     if not _check_owner(request.user):
+        raise PermissionDenied
+
+    producto = get_object_or_404(ProductoPrecio, pk=pk)
+    variantes = producto.variantes.all()
+
+    if request.method == "POST":
+
+        # ====== PRODUCTO ======
+        producto.sku = request.POST.get("sku", producto.sku)
+        producto.nombre_publico = request.POST.get("nombre_publico", producto.nombre_publico)
+        producto.precio = Decimal(request.POST.get("precio", producto.precio))
+        producto.stock = int(request.POST.get("stock", producto.stock))
+        producto.tech = request.POST.get("tech", "")
+        producto.activo = request.POST.get("activo") == "on"
+        producto.save()
+
+        # ====== NUEVA VARIANTE ======
+        if request.POST.get("nueva_variante_nombre"):
+            ProductoVariante.objects.create(
+                producto=producto,
+                nombre=request.POST.get("nueva_variante_nombre"),
+                descripcion_corta=request.POST.get("nueva_variante_desc", ""),
+                imagen=request.FILES.get("nueva_variante_imagen"),
+            )
+
+        messages.success(request, "Producto y variantes actualizados.")
+        return redirect("owner_producto_editar", pk=producto.pk)
+
+    return render(
+        request,
+        "owner/producto_editar.html",
+        {
+            "producto": producto,
+            "variantes": variantes,
+        },
+    )
+
+@login_required
+def owner_producto_variantes(request, pk):
+    if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para hacer esto.")
 
     producto = get_object_or_404(ProductoPrecio, pk=pk)
+    variantes = producto.variantes.all().order_by("orden", "id")
 
     if request.method == "POST":
-        sku = request.POST.get("sku", "").strip()
-        nombre_publico = request.POST.get("nombre_publico", "").strip()
-        precio = request.POST.get("precio", "").strip()
-        tech = request.POST.get("tech", "") or ""
-        stock = request.POST.get("stock", "").strip()
-        activo = request.POST.get("activo") == "on"
+        form = ProductoVarianteForm(request.POST, request.FILES)
+        if form.is_valid():
+            v = form.save(commit=False)
+            v.producto = producto
+            v.save()
+            messages.success(request, "Variante creada correctamente.")
+            return redirect("owner_producto_variantes", pk=producto.pk)
+    else:
+        form = ProductoVarianteForm()
 
-        if sku:
-            producto.sku = sku
-        producto.nombre_publico = nombre_publico or producto.sku
+    return render(
+        request,
+        "owner/producto_variantes.html",
+        {"producto": producto, "variantes": variantes, "form": form},
+    )
 
-        if precio:
-            try:
-                producto.precio = Decimal(precio.replace(",", "."))
-            except Exception:
-                pass
 
-        if stock:
-            try:
-                producto.stock = int(stock)
-            except Exception:
-                pass
+@login_required
+def owner_variante_editar(request, variante_id):
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
 
-        producto.tech = tech
-        producto.activo = activo
-        producto.save()
+    variante = get_object_or_404(ProductoVariante, pk=variante_id)
+    producto = variante.producto
 
-        messages.success(request, "Producto actualizado correctamente.")
-        return redirect("home")
+    if request.method == "POST":
+        form = ProductoVarianteForm(request.POST, request.FILES, instance=variante)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Variante actualizada.")
+            return redirect("owner_producto_variantes", pk=producto.pk)
+    else:
+        form = ProductoVarianteForm(instance=variante)
 
-    return render(request, "owner/producto_editar.html", {"producto": producto})
+    return render(
+        request,
+        "owner/variante_form.html",
+        {"producto": producto, "variante": variante, "form": form},
+    )
+
+
+@login_required
+def owner_variante_eliminar(request, variante_id):
+    if request.method != "POST":
+        raise PermissionDenied("Método no permitido.")
+
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
+
+    variante = get_object_or_404(ProductoVariante, pk=variante_id)
+    producto_id = variante.producto_id
+    variante.delete()
+
+    messages.success(request, "Variante eliminada.")
+    return redirect("owner_producto_variantes", pk=producto_id)
+
 
 
 @login_required

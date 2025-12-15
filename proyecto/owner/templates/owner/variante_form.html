@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Editar variante{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h5 mb-1">Editar variante</h1>
+      <div class="text-muted small">{{ producto.nombre_publico }}</div>
+    </div>
+    <a href="{% url 'owner_producto_variantes' producto.id %}" class="btn btn-sm btn-outline-secondary">
+      ← Volver a variantes
+    </a>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        {% if variante.imagen %}
+          <div class="mb-3">
+            <div class="small text-muted mb-1">Imagen actual:</div>
+            <img src="{{ variante.imagen.url }}" class="img-fluid rounded border" style="max-height:180px;">
+          </div>
+        {% endif %}
+
+        <button class="btn btn-primary">Guardar cambios</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

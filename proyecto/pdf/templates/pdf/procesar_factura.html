@@ -4,290 +4,317 @@
 
 {% block content %}
 <div class="container py-3">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <h1 class="h5 mb-0">Cargar Factura de Proveedor</h1>
-        <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">← Volver</a>
+
+  <!-- HEADER -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h5 mb-0">Cargar Factura de Proveedor</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">← Volver</a>
+  </div>
+
+  {% if msg_success %}
+    <div class="alert alert-success text-center">
+      {{ msg_success }}
     </div>
-
-    {% if msg_success %}
-        <div class="alert alert-success text-center">
-            <i class="fas fa-check-circle mb-2 display-6"></i><br>
-            {{ msg_success }}
-        </div>
-        <div class="text-center mb-4">
-            <a href="{% url 'procesar_factura' %}" class="btn btn-primary">Subir otra factura</a>
-        </div>
-    {% endif %}
-
-    {% if not preview|default:False and not msg_success %}
-    <!-- PASO 1: SUBIDA -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Seleccionar Archivo PDF</label>
-                        {{ form.archivo }}
-                        <div class="form-text mt-2">
-                            <i class="fas fa-info-circle"></i>
-                            Si el PDF es un escaneo (imagen), puede que no tenga texto. En ese caso, pegá el contenido en el campo de la derecha.
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Texto de la factura (opcional)</label>
-                        <textarea name="texto_manual" rows="5" class="form-control"
-                            placeholder="Pegá acá el texto si lo tenés (por ejemplo):
-Product   Quantity   Price
-Camionero algarrobo BRILLOSO virola acero   6   $ 41.940
-..."></textarea>
-                        <div class="form-text">
-                            Si pegás texto acá, se usará esto para detectar los ítems (en vez del PDF).
-                        </div>
-                    </div>
-
-                    <div class="col-12 text-end">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-robot me-1"></i> Analizar automáticamente
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
+    <div class="text-center mb-4">
+      <a href="{% url 'procesar_factura' %}" class="btn btn-primary">
+        Subir otra factura
+      </a>
     </div>
+  {% endif %}
 
-    <!-- Historial -->
-    {% if ultimas_facturas %}
-    <div class="card">
-        <div class="card-header">Últimas facturas procesadas</div>
-        <ul class="list-group list-group-flush">
-            {% for f in ultimas_facturas %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>#{{ f.id }}</strong>
-                    <small class="text-muted">({{ f.fecha_subida|date:"d/m/Y" }})</small>
-                </div>
-                <span class="badge bg-secondary rounded-pill">{{ f.items.count }} ítems</span>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-    {% endif %}
-
-    {% if preview|default:False %}
-    <!-- PASO 2: REVISIÓN -->
-    <form method="post">
+  {# ===================================================== #}
+  {# PASO 1 — SUBIR FACTURA                                #}
+  {# ===================================================== #}
+  {% if not preview|default:False and not msg_success %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        <input type="hidden" name="confirmar_factura" value="1">
 
-        <div class="row">
-            <!-- Visor de Documento -->
-            <div class="col-lg-5 mb-4">
-                <div class="card h-100 border-0 shadow-sm sticky-top" style="top: 20px; z-index: 1;">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                        <span>
-                            <i class="fas fa-file-pdf me-1"></i> Documento Original
-                        </span>
-                        <span class="badge bg-secondary">
-                            {% if es_pdf %}PDF{% else %}TEXTO{% endif %}
-                        </span>
-                    </div>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Archivo PDF</label>
+            {{ form.archivo }}
+          </div>
 
-                    <div class="card-body p-0 bg-light d-flex align-items-center justify-content-center"
-                         style="min-height: 500px; overflow: hidden;">
-                        {% if factura_url %}
-                            <embed src="{{ factura_url }}" type="application/pdf" width="100%" height="600px" />
-                        {% else %}
-                            <div class="p-4 text-muted text-center">
-                                No hay PDF para previsualizar (se usó texto manual).
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Texto manual (opcional)</label>
+            <textarea name="texto_manual" rows="5" class="form-control"
+              placeholder="Pegá acá el texto si el PDF no tiene OCR"></textarea>
+          </div>
 
-            <!-- Formulario de Datos -->
-            <div class="col-lg-7">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <span class="fw-bold">Datos Detectados</span>
-                        <div class="d-flex align-items-center">
-                            <label class="me-2 small text-white-50">Fecha:</label>
-                            <input type="date" name="fecha_factura" value="{{ fecha_detectada }}"
-                                   class="form-control form-control-sm w-auto">
-                        </div>
-                    </div>
-
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0 text-sm" id="tablaItems">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th style="width: 30px;">
-                                            <input type="checkbox" checked onclick="toggleAll(this)">
-                                        </th>
-                                        <th style="width: 70px;">Cant.</th>
-                                        <th style="min-width: 250px;">Descripción</th>
-                                        <th style="width: 120px;">Precio Unit. ($)</th>
-                                        <th style="width: 120px;" class="text-end">Subtotal ($)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for item in items %}
-                                    <tr id="row_{{ forloop.counter0 }}" class="align-middle">
-                                        <td>
-                                            <input type="checkbox"
-                                                   name="item_{{ forloop.counter0 }}_check"
-                                                   id="check_{{ forloop.counter0 }}"
-                                                   checked
-                                                   class="form-check-input item-check"
-                                                   onchange="toggleRowVisibility({{ forloop.counter0 }})">
-                                        </td>
-                                        <td>
-                                            <input type="number" step="1"
-                                                   name="item_{{ forloop.counter0 }}_cantidad"
-                                                   id="cant_{{ forloop.counter0 }}"
-                                                   value="{{ item.cantidad|floatformat:0 }}"
-                                                   class="form-control form-control-sm text-center"
-                                                   oninput="calcularFila({{ forloop.counter0 }})">
-                                        </td>
-                                        <td>
-                                            <input type="text"
-                                                   name="item_{{ forloop.counter0 }}_producto"
-                                                   value="{{ item.producto }}"
-                                                   class="form-control form-control-sm">
-                                        </td>
-                                        <td>
-                                            <input type="number" step="0.01"
-                                                   name="item_{{ forloop.counter0 }}_precio"
-                                                   id="prec_{{ forloop.counter0 }}"
-                                                   value="{{ item.precio_unitario }}"
-                                                   class="form-control form-control-sm text-end"
-                                                   oninput="calcularFila({{ forloop.counter0 }})">
-                                        </td>
-                                        <td class="text-end fw-bold text-muted">
-                                            <span id="subtotal_{{ forloop.counter0 }}">{{ item.subtotal }}</span>
-                                        </td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="5" class="text-center py-5 text-muted">
-                                            <i class="fas fa-search mb-3 display-6 text-secondary"></i><br>
-                                            No se pudieron detectar ítems automáticamente.<br>
-                                            <small>Probá pegando el texto manual o subiendo un PDF con OCR.</small>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-
-                                <tfoot class="table-light border-top">
-                                    <tr>
-                                        <td colspan="4" class="text-end fw-bold">Total Seleccionado:</td>
-                                        <td class="text-end fw-bold fs-5 text-primary">
-                                            $<span id="totalGeneral">0.00</span>
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="card-footer d-flex justify-content-between align-items-center">
-                        <small class="text-muted">
-                            <i class="fas fa-info-circle"></i> Revisa y corrige los datos antes de guardar.
-                        </small>
-                        <div>
-                            <a href="{% url 'procesar_factura' %}" class="btn btn-outline-secondary me-2">Cancelar</a>
-                            <button type="submit" class="btn btn-success fw-bold">
-                                <i class="fas fa-save me-1"></i> Confirmar y Guardar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Debug -->
-                <div class="accordion mt-3" id="debugAcc">
-                    <div class="accordion-item border-0 shadow-sm">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed bg-light text-muted" type="button"
-                                    data-bs-toggle="collapse" data-bs-target="#colDebug">
-                                <i class="fas fa-bug me-2"></i> Ver texto crudo (Debug)
-                            </button>
-                        </h2>
-                        <div id="colDebug" class="accordion-collapse collapse">
-                            <div class="accordion-body bg-dark text-white p-3">
-                                <pre class="small m-0" style="white-space: pre-wrap;">{{ raw_text }}</pre>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
+          <div class="col-12 text-end">
+            <button type="submit" class="btn btn-primary">
+              Analizar factura
+            </button>
+          </div>
         </div>
-    </form>
+      </form>
+    </div>
+  </div>
+  {% endif %}
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            actualizarTotalGeneral();
-        });
+  {# ===================================================== #}
+  {# PASO 2 — REVISIÓN                                    #}
+  {# ===================================================== #}
+  {% if preview|default:False %}
 
-        function toggleAll(source) {
-            document.querySelectorAll('.item-check').forEach(cb => {
-                cb.checked = source.checked;
-                cb.dispatchEvent(new Event('change'));
-            });
-            actualizarTotalGeneral();
-        }
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="confirmar_factura" value="1">
 
-        function toggleRowVisibility(index) {
-            const checkbox = document.getElementById(`check_${index}`);
-            const row = document.getElementById(`row_${index}`);
+    <!-- DATALIST DEL CATÁLOGO -->
+    <datalist id="catalogoProductos">
+      {% for p in productos_livianos %}
+        <option value="{{ p.sku }}">{{ p.nombre_publico }}</option>
+      {% endfor %}
+    </datalist>
 
-            const inputs = row.querySelectorAll('input[type="number"], input[type="text"]');
+    <!-- ================= ACCIONES MASIVAS ================= -->
+    <div class="d-flex flex-wrap gap-2 align-items-center p-2 mb-2 border rounded bg-light">
+      <strong class="small text-muted">Acciones masivas:</strong>
 
-            if (checkbox.checked) {
-                row.classList.remove('text-muted', 'bg-light');
-                row.style.opacity = '1';
-                inputs.forEach(input => input.disabled = false);
-            } else {
-                row.classList.add('text-muted', 'bg-light');
-                row.style.opacity = '0.5';
-                // inputs.forEach(input => input.disabled = true);
-            }
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-secondary"
+          onclick="bulkSet('.bulk-item-check', true); actualizarTotalGeneral();">
+          Seleccionar todos
+        </button>
+        <button type="button" class="btn btn-outline-secondary"
+          onclick="bulkSet('.bulk-item-check', false); actualizarTotalGeneral();">
+          Deseleccionar todos
+        </button>
+      </div>
 
-            actualizarTotalGeneral();
-        }
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-primary"
+          onclick="bulkSet('.bulk-upd-stock', true)">
+          Stock ✓
+        </button>
+        <button type="button" class="btn btn-outline-primary"
+          onclick="bulkSet('.bulk-upd-stock', false)">
+          Stock ✗
+        </button>
+      </div>
 
-        function calcularFila(index) {
-            const cantInput = document.getElementById(`cant_${index}`);
-            const precInput = document.getElementById(`prec_${index}`);
-            const subtotalSpan = document.getElementById(`subtotal_${index}`);
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-success"
+          onclick="bulkSet('.bulk-upd-costo', true)">
+          Costo ✓
+        </button>
+        <button type="button" class="btn btn-outline-success"
+          onclick="bulkSet('.bulk-upd-costo', false)">
+          Costo ✗
+        </button>
+      </div>
 
-            const cantidad = parseFloat(cantInput.value) || 0;
-            const precio = parseFloat(precInput.value) || 0;
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-warning"
+          onclick="bulkSet('.bulk-crear', true)">
+          Crear ✓
+        </button>
+        <button type="button" class="btn btn-outline-warning"
+          onclick="bulkSet('.bulk-crear', false)">
+          Crear ✗
+        </button>
+      </div>
+    </div>
 
-            const total = cantidad * precio;
-            subtotalSpan.textContent = total.toFixed(2);
+    <!-- ================= TABLA ================= -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-primary text-white d-flex justify-content-between">
+        <strong>Datos detectados</strong>
+        <input type="date" name="fecha_factura" value="{{ fecha_detectada }}"
+               class="form-control form-control-sm w-auto">
+      </div>
 
-            actualizarTotalGeneral();
-        }
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th></th>
+              <th>Cant.</th>
+              <th>Descripción</th>
+              <th>Precio</th>
+              <th>Subtotal</th>
+              <th>Catálogo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+            <tr id="row_{{ forloop.counter0 }}">
+              <td>
+                <input type="checkbox"
+                       name="item_{{ forloop.counter0 }}_check"
+                       id="check_{{ forloop.counter0 }}"
+                       checked
+                       class="form-check-input bulk-item-check item-check"
+                       onchange="toggleRowVisibility({{ forloop.counter0 }})">
+              </td>
 
-        function actualizarTotalGeneral() {
-            let total = 0;
-            const checkboxes = document.querySelectorAll('.item-check:checked');
+              <td>
+                <input type="number"
+                       name="item_{{ forloop.counter0 }}_cantidad"
+                       value="{{ item.cantidad }}"
+                       class="form-control form-control-sm text-center"
+                       id="cant_{{ forloop.counter0 }}"
+                       oninput="calcularFila({{ forloop.counter0 }})">
+              </td>
 
-            checkboxes.forEach(cb => {
-                const index = cb.id.split('_')[1];
-                const subtotalSpan = document.getElementById(`subtotal_${index}`);
-                total += parseFloat(subtotalSpan.textContent) || 0;
-            });
+              <td>
+                <input type="text"
+                       name="item_{{ forloop.counter0 }}_producto"
+                       value="{{ item.producto }}"
+                       class="form-control form-control-sm">
 
-            document.getElementById('totalGeneral').textContent = total.toFixed(2);
-        }
-    </script>
-    {% endif %}
+                {% if item.suggest %}
+                <div class="mt-1">
+                  {% for s in item.suggest %}
+                  <button type="button" class="btn btn-xs btn-outline-secondary"
+                    onclick="setSku({{ forloop.parentloop.counter0 }}, '{{ s.2|escapejs }}')">
+                    {{ s.2 }}
+                  </button>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </td>
+
+              <td>
+                <input type="number" step="0.01"
+                       name="item_{{ forloop.counter0 }}_precio"
+                       value="{{ item.precio_unitario }}"
+                       class="form-control form-control-sm text-end"
+                       id="prec_{{ forloop.counter0 }}"
+                       oninput="calcularFila({{ forloop.counter0 }})">
+              </td>
+
+              <td class="text-end fw-bold">
+                <span id="subtotal_{{ forloop.counter0 }}">{{ item.subtotal }}</span>
+              </td>
+
+              <td>
+                <input type="text"
+                       name="item_{{ forloop.counter0 }}_catalogo_sku"
+                       id="sku_{{ forloop.counter0 }}"
+                       list="catalogoProductos"
+                       class="form-control form-control-sm"
+                       placeholder="Buscar SKU…">
+
+                <div class="d-flex gap-2 mt-2">
+                  <label class="form-check small">
+                    <input class="form-check-input bulk-upd-stock"
+                           type="checkbox"
+                           name="item_{{ forloop.counter0 }}_upd_stock" checked>
+                    Stock
+                  </label>
+
+                  <label class="form-check small">
+                    <input class="form-check-input bulk-upd-costo"
+                           type="checkbox"
+                           name="item_{{ forloop.counter0 }}_upd_precio">
+                    Costo
+                  </label>
+
+                  <label class="form-check small">
+                    <input class="form-check-input bulk-crear"
+                           type="checkbox"
+                           name="item_{{ forloop.counter0 }}_crear_si_no_existe">
+                    Crear
+                  </label>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="4" class="text-end fw-bold">Total:</td>
+              <td class="text-end fw-bold">
+                $<span id="totalGeneral">0.00</span>
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="card-footer text-end">
+        <button type="submit" class="btn btn-success">
+          Confirmar y guardar
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= PREVIEW ABAJO ================= -->
+    <div class="card shadow-sm">
+      <div class="card-header bg-dark text-white d-flex justify-content-between">
+        <span>Preview de la factura</span>
+        <button class="btn btn-sm btn-outline-light"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#previewFactura"
+                onclick="this.textContent = this.textContent==='Mostrar'?'Ocultar':'Mostrar'">
+          Mostrar
+        </button>
+      </div>
+
+      <div id="previewFactura" class="collapse">
+        <div class="card-body p-0">
+          {% if factura_url %}
+            <embed src="{{ factura_url }}" width="100%" height="700px">
+          {% else %}
+            <div class="p-4 text-muted text-center">
+              No hay PDF (texto manual)
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </form>
+
+  {% endif %}
 </div>
+
+<script>
+function bulkSet(selector, checked) {
+  document.querySelectorAll(selector).forEach(el => {
+    el.checked = checked;
+    if (selector === '.bulk-item-check') {
+      el.dispatchEvent(new Event('change'));
+    }
+  });
+}
+
+function setSku(index, sku) {
+  const i = document.getElementById(`sku_${index}`);
+  if (i) i.value = sku;
+}
+
+function toggleRowVisibility(index) {
+  const cb = document.getElementById(`check_${index}`);
+  const row = document.getElementById(`row_${index}`);
+  row.style.opacity = cb.checked ? '1' : '0.4';
+  actualizarTotalGeneral();
+}
+
+function calcularFila(index) {
+  const c = parseFloat(document.getElementById(`cant_${index}`).value) || 0;
+  const p = parseFloat(document.getElementById(`prec_${index}`).value) || 0;
+  document.getElementById(`subtotal_${index}`).textContent = (c*p).toFixed(2);
+  actualizarTotalGeneral();
+}
+
+function actualizarTotalGeneral() {
+  let t = 0;
+  document.querySelectorAll('.item-check:checked').forEach(cb => {
+    const i = cb.id.split('_')[1];
+    t += parseFloat(document.getElementById(`subtotal_${i}`).textContent) || 0;
+  });
+  document.getElementById('totalGeneral').textContent = t.toFixed(2);
+}
+
+document.addEventListener('DOMContentLoaded', actualizarTotalGeneral);
+</script>
+
 {% endblock %}

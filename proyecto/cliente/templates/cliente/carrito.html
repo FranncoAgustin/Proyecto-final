@@ -17,6 +17,7 @@
           <th></th>
         </tr>
       </thead>
+
       <tbody>
         {% for item in items %}
           <tr>
@@ -24,11 +25,17 @@
               <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none">
                 {{ item.producto.nombre_publico }}
               </a>
+
+              {% if item.variante %}
+                <div class="text-muted small">
+                  Variante: <strong>{{ item.variante.nombre }}</strong>
+                </div>
+              {% endif %}
             </td>
 
             <td class="text-center" style="max-width:120px;">
               <form
-                action="{% url 'actualizar_cantidad' item.producto.id %}"
+                action="{% url 'actualizar_cantidad' item.key %}"
                 method="post"
                 class="d-inline-flex"
               >
@@ -47,21 +54,20 @@
             </td>
 
             <td class="text-end">
-  {% if item.oferta %}
-    <del class="text-muted">
-      ${{ item.precio_original }}
-    </del><br>
-    <strong>
-      ${{ item.precio_final }}
-    </strong>
-    <span class="badge bg-success ms-1">
-      -{{ item.oferta.descuento }}%
-    </span>
-  {% else %}
-    ${{ item.precio_original }}
-  {% endif %}
-</td>
-
+              {% if item.oferta %}
+                <del class="text-muted">
+                  ${{ item.precio_original }}
+                </del><br>
+                <strong>
+                  ${{ item.precio_final }}
+                </strong>
+                <span class="badge bg-success ms-1">
+                  -{{ item.oferta.descuento }}%
+                </span>
+              {% else %}
+                ${{ item.precio_original }}
+              {% endif %}
+            </td>
 
             <td class="text-end">
               ${{ item.subtotal }}
@@ -69,7 +75,7 @@
 
             <td class="text-end">
               <a
-                href="{% url 'eliminar_del_carrito' item.producto.id %}"
+                href="{% url 'eliminar_del_carrito' item.key %}"
                 class="btn btn-sm btn-outline-danger"
               >
                 <i class="fa-solid fa-trash-can"></i>
@@ -82,37 +88,36 @@
   </div>
 
   <form method="post" action="{% url 'aplicar_cupon' %}" class="row g-2">
-  {% csrf_token %}
-  <div class="col-auto">
-    <input
-      type="text"
-      name="codigo"
-      class="form-control"
-      placeholder="Código de cupón"
-      required
-    >
-  </div>
-  <div class="col-auto">
-    <button type="submit" class="btn btn-outline-primary">
-      Aplicar
-    </button>
-  </div>
-</form>
+    {% csrf_token %}
+    <div class="col-auto">
+      <input
+        type="text"
+        name="codigo"
+        class="form-control"
+        placeholder="Código de cupón"
+        required
+      >
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-outline-primary">
+        Aplicar
+      </button>
+    </div>
+  </form>
 
-{% if cupon %}
-  <div class="mt-2 text-success">
-    Cupón aplicado:
-    <strong>{{ cupon.codigo }}</strong>
-    (-{{ cupon.descuento }}%)
-  </div>
-{% endif %}
+  {% if cupon %}
+    <div class="mt-2 text-success">
+      Cupón aplicado:
+      <strong>{{ cupon.codigo }}</strong>
+      (-{{ cupon.descuento }}%)
+    </div>
+  {% endif %}
 
-{% if error_cupon %}
-  <div class="mt-2 text-danger">
-    {{ error_cupon }}
-  </div>
-{% endif %}
-
+  {% if error_cupon %}
+    <div class="mt-2 text-danger">
+      {{ error_cupon }}
+    </div>
+  {% endif %}
 
   <div class="d-flex justify-content-between align-items-center">
     <a href="{% url 'ver_catalogo_completo' %}" class="btn btn-outline-secondary">
@@ -120,37 +125,40 @@
     </a>
 
     <div class="text-end">
+      {% if cupon %}
+        <div class="text-success small mb-1">
+          Cupón aplicado:
+          <strong>{{ cupon.codigo }}</strong><br>
+          Descuento:
+          -${{ descuento_cupon|floatformat:2 }}
+        </div>
+      {% endif %}
 
-  {% if cupon %}
-    <div class="text-success small mb-1">
-      Cupón aplicado:
-      <strong>{{ cupon.codigo }}</strong><br>
-      Descuento:
-      -${{ descuento_cupon|floatformat:2 }}
-    </div>
-  {% endif %}
+      {% if error_cupon %}
+        <div class="text-danger small mb-1">
+          {{ error_cupon }}
+        </div>
+      {% endif %}
 
-  {% if error_cupon %}
-    <div class="text-danger small mb-1">
-      {{ error_cupon }}
-    </div>
-  {% endif %}
-
-  <div class="fw-semibold fs-5">
-    Total: ${{ total|floatformat:2 }}
-  </div>
+      <div class="fw-semibold fs-5">
+        Total: ${{ total|floatformat:2 }}
+      </div>
 
       <div class="mt-2 d-flex gap-2 justify-content-end">
         <a href="{% url 'vaciar_carrito' %}" class="btn btn-outline-danger btn-sm">
           Vaciar carrito
         </a>
-        <!-- Acá más adelante va el botón de ir a checkout -->
-        <button class="btn btn-primary btn-sm" type="button" disabled>
-          Finalizar compra (próximamente)
-        </button>
+
+        <form method="post" action="{% url 'mp_crear_preferencia' %}">
+          {% csrf_token %}
+          <button class="btn btn-primary btn-sm" type="submit">
+            Finalizar compra con Mercado Pago
+          </button>
+        </form>
       </div>
     </div>
   </div>
+
 {% else %}
   <div class="alert alert-info">
     Tu carrito está vacío.

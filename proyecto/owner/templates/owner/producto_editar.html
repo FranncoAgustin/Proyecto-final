@@ -11,52 +11,74 @@
 
   <div class="card shadow-sm border-0">
     <div class="card-body">
-      <form method="post">
+      <!-- ✅ IMPORTANTE: enctype para archivos -->
+      <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
 
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label">SKU</label>
-            <input type="text" name="sku" class="form-control"
-                   value="{{ producto.sku }}">
+            <input type="text" name="sku" class="form-control" value="{{ producto.sku }}">
           </div>
 
           <div class="col-md-8">
             <label class="form-label">Nombre público</label>
-            <input type="text" name="nombre_publico" class="form-control"
-                   value="{{ producto.nombre_publico }}">
+            <input type="text" name="nombre_publico" class="form-control" value="{{ producto.nombre_publico }}">
           </div>
 
           <div class="col-md-4">
             <label class="form-label">Precio</label>
             <div class="input-group">
               <span class="input-group-text">$</span>
-              <input type="text" name="precio" class="form-control"
-                     value="{{ producto.precio }}">
+              <input type="text" name="precio" class="form-control" value="{{ producto.precio }}">
             </div>
           </div>
 
           <div class="col-md-4">
             <label class="form-label">Stock</label>
-            <input type="number" name="stock" class="form-control"
-                   value="{{ producto.stock }}">
+            <input type="number" name="stock" class="form-control" value="{{ producto.stock }}">
           </div>
 
           <div class="col-md-4">
             <label class="form-label">Técnica</label>
             <select name="tech" class="form-select">
               <option value="">(Sin especificar)</option>
-              <option value="SUB" {% if producto.tech == 'SUB' %}selected{% endif %}>Sublimación</option>
-              <option value="LAS" {% if producto.tech == 'LAS' %}selected{% endif %}>Grabado láser</option>
-              <option value="3D" {% if producto.tech == '3D' %}selected{% endif %}>Impresión 3D</option>
-              <option value="OTR" {% if producto.tech == 'OTR' %}selected{% endif %}>Otro</option>
+              <option value="SUB" {% if producto.tech == "SUB" %}selected{% endif %}>Sublimación</option>
+              <option value="LAS" {% if producto.tech == "LAS" %}selected{% endif %}>Grabado láser</option>
+              <option value="3D"  {% if producto.tech == "3D"  %}selected{% endif %}>Impresión 3D</option>
+              <option value="OTR" {% if producto.tech == "OTR" %}selected{% endif %}>Otro</option>
             </select>
+          </div>
+
+          <!-- ✅ IMAGEN -->
+          <div class="col-md-12">
+            <label class="form-label">Imagen principal</label>
+
+            {% if producto.imagen %}
+              <div class="d-flex align-items-center gap-3 mb-2">
+                <img src="{{ producto.imagen.url }}" alt="Imagen del producto"
+                  style="width: 120px; height: 120px; object-fit: cover; border-radius: 12px;" class="border">
+                <div class="small text-muted">
+                  Imagen actual cargada.<br>
+                  Si subís otra, se reemplaza.
+                </div>
+              </div>
+            {% else %}
+              <div class="small text-muted mb-2">
+                Este producto todavía no tiene imagen.
+              </div>
+            {% endif %}
+
+            <input type="file" name="imagen" class="form-control" accept="image/*">
+            <div class="form-text">
+              Formatos recomendados: JPG/PNG. Ideal cuadrada (ej: 800×800).
+            </div>
           </div>
 
           <div class="col-md-12">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="activoCheck" name="activo"
-                     {% if producto.activo %}checked{% endif %}>
+                {% if producto.activo %}checked{% endif %}>
               <label class="form-check-label" for="activoCheck">
                 Producto activo (se puede usar en el catálogo / cálculos)
               </label>
@@ -65,12 +87,20 @@
         </div>
 
         <div class="d-flex justify-content-between align-items-center mt-4">
-          <button type="submit" class="btn btn-primary">
-            Guardar cambios
-          </button>
-          <a href="{% url 'home' %}" class="btn btn-outline-secondary">
-            Cancelar
-          </a>
+          <div>
+            <a href="{% url 'owner_producto_variantes' producto.id %}" class="btn btn-outline-primary">
+              Gestionar variantes
+            </a>
+          </div>
+
+          <div>
+            <button type="submit" class="btn btn-primary">
+              Guardar cambios
+            </button>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+              Cancelar
+            </a>
+          </div>
         </div>
       </form>
     </div>

@@ -1,0 +1,97 @@
+<h5 class="mb-3">Variantes de {{ producto.nombre_publico }}</h5>
+
+<!-- ===================== -->
+<!-- FORMULARIO NUEVA VARIANTE -->
+<!-- ===================== -->
+<form method="post" enctype="multipart/form-data" class="card p-3 mb-4">
+  {% csrf_token %}
+
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Nombre de variante</label>
+      <input
+        type="text"
+        name="nombre"
+        class="form-control"
+        placeholder="Ej: Rojo"
+        required
+      >
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Descripción corta</label>
+      <input
+        type="text"
+        name="descripcion_corta"
+        class="form-control"
+        placeholder="Lapicera color rojo"
+      >
+    </div>
+
+    <div class="col-md-2">
+      <label class="form-label">Orden</label>
+      <input
+        type="number"
+        name="orden"
+        class="form-control"
+        value="0"
+      >
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Imagen</label>
+      <input
+        type="file"
+        name="imagen"
+        class="form-control"
+      >
+    </div>
+  </div>
+
+  <div class="mt-3 text-end">
+    <button type="submit" class="btn btn-success">
+      ➕ Agregar variante
+    </button>
+  </div>
+</form>
+
+<!-- ===================== -->
+<!-- LISTADO DE VARIANTES -->
+<!-- ===================== -->
+{% if variantes %}
+  <div class="list-group">
+    {% for v in variantes %}
+      <div class="list-group-item d-flex align-items-center gap-3">
+        
+        {% if v.imagen %}
+          <img
+            src="{{ v.imagen.url }}"
+            width="80"
+            height="80"
+            class="rounded border object-fit-cover"
+            alt="{{ v.nombre }}"
+          >
+        {% else %}
+          <div
+            class="bg-light border rounded d-flex align-items-center justify-content-center"
+            style="width:80px;height:80px;"
+          >
+            <small class="text-muted">Sin imagen</small>
+          </div>
+        {% endif %}
+
+        <div class="flex-grow-1">
+          <strong>{{ v.nombre }}</strong><br>
+          <small class="text-muted">{{ v.descripcion_corta }}</small>
+        </div>
+
+        {% if not v.activo %}
+          <span class="badge bg-secondary">Inactiva</span>
+        {% endif %}
+
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-muted">Este producto todavía no tiene variantes.</p>
+{% endif %}
