@@ -10,9 +10,10 @@ from django.contrib.auth import logout, authenticate, login
 from cliente.forms import RegistroForm, ProfileForm
 from .models import Profile
 from pdf.models import ProductoPrecio  # tu modelo de productos
-from ofertas.models import Oferta
 from django.utils import timezone
-
+from cupones.models import Cupon
+from django.shortcuts import redirect
+from ofertas.utils import get_precio_con_oferta
 
 # =========================
 # Helpers carrito / favoritos
@@ -35,29 +36,6 @@ def _save_favoritos(request, favs):
     request.session["favoritos"] = favs
     request.session.modified = True
 
-def precio_con_oferta(producto):
-    ahora = timezone.now()
-
-    oferta = (
-        Oferta.objects.filter(
-            activa=True,
-            fecha_inicio__lte=ahora,
-            fecha_fin__gte=ahora,
-        )
-        .filter(
-            tecnica__in=[producto.tech, "TODAS"]
-        )
-        .order_by("-descuento")
-        .first()
-    )
-
-    if not oferta:
-        return producto.precio, None
-
-    descuento = (producto.precio * oferta.descuento) / 100
-    precio_final = producto.precio - descuento
-
-    return precio_final, oferta
 
 # =========================
 # VISTAS: CARRITO
@@ -68,6 +46,9 @@ def ver_carrito(request):
     items = []
     total = Decimal("0.00")
 
+    # =====================
+    # Productos del carrito
+    # =====================
     for prod_id, qty in cart.items():
         producto = ProductoPrecio.objects.filter(pk=prod_id).first()
         if not producto:
@@ -75,29 +56,90 @@ def ver_carrito(request):
 
         qty = int(qty)
 
-        precio_unitario, oferta = precio_con_oferta(producto)
+        precio_data = get_precio_con_oferta(producto)
+        precio_unitario = precio_data["precio_final"]
+        oferta = precio_data["oferta"]
 
         subtotal = precio_unitario * qty
         total += subtotal
 
-        items.append(
-            {
-                "producto": producto,
-                "cantidad": qty,
-                "precio_original": producto.precio,
-                "precio_final": precio_unitario,
-                "oferta": oferta,
-                "subtotal": subtotal,
-            }
-        )
+        items.append({
+            "producto": producto,
+            "cantidad": qty,
+            "precio_original": producto.precio,
+            "precio_final": precio_unitario,
+            "oferta": oferta,
+            "subtotal": subtotal,
+        })
 
-    contexto = {
-        "items": items,
-        "total": total,
-    }
-    return render(request, "cliente/carrito.html", contexto)
+    # =====================
+    # CUPÓN
+    # =====================
+    cupon = None
+    descuento_cupon = Decimal("0.00")
+    cupon_id = request.session.get("cupon_id")
+
+    if cupon_id:
+        try:
+            cupon = Cupon.objects.get(
+                id=cupon_id,
+                activo=True,
+                fecha_inicio__lte=timezone.now(),
+                fecha_fin__gte=timezone.now(),
+            )
+
+            # Cupón global
+            if cupon.tecnica == "TODAS":
+                descuento_cupon = total * Decimal(cupon.descuento) / Decimal("100")
+            else:
+                subtotal_filtrado = sum(
+                    item["subtotal"]
+                    for item in items
+                    if item["producto"].tech == cupon.tecnica
+                )
+                descuento_cupon = subtotal_filtrado * Decimal(cupon.descuento) / Decimal("100")
+
+            total -= descuento_cupon
+
+        except Cupon.DoesNotExist:
+            request.session.pop("cupon_id", None)
+            request.session["error_cupon"] = "Cupón inválido o vencido"
+
+    return render(
+        request,
+        "cliente/carrito.html",
+        {
+            "items": items,
+            "total": total,
+            "cupon": cupon,
+            "descuento_cupon": descuento_cupon,
+            "error_cupon": request.session.pop("error_cupon", None),
+        }
+    )
+def aplicar_cupon(request):
+    if request.method == "POST":
+        codigo = request.POST.get("codigo", "").strip()
+
+        try:
+            cupon = Cupon.objects.get(
+                codigo__iexact=codigo,
+                activo=True,
+                fecha_inicio__lte=timezone.now(),
+                fecha_fin__gte=timezone.now(),
+            )
+            request.session["cupon_id"] = cupon.id
+            request.session.pop("error_cupon", None)
+
+        except Cupon.DoesNotExist:
+            request.session.pop("cupon_id", None)
+            request.session["error_cupon"] = "Cupón inválido o vencido"
+
+    return redirect("ver_carrito")
 
 
+from decimal import Decimal
+from django.utils import timezone
+from django.shortcuts import redirect
 
 def agregar_al_carrito(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk)

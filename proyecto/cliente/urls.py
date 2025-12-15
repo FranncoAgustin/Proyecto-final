@@ -10,6 +10,8 @@ urlpatterns = [
     path("carrito/eliminar/<int:pk>/", views.eliminar_del_carrito, name="eliminar_del_carrito"),
     path("carrito/actualizar/<int:pk>/", views.actualizar_cantidad, name="actualizar_cantidad"),
     path("carrito/vaciar/", views.vaciar_carrito, name="vaciar_carrito"),
+    path("carrito/aplicar-cupon/", views.aplicar_cupon, name="aplicar_cupon"),
+
 
     # Favoritos
     path("favoritos/", views.mis_favoritos, name="mis_favoritos"),
