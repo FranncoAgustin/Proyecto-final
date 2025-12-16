@@ -61,7 +61,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # En producción lo ideal es SITE_ID=1 (y configurarlo en Admin > Sites)
-SITE_ID = int(os.getenv("SITE_ID", "1"))
+#SITE_ID = int(os.getenv("SITE_ID", "1"))
+SITE_ID = 3
 
 LOGIN_REDIRECT_URL = "/mi-cuenta/"
 LOGOUT_REDIRECT_URL = "/ver_catalogo_completo/"
@@ -89,8 +90,8 @@ MIDDLEWARE = [
 # ==============================
 # URLS / SERVER
 # ==============================
-ROOT_URLCONF = "proyecto.urls"
-WSGI_APPLICATION = "proyecto.wsgi.application"
+ROOT_URLCONF = "main.urls"
+WSGI_APPLICATION = "main.wsgi.application"
 
 # ==============================
 # TEMPLATES
@@ -152,11 +153,11 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
 
 # WhiteNoise (mejor compresión/cache)
-STORAGES = {
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    }
-}
+#STORAGES = {
+#    "staticfiles": {
+#        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+#    }
+#}
 
 # ==============================
 # MEDIA FILES
