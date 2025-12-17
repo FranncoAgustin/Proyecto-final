@@ -1,25 +1,37 @@
+import os
+import csv
+import re
+from io import BytesIO
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.db import IntegrityError, transaction
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from django.views.decorators.http import require_POST
-from datetime import datetime
+from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
 from django.contrib import messages
-import os
-import csv
-import re
+from django.db.models import F, Q
+
+
+
+
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from datetime import datetime
 from difflib import SequenceMatcher
-from django.db.models import F
+
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    Image, PageBreak
+)
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.utils import ImageReader
 
-from .forms import ListaPrecioForm, FacturaProveedorForm
+
+from .forms import ListaPrecioForm, FacturaProveedorForm, ListaPreciosPDFForm, FacturaForm
 from .models import ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ItemFactura, ProductoVariante
 from .utils import extraer_precios_de_pdf, get_similarity
 from .utils_ocr import extraer_datos_factura
@@ -52,6 +64,29 @@ def _norm(s: str) -> str:
 def _score(a: str, b: str) -> float:
     return SequenceMatcher(None, _norm(a), _norm(b)).ratio()
 
+@require_GET
+def api_productos(request):
+    q = (request.GET.get("q") or "").strip()
+    qs = ProductoPrecio.objects.filter(activo=True)
+
+    if q:
+        qs = qs.filter(
+            Q(nombre_publico__icontains=q) |
+            Q(sku__icontains=q)
+        )
+
+    qs = qs.order_by("nombre_publico")[:20]
+
+    data = []
+    for p in qs:
+        data.append({
+            "id": p.id,
+            "nombre": p.nombre_publico,
+            "sku": p.sku,
+            "precio": str((p.precio or Decimal("0.00")).quantize(Q2)),
+        })
+    return JsonResponse({"results": data})
+
 def sugerencias_para(nombre_item: str, productos, top=8):
     # productos: iterable de (id, sku, nombre_publico)
     scored = []
@@ -62,16 +97,14 @@ def sugerencias_para(nombre_item: str, productos, top=8):
     return scored[:top]
 
 def _to_decimal(v, default="0"):
-    """Convierte a Decimal soportando coma decimal."""
-    s = str(v).strip().replace(",", ".")
     try:
+        s = str(v).strip().replace(",", ".")
         return Decimal(s)
     except (InvalidOperation, ValueError):
         return Decimal(default)
-
-from django.db.models import Q
-from ofertas.utils import get_precio_con_oferta
-from .models import ProductoPrecio
+    
+def mostrar_precios(request):
+    productos = ProductoPrecio.objects.filter(activo=True).order_by('nombre_publico')
 
 
 def mostrar_precios(request):
@@ -101,21 +134,6 @@ def mostrar_precios(request):
             "productos": productos,
         }
     )
-
-def exportar_csv_catalogo(request):
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="catalogo_final.csv"'
-    writer = csv.writer(response)
-    writer.writerow(['SKU', 'Nombre Público', 'Precio', 'Última Actualización'])
-
-    for producto in ProductoPrecio.objects.all():
-        writer.writerow([
-            producto.sku,
-            producto.nombre_publico,
-            producto.precio,
-            producto.ultima_actualizacion.strftime('%Y-%m-%d %H:%M'),
-        ])
-    return response
 
 
 def detalle_producto(request, pk):
@@ -713,15 +731,24 @@ def historia_listas(request):
     })
 
 
-def _precio_mayorista(precio_unitario: Decimal) -> Decimal:
-    """
-    ✅ Regla simple (editable):
-    Ej: 20% off para mayorista.
-    Cambiá el 0.80 por el coeficiente que uses.
-    """
+def _precio_mayorista(precio_unitario: Decimal, coef: Decimal = Decimal("0.90")) -> Decimal:
+    # ejemplo: 0.90 = -10%. Cambiá el coeficiente si querés.
     if precio_unitario is None:
         return Decimal("0.00")
-    return (precio_unitario * Decimal("0.80")).quantize(Q2, rounding=ROUND_HALF_UP)
+    return (precio_unitario * coef).quantize(Q2, rounding=ROUND_HALF_UP)
+
+def _safe_img(img_field, styles, w=1.6*cm, h=1.6*cm):
+    try:
+        if not img_field:
+            return Paragraph("—", styles["Normal"])
+        pth = getattr(img_field, "path", None)
+        if not pth:
+            return Paragraph("—", styles["Normal"])
+        im = Image(pth, width=w, height=h)
+        im.hAlign = "CENTER"
+        return im
+    except Exception:
+        return Paragraph("—", styles["Normal"])
 
 
 def _tech_label(tech: str) -> str:
@@ -735,110 +762,398 @@ def _tech_label(tech: str) -> str:
     }.get(tech, "Otros")
 
 
-def descargar_lista_precios_pdf(request):
+def lista_precios_opciones(request):
     """
-    Genera un PDF con:
-    Imagen | Nombre | Precio unitario | Precio mayorista
-    Agrupado por técnica (SUB/LAS/3D/OTR).
+    Pantalla con opciones (GET) y genera el PDF (POST).
     """
-    # Si querés filtrar solo activos:
-    productos = (
-        ProductoPrecio.objects
-        .filter(activo=True)
-        .order_by("tech", "nombre_publico")
-    )
+    if request.method == "POST":
+        form = ListaPreciosPDFForm(request.POST, request.FILES)
+        if form.is_valid():
+            tecnica = form.cleaned_data["tecnica"]          # ALL / SUB / LAS / 3D / OTR
+            incluir_sku = form.cleaned_data["incluir_sku"]  # bool
+            descuento = form.cleaned_data["descuento_mayorista"]  # Decimal
+            marca_agua = form.cleaned_data.get("marca_agua")      # InMemoryUploadedFile | None
+            instagram_url = form.cleaned_data.get("instagram_url") or ""
+            whatsapp_url = form.cleaned_data.get("whatsapp_url") or ""
 
-    # Agrupar
-    buckets = {"SUB": [], "LAS": [], "3D": [], "OTR": []}
-    for p in productos:
-        tech = p.tech if p.tech in buckets else "OTR"
-        buckets[tech].append(p)
+            # productos
+            qs = ProductoPrecio.objects.filter(activo=True)
+            if tecnica != "ALL":
+                qs = qs.filter(tech=tecnica)
+            qs = qs.order_by("tech", "nombre_publico")
 
-    # Response PDF
-    filename = f"lista_precios_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
+            # Agrupar (si ALL => por técnica; si no ALL => solo una sección)
+            buckets = {"SUB": [], "LAS": [], "3D": [], "OTR": []}
+            if tecnica == "ALL":
+                for p in qs:
+                    code = p.tech if p.tech in buckets else "OTR"
+                    buckets[code].append(p)
+                tech_order = ["SUB", "LAS", "3D", "OTR"]
+            else:
+                # una sola sección
+                buckets = {tecnica: list(qs)}
+                tech_order = [tecnica]
+
+            # ===== PDF Response =====
+            filename = f"lista_precios_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
+            resp = HttpResponse(content_type="application/pdf")
+            resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+            styles = getSampleStyleSheet()
+
+            # ✅ Ruta del LOGO (ajustá si tu archivo se llama distinto)
+            LOGO_PATH = os.path.join(settings.MEDIA_ROOT, "branding", "logo.png")
+
+            # Marca de agua (opcional): la convertimos a ImageReader en memoria
+            watermark_reader = None
+            if marca_agua:
+                try:
+                    wm_bytes = marca_agua.read()
+                    watermark_reader = ImageReader(BytesIO(wm_bytes))
+                except Exception:
+                    watermark_reader = None
+
+            def draw_header_and_watermark(canvas, doc_):
+                canvas.saveState()
+
+                # =========================
+                # MARCA DE AGUA
+                # =========================
+                if watermark_reader:
+                    try:
+                        canvas.setFillAlpha(0.08)
+                    except Exception:
+                        pass
+
+                    page_w, page_h = A4
+                    canvas.drawImage(
+                        watermark_reader,
+                        0, 0,
+                        width=page_w,
+                        height=page_h,
+                        preserveAspectRatio=True,
+                        anchor="c",
+                        mask="auto",
+                    )
+
+                    try:
+                        canvas.setFillAlpha(1)
+                    except Exception:
+                        pass
+
+                # =========================
+                # FOOTER BOTONES
+                # =========================
+                page_w, page_h = A4
+                y = 0.9 * cm
+                btn_w = 5.6 * cm
+                btn_h = 1.0 * cm
+
+                canvas.setFont("Helvetica-Bold", 9)
+
+                # ---------- WHATSAPP (IZQUIERDA) ----------
+                if whatsapp_url:
+                    x = doc_.leftMargin
+                    canvas.setFillColorRGB(0.13, 0.75, 0.38)
+                    canvas.roundRect(x, y, btn_w, btn_h, 8, fill=1, stroke=0)
+
+                    canvas.setFillColor(colors.white)
+                    canvas.drawCentredString(
+                        x + btn_w / 2,
+                        y + btn_h / 2 - 3,
+                        "📱 WhatsApp"
+                    )
+
+                    canvas.linkURL(
+                        whatsapp_url,
+                        (x, y, x + btn_w, y + btn_h),
+                        relative=0
+                    )
+
+                # ---------- INSTAGRAM (DERECHA) ----------
+                if instagram_url:
+                    x = page_w - doc_.rightMargin - btn_w
+                    canvas.setFillColorRGB(0.86, 0.26, 0.55)
+                    canvas.roundRect(x, y, btn_w, btn_h, 8, fill=1, stroke=0)
+
+                    canvas.setFillColor(colors.white)
+                    canvas.drawCentredString(
+                        x + btn_w / 2,
+                        y + btn_h / 2 - 3,
+                        "📸 Instagram"
+                    )
+
+                    canvas.linkURL(
+                        instagram_url,
+                        (x, y, x + btn_w, y + btn_h),
+                        relative=0
+                    )
+
+                # ---------- NÚMERO DE PÁGINA ----------
+                canvas.setFillColor(colors.grey)
+                canvas.setFont("Helvetica", 8)
+                canvas.drawCentredString(
+                    page_w / 2,
+                    y - 0.35 * cm,
+                    f"Página {doc_.page}"
+                )
+
+                canvas.restoreState()
+
+            # ✅ Más margen arriba para que la tabla NO tape el logo
+            doc = SimpleDocTemplate(
+                resp,
+                pagesize=A4,
+                leftMargin=1.2 * cm,
+                rightMargin=1.2 * cm,
+                topMargin=3.2 * cm,     # 👈 clave para que no lo tape la tabla
+                bottomMargin=1.2 * cm,
+                title="Lista de precios",
+            )
+
+            story = []
+
+            # =========================
+            # ✅ SECCIONES + TABLAS
+            # =========================
+            for tech_code in tech_order:
+                items = buckets.get(tech_code) or []
+                if not items:
+                    continue
+
+                story.append(Paragraph(_tech_label(tech_code), styles["Heading1"]))
+                story.append(Spacer(1, 0.2 * cm))
+
+                # Encabezados según incluir_sku
+                if incluir_sku:
+                    data = [["Imagen", "Producto", "SKU", "Unitario", "Mayorista"]]
+                    colw = [2.0*cm, 8.5*cm, 2.5*cm, 3.0*cm, 3.0*cm]
+                else:
+                    data = [["Imagen", "Producto", "Unitario", "Mayorista"]]
+                    colw = [2.0*cm, 11.0*cm, 3.0*cm, 3.0*cm]
+
+                for p in items:
+                    unit = (p.precio or Decimal("0.00")).quantize(Q2)
+                    may = _precio_mayorista(unit, descuento)
+
+                    if incluir_sku:
+                        data.append([
+                            _safe_img(p.imagen, styles),
+                            Paragraph(f"<b>{p.nombre_publico}</b>", styles["Normal"]),
+                            Paragraph((p.sku or "—"), styles["Normal"]),
+                            Paragraph(f"$ {unit:.2f}", styles["Normal"]),
+                            Paragraph(f"$ {may:.2f}", styles["Normal"]),
+                        ])
+                    else:
+                        data.append([
+                            _safe_img(p.imagen, styles),
+                            Paragraph(f"<b>{p.nombre_publico}</b>", styles["Normal"]),
+                            Paragraph(f"$ {unit:.2f}", styles["Normal"]),
+                            Paragraph(f"$ {may:.2f}", styles["Normal"]),
+                        ])
+
+                table = Table(data, colWidths=colw, repeatRows=1)
+                table.setStyle(TableStyle([
+                    # ❌ SIN FONDOS (TRANSPARENTE)
+                    ("GRID",       (0,0), (-1,-1), 0.25, colors.grey),
+
+                    ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+                    ("ALIGN",      (-2,1), (-1,-1), "RIGHT"),
+
+                    ("FONTSIZE",   (0,0), (-1,0), 10),
+                    ("FONTSIZE",   (0,1), (-1,-1), 9),
+
+                    ("TOPPADDING", (0,0), (-1,-1), 6),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+                ]))
+
+                story.append(table)
+                story.append(PageBreak())
+
+            doc.build(
+                story,
+                onFirstPage=draw_header_and_watermark,
+                onLaterPages=draw_header_and_watermark,
+            )
+            return resp
+
+    else:
+        form = ListaPreciosPDFForm()
+
+    return render(request, "pdf/lista_precios_opciones.html", {"form": form})
+
+def factura_crear(request):
+    # Defaults vendedor
+    initial = {
+        "vendedor_nombre": "Mundo Personalizado",
+        "vendedor_whatsapp": "11 5663-7260",
+        "vendedor_horario": "9:00 a 20:00",
+        "vendedor_direccion": "Virrey del Pino, La Matanza",
+    }
+
+    if request.method == "POST":
+        form = FacturaForm(request.POST)
+        if form.is_valid():
+            # ====== leer items dinámicos ======
+            nombres = request.POST.getlist("item_nombre[]")
+            precios = request.POST.getlist("item_precio[]")
+            cantidades = request.POST.getlist("item_cantidad[]")
+
+            items = []
+            total = Decimal("0.00")
+
+            for nom, pre, cant in zip(nombres, precios, cantidades):
+                nom = (nom or "").strip()
+                if not nom:
+                    continue
+                precio = _to_decimal(pre, "0").quantize(Q2)
+                try:
+                    qty = int(cant)
+                except ValueError:
+                    qty = 1
+                if qty <= 0:
+                    continue
+
+                subtotal = (precio * qty).quantize(Q2, rounding=ROUND_HALF_UP)
+                total += subtotal
+
+                items.append({
+                    "nombre": nom,
+                    "precio": precio,
+                    "cantidad": qty,
+                    "subtotal": subtotal,
+                })
+
+            # ====== generar PDF ======
+            return _factura_pdf_response(form.cleaned_data, items, total)
+
+    else:
+        form = FacturaForm(initial=initial)
+
+    return render(request, "pdf/factura_form.html", {"form": form})
+
+def _factura_pdf_response(data, items, total):
+    filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
     resp = HttpResponse(content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    # Doc
+    styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(
-        resp,
-        pagesize=A4,
-        leftMargin=1.2*cm,
-        rightMargin=1.2*cm,
-        topMargin=1.2*cm,
-        bottomMargin=1.2*cm,
-        title="Lista de precios",
+        resp, pagesize=A4,
+        leftMargin=2.0*cm, rightMargin=2.0*cm,
+        topMargin=1.8*cm, bottomMargin=1.8*cm
     )
 
-    styles = getSampleStyleSheet()
     story = []
 
-    story.append(Paragraph("Lista de precios", styles["Title"]))
-    story.append(Paragraph(f"Generada: {timezone.localtime().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
-    story.append(Spacer(1, 0.4*cm))
+    # Logo
+    logo_path = os.path.join(settings.MEDIA_ROOT, "branding", "logo.png")
 
-    def safe_img(path_or_field, w=1.6*cm, h=1.6*cm):
-        """
-        ReportLab Image desde un archivo local.
-        Si no hay imagen, devuelve un texto.
-        """
-        try:
-            if not path_or_field:
-                return Paragraph("—", styles["Normal"])
-            # ImageField -> path local: .path
-            pth = getattr(path_or_field, "path", None) or str(path_or_field)
-            img = Image(pth, width=w, height=h)
-            img.hAlign = "CENTER"
-            return img
-        except Exception:
-            return Paragraph("—", styles["Normal"])
+    left = []
+    if os.path.exists(logo_path):
+        left.append(Image(logo_path, width=2.8*cm, height=2.8*cm))
+    else:
+        left.append(Paragraph("<b>Mundo Personalizado</b>", styles["Title"]))
 
-    # Armado por sección
-    for tech_code in ["SUB", "LAS", "3D", "OTR"]:
-        items = buckets[tech_code]
-        if not items:
-            continue
+    titulo = Paragraph(
+        "<para align='center'>"
+        "<b>FACTURA SIN VALOR FISCAL</b><br/>"
+        f"<font size=9>Fecha: {timezone.localtime().strftime('%d/%m/%Y %H:%M')}</font><br/>"
+        f"<font size=9>Validez: {int(data.get('validez_dias') or 7)} días</font>"
+        "</para>",
+        styles["Normal"]
+    )
 
-        story.append(Paragraph(_tech_label(tech_code), styles["Heading1"]))
-        story.append(Spacer(1, 0.2*cm))
+    vendedor = Paragraph(
+        "<para align='right'>"
+        f"<b>{data['vendedor_nombre']}</b><br/>"
+        f"WhatsApp: {data['vendedor_whatsapp']}<br/>"
+        f"Horario: {data['vendedor_horario']}<br/>"
+        f"{data['vendedor_direccion']}"
+        "</para>",
+        styles["Normal"]
+    )
 
-        data = [["Imagen", "Producto", "Unitario", "Mayorista"]]
+    header = Table([[left, titulo, vendedor]], colWidths=[3.2*cm, 7.0*cm, 6.0*cm])
+    header.setStyle(TableStyle([
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("LINEBELOW", (0,0), (-1,0), 0.75, colors.lightgrey),
+        ("BOTTOMPADDING", (0,0), (-1,0), 10),
+    ]))
+    story.append(header)
+    story.append(Spacer(1, 0.5*cm))
 
-        for p in items:
-            unit = (p.precio or Decimal("0.00")).quantize(Q2)
-            may = _precio_mayorista(unit)
-
-            data.append([
-                safe_img(p.imagen),
-                Paragraph(f"<b>{p.nombre_publico}</b><br/><font size=9>SKU: {p.sku}</font>", styles["Normal"]),
-                Paragraph(f"$ {unit:.2f}", styles["Normal"]),
-                Paragraph(f"$ {may:.2f}", styles["Normal"]),
-            ])
-
-        # Tabla
-        table = Table(
-            data,
-            colWidths=[2.0*cm, 10.5*cm, 3.0*cm, 3.0*cm],
-            repeatRows=1,
+    # Cliente (más “cajita”)
+    cliente = Table([[
+        Paragraph(
+            f"<b>Cliente</b><br/>"
+            f"Nombre: {data['cliente_nombre']}<br/>"
+            f"Tel: {data.get('cliente_telefono') or '—'}<br/>"
+            f"DNI/CUIL: {data.get('cliente_doc') or '—'}<br/>"
+            f"Dirección: {data.get('cliente_direccion') or '—'}",
+            styles["Normal"]
         )
+    ]], colWidths=[16.2*cm])
 
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-            ("TEXTCOLOR",  (0,0), (-1,0), colors.black),
-            ("GRID",       (0,0), (-1,-1), 0.25, colors.grey),
-            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
-            ("ALIGN",      (2,1), (3,-1), "RIGHT"),
-            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
-            ("FONTSIZE",   (0,0), (-1,0), 10),
-            ("FONTSIZE",   (0,1), (-1,-1), 9),
-            ("TOPPADDING", (0,0), (-1,-1), 6),
-            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
-        ]))
+    cliente.setStyle(TableStyle([
+        ("BOX", (0,0), (-1,-1), 0.6, colors.lightgrey),
+        ("BACKGROUND", (0,0), (-1,-1), colors.whitesmoke),
+        ("LEFTPADDING", (0,0), (-1,-1), 10),
+        ("RIGHTPADDING", (0,0), (-1,-1), 10),
+        ("TOPPADDING", (0,0), (-1,-1), 8),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+    ]))
+    story.append(cliente)
+    story.append(Spacer(1, 0.5*cm))
 
-        story.append(table)
-        story.append(Spacer(1, 0.5*cm))
-        story.append(PageBreak())
+    # Items
+    table_data = [["Producto", "Cant.", "Unitario", "Subtotal"]]
+    for it in items:
+        table_data.append([
+            Paragraph(f"<b>{it['nombre']}</b>", styles["Normal"]),
+            str(it["cantidad"]),
+            f"$ {it['precio']:.2f}",
+            f"$ {it['subtotal']:.2f}",
+        ])
 
-    # si quedó un PageBreak extra al final, no es grave; si querés lo saco.
+    tabla = Table(table_data, colWidths=[9.5*cm, 1.5*cm, 2.6*cm, 2.6*cm], repeatRows=1)
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("ALIGN", (1,1), (-1,-1), "RIGHT"),
+        ("TOPPADDING", (0,0), (-1,-1), 6),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+    ]))
+    story.append(tabla)
+    story.append(Spacer(1, 0.5*cm))
+
+    sena = _to_decimal(data.get("sena") or "0", "0").quantize(Q2)
+    saldo = (total - sena).quantize(Q2)
+
+    resumen = Table([
+        ["Seña:", f"$ {sena:.2f}"],
+        ["Total:", f"$ {total.quantize(Q2):.2f}"],
+        ["Falta abonar:", f"$ {saldo:.2f}"],
+    ], colWidths=[12.0*cm, 4.2*cm])
+
+    resumen.setStyle(TableStyle([
+        ("ALIGN", (1,0), (1,-1), "RIGHT"),
+        ("FONTNAME", (0,1), (-1,1), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 11),
+        ("TOPPADDING", (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+    ]))
+    story.append(resumen)
+
+    story.append(Spacer(1, 0.4*cm))
+    story.append(Paragraph(
+        "<para align='center'><font size=8 color='#666666'>"
+        "Presupuesto / Factura sin valor fiscal. Validez 7 días salvo indicación contraria."
+        "</font></para>",
+        styles["Normal"]
+    ))
+
     doc.build(story)
     return resp

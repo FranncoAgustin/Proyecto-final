@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Generar lista de precios{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h5 mb-0">📄 Generar lista de precios (PDF)</h1>
+        <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">← Volver</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <form method="post" enctype="multipart/form-data" class="row g-3">
+                {% csrf_token %}
+
+                <div class="col-md-4">
+                    <label class="form-label">Qué querés descargar</label>
+                    {{ form.tecnica }}
+                    <div class="form-text">Podés bajar toda la base o una técnica puntual.</div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">% descuento mayorista</label>
+                    {{ form.descuento_mayorista }}
+                    <div class="form-text">Ej: 20 = 20% OFF.</div>
+                </div>
+
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                        {{ form.incluir_sku }}
+                        <label class="form-check-label">Incluir SKU en el PDF</label>
+                    </div>
+                </div>
+
+                <div class="col-md-12">
+                    <label class="form-label">Marca de agua (opcional)</label>
+                    {{ form.marca_agua }}
+                    <div class="form-text">
+                        Subí una imagen (PNG/JPG). Se pone de fondo con transparencia.
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">{{ form.instagram_url.label }}</label>
+                        {{ form.instagram_url }}
+                        <div class="form-text">Ej: https://www.instagram.com/_mundo_personalizado/</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">{{ form.whatsapp_url.label }}</label>
+                        {{ form.whatsapp_url }}
+                        <div class="form-text">Ej: https://wa.me/message/NSO7K5POCXLKE1</div>
+                    </div>
+                </div>
+
+                <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                    <button type="submit" class="btn btn-primary">
+                        Generar PDF
+                    </button>
+                    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                        Cancelar
+                    </a>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

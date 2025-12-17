@@ -13,15 +13,109 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 
   <style>
+    :root{
+      --mp-border: rgba(0,0,0,.10);
+      --mp-shadow: 0 10px 28px rgba(0,0,0,.08);
+      --mp-shadow-soft: 0 6px 16px rgba(0,0,0,.06);
+      --mp-text: #111;
+      --mp-muted: #6c757d;
+
+      /* ✅ Más cuadrado */
+      --mp-radius: 10px;     /* cards/dropdowns */
+      --mp-radius-sm: 8px;   /* inputs/buttons */
+    }
+
+    body{
+      color: var(--mp-text);
+      background:
+        radial-gradient(1100px 360px at 50% 0%, rgba(13,110,253,.07), transparent 60%),
+        #f8f9fa;
+    }
+
+    main.container{
+      max-width: 1140px;
+    }
+
+    /* Inputs más cuadrados */
+    .form-control,
+    .form-select{
+      border-radius: var(--mp-radius-sm);
+      border: 1px solid rgba(0,0,0,.14);
+    }
+    .form-control:focus,
+    .form-select:focus{
+      border-color: rgba(13,110,253,.35);
+      box-shadow: 0 0 0 .2rem rgba(13,110,253,.14);
+    }
+
+    /* Botones más cuadrados y consistentes */
+    .btn{
+      border-radius: var(--mp-radius-sm);
+    }
+    .btn-mp{
+      border-radius: var(--mp-radius-sm) !important;
+      border: 1px solid rgba(0,0,0,.12) !important;
+      background: rgba(255,255,255,.92) !important;
+      color: #111 !important;
+      font-weight: 650;
+      box-shadow: 0 4px 12px rgba(0,0,0,.06);
+      transition: transform .08s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .btn-mp:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 12px 22px rgba(0,0,0,.10);
+      background: #fff !important;
+    }
+    .btn-mp:active{ transform: translateY(0); }
+
+    /* Variantes suaves */
+    .btn-mp.primary{ border-color: rgba(13,110,253,.28) !important; background: rgba(13,110,253,.07) !important; }
+    .btn-mp.success{ border-color: rgba(25,135,84,.30) !important; background: rgba(25,135,84,.08) !important; }
+    .btn-mp.danger{ border-color: rgba(220,53,69,.30) !important; background: rgba(220,53,69,.07) !important; }
+    .btn-mp.neutral{ border-color: rgba(108,117,125,.26) !important; background: rgba(108,117,125,.07) !important; }
+
+    /* Dropdowns más “admin” */
+    .dropdown-menu{
+      border-radius: var(--mp-radius);
+      border: 1px solid rgba(0,0,0,.12);
+      box-shadow: var(--mp-shadow);
+      overflow: hidden;
+    }
+    .dropdown-item:active{
+      background: rgba(13,110,253,.12);
+      color: #111;
+    }
+
+    /* Navbar (limpia y pro) */
+    .mp-navbar{
+      position: sticky;
+      top: 0;
+      z-index: 1030;
+      background: rgba(255,255,255,.86);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--mp-border);
+    }
+    .mp-navbar .nav-link{
+      border-radius: var(--mp-radius-sm);
+      padding: .45rem .65rem;
+      color: rgba(0,0,0,.80);
+    }
+    .mp-navbar .nav-link:hover{
+      background: rgba(0,0,0,.04);
+      color: rgba(0,0,0,.95);
+    }
+
+    /* ✅ Mantengo tus estilos de producto */
     .product-thumb {
       position: relative;
       width: 100%;
       padding-top: 100%;
       background: #f7f7f7;
-      border-radius: .75rem .75rem 0 0;
+      border-radius: var(--mp-radius);
       overflow: hidden;
+      border: 1px solid rgba(0,0,0,.06);
     }
-
     .product-thumb img {
       position: absolute;
       inset: 0;
@@ -33,37 +127,49 @@
     .variant-chip {
       display: inline-block;
       font-size: .8rem;
-      padding: .2rem .5rem;
-      background: #f1f5f9;
-      border-radius: 999px;
+      padding: .22rem .55rem;
+      background: rgba(0,0,0,.04);
+      border: 1px solid rgba(0,0,0,.08);
+      border-radius: var(--mp-radius-sm);
       margin: 0 .25rem .25rem 0;
+      color: rgba(0,0,0,.70);
+      font-weight: 600;
     }
 
+    /* ✅ ICONOS NAV EN NEGRO (carrito y favoritos) */
+    .nav-icon { color: #111 !important; }
+    .nav-icon:hover { color: #000 !important; }
+
+    /* Badges más cuadrados */
+    .badge{
+      border-radius: 10px !important;
+    }
+
+    /* Floating buttons (cuadrados suaves) */
     .floating-btn {
       position: fixed;
       bottom: 20px;
       right: 20px;
       z-index: 1050;
+      display: grid;
+      gap: 10px;
     }
-
     .floating-btn a {
-      display: block;
-      margin-top: 10px;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      font-size: 28px;
+      border-radius: 12px;
+      width: 56px;
+      height: 56px;
+      font-size: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 14px 28px rgba(0,0,0,.18);
+      border: 1px solid rgba(255,255,255,.35);
     }
 
-    /* ✅ ICONOS NAV EN NEGRO (carrito y favoritos) */
-    .nav-icon {
-      color: #111 !important;
-    }
-    .nav-icon:hover {
-      color: #000 !important;
+    /* Footer */
+    .mp-footer{
+      background: rgba(255,255,255,.92);
+      border-top: 1px solid var(--mp-border);
     }
   </style>
 
@@ -73,10 +179,15 @@
 <body class="bg-light">
 
   <!-- NAVBAR -->
-  <nav class="navbar navbar-expand-lg navbar-light bg-body-tertiary border-bottom mb-3">
+  <nav class="navbar navbar-expand-lg mp-navbar mb-3">
     <div class="container">
+
       <!-- Brand -->
-      <a class="navbar-brand fw-semibold" href="{% url 'ver_catalogo_completo' %}">
+      <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{% url 'ver_catalogo_completo' %}">
+        <span class="d-inline-flex align-items-center justify-content-center"
+              style="width:34px;height:34px;border-radius:12px;background:rgba(13,110,253,.10);border:1px solid rgba(13,110,253,.18);">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </span>
         Mundo Personalizado
       </a>
 
@@ -86,16 +197,18 @@
       </button>
 
       <div id="mainNav" class="collapse navbar-collapse">
+
         <!-- Buscador -->
-        <form class="d-flex ms-auto my-2 my-lg-0" role="search" method="get" action="{% url 'ver_catalogo_completo' %}">
-          <input class="form-control me-2" name="q" type="search" placeholder="Buscar productos…"
-            value="{{ request.GET.q|default:'' }}">
-          <button class="btn btn-outline-primary" type="submit">Buscar</button>
+        <form class="d-flex ms-auto my-2 my-lg-0 gap-2" role="search" method="get" action="{% url 'ver_catalogo_completo' %}">
+          <input class="form-control" name="q" type="search" placeholder="Buscar productos…"
+                 value="{{ request.GET.q|default:'' }}">
+          <button class="btn btn-mp primary" type="submit">
+            <i class="fa-solid fa-magnifying-glass me-1"></i> Buscar
+          </button>
         </form>
 
         <ul class="navbar-nav ms-3 align-items-lg-center gap-2">
 
-          {# ✅ BOTÓN ADMIN PANEL (solo staff) #}
           {% if request.user.is_authenticated and request.user.is_staff %}
           <li class="nav-item">
             <a class="nav-link d-flex align-items-center" href="{% url 'home' %}">
@@ -105,7 +218,6 @@
           </li>
           {% endif %}
 
-          {# CUENTA #}
           {% if request.user.is_authenticated %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button"
@@ -116,7 +228,6 @@
               </span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">
-              <!-- Zona cliente -->
               <li><a class="dropdown-item" href="{% url 'mi_cuenta' %}">Mi cuenta</a></li>
               <li><a class="dropdown-item" href="{% url 'mis_compras' %}">Mis compras</a></li>
               <li><hr class="dropdown-divider"></li>
@@ -132,23 +243,23 @@
           </li>
           {% endif %}
 
-          {# CARRITO #}
+          <!-- Carrito -->
           <li class="nav-item dropdown">
             <a class="nav-link position-relative nav-icon" href="#" role="button" data-bs-toggle="dropdown"
               aria-expanded="false" aria-label="Carrito">
               <i class="fa-solid fa-bag-shopping"></i>
               {% if cart_total_qty %}
-              <span class="badge bg-primary rounded-pill position-absolute top-0 start-100 translate-middle">
+              <span class="badge bg-primary position-absolute top-0 start-100 translate-middle">
                 {{ cart_total_qty }}
               </span>
               {% endif %}
             </a>
-            <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 260px;">
+            <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 280px;">
               {% if cart_items %}
               {% for item in cart_items %}
               <li class="dropdown-item d-flex justify-content-between align-items-start small">
                 <div class="me-2">
-                  <div class="fw-semibold text-truncate" style="max-width: 150px;">
+                  <div class="fw-semibold text-truncate" style="max-width: 170px;">
                     {{ item.nombre }}
                   </div>
                   <div class="text-muted">
@@ -174,18 +285,18 @@
             </ul>
           </li>
 
-          {# FAVORITOS #}
+          <!-- Favoritos -->
           <li class="nav-item dropdown">
             <a class="nav-link position-relative nav-icon" href="#" role="button" data-bs-toggle="dropdown"
               aria-expanded="false" aria-label="Favoritos">
               <i class="fa-solid fa-heart"></i>
               {% if favorites_count %}
-              <span class="badge bg-danger rounded-pill position-absolute top-0 start-100 translate-middle">
+              <span class="badge bg-danger position-absolute top-0 start-100 translate-middle">
                 {{ favorites_count }}
               </span>
               {% endif %}
             </a>
-            <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 260px;">
+            <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 280px;">
               {% if favorites_items %}
               {% for fav in favorites_items %}
               <li class="dropdown-item d-flex align-items-center small">
@@ -193,7 +304,7 @@
                 <img src="{{ fav.imagen_url }}" alt="" class="me-2 rounded"
                   style="width:32px;height:32px;object-fit:cover;">
                 {% endif %}
-                <div class="flex-grow-1 text-truncate" style="max-width: 170px;">
+                <div class="flex-grow-1 text-truncate" style="max-width: 185px;">
                   {{ fav.nombre }}
                 </div>
                 <a href="{% url 'detalle_producto' fav.id %}" class="ms-2 text-decoration-none">
@@ -226,25 +337,28 @@
   </main>
 
   <!-- FOOTER -->
-  <footer class="bg-white border-top py-4 mt-auto">
+  <footer class="mp-footer py-4 mt-auto">
     <div class="container">
       <div class="d-flex flex-column flex-md-row gap-3 justify-content-center">
-        <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-success">
+        <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-mp success">
           <i class="fab fa-whatsapp me-1"></i> ¿Tenés dudas? ¡Escribinos!
         </a>
-        <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-danger">
+        <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-mp danger">
           <i class="fab fa-instagram me-1"></i> Nuestro Instagram
         </a>
       </div>
+      <p class="text-center text-muted small mt-3 mb-0">
+        © {{ now|date:"Y" }} Mundo Personalizado · Hecho con amor y detalle ✨
+      </p>
     </div>
   </footer>
 
   <!-- BOTONES FLOTANTES -->
   <div class="floating-btn">
-    <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-success shadow">
+    <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-success">
       <i class="fab fa-whatsapp"></i>
     </a>
-    <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-danger shadow">
+    <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-danger">
       <i class="fab fa-instagram"></i>
     </a>
   </div>

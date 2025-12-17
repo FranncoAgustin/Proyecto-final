@@ -35,8 +35,6 @@ urlpatterns = [
     # Catálogo donde se listan todos los productos
     path("catalogo/", pdf_views.mostrar_precios, name="ver_catalogo_completo"),
 
-    # Exportación del catálogo a CSV
-    path("exportar/csv/", pdf_views.exportar_csv_catalogo, name="exportar_csv_catalogo"),
 
     # URLs del owner (panel admin, historia ingresos, etc.)
     path("owner/", include("owner.urls")),

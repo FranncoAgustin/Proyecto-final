@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Generar factura{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-3">Generador de Facturas</h1>
+
+<form method="post" class="card p-3 shadow-sm">
+  {% csrf_token %}
+
+  <h2 class="h6 mt-1">Datos del vendedor (precargados)</h2>
+  <div class="row g-2">
+    <div class="col-md-6">{{ form.vendedor_nombre.label_tag }} {{ form.vendedor_nombre }}</div>
+    <div class="col-md-6">{{ form.vendedor_whatsapp.label_tag }} {{ form.vendedor_whatsapp }}</div>
+    <div class="col-md-6">{{ form.vendedor_horario.label_tag }} {{ form.vendedor_horario }}</div>
+    <div class="col-md-6">{{ form.vendedor_direccion.label_tag }} {{ form.vendedor_direccion }}</div>
+  </div>
+
+  <hr class="my-3">
+
+  <h2 class="h6">Datos del cliente</h2>
+  <div class="row g-2">
+    <div class="col-md-6">{{ form.cliente_nombre.label_tag }} {{ form.cliente_nombre }}</div>
+    <div class="col-md-6">{{ form.cliente_telefono.label_tag }} {{ form.cliente_telefono }}</div>
+    <div class="col-md-6">{{ form.cliente_doc.label_tag }} {{ form.cliente_doc }}</div>
+    <div class="col-md-6">{{ form.cliente_direccion.label_tag }} {{ form.cliente_direccion }}</div>
+  </div>
+
+  <hr class="my-3">
+
+  <h2 class="h6">Condiciones</h2>
+  <div class="row g-2">
+    <div class="col-md-3">{{ form.validez_dias.label_tag }} {{ form.validez_dias }}</div>
+    <div class="col-md-3">{{ form.sena.label_tag }} {{ form.sena }}</div>
+  </div>
+
+  <hr class="my-3">
+
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="h6 mb-0">Productos</h2>
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow()">
+      + Agregar producto
+    </button>
+  </div>
+
+  {# ✅ MÁS ESPACIO PARA CARGAR PRODUCTOS #}
+  <div class="table-responsive mt-2 border rounded"
+       style="max-height: 70vh; min-height: 520px; overflow:auto;">
+    <table class="table align-middle mb-0" id="itemsTable">
+      <thead class="table-light sticky-top" style="top:0; z-index:1;">
+        <tr>
+          <th style="min-width:760px;">Producto</th>
+          <th style="width:140px;">Precio</th>
+          <th style="width:140px;">Cantidad</th>
+          <th style="width:140px;">Subtotal</th>
+          <th style="width:60px;"></th>
+        </tr>
+      </thead>
+      <tbody id="itemsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="text-end fw-semibold fs-5 mt-2">
+    Total: $ <span id="grandTotal">0.00</span>
+  </div>
+
+  <div class="mt-3 d-flex gap-2 justify-content-end">
+    <a href="{% url 'ver_catalogo_completo' %}" class="btn btn-outline-secondary">Volver</a>
+    <button class="btn btn-primary" type="submit">
+      Descargar factura PDF
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+function money(n){ return (Math.round(n*100)/100).toFixed(2); }
+
+function recalc(){
+  let total = 0;
+  document.querySelectorAll("#itemsBody tr").forEach(tr => {
+    const price = parseFloat(tr.querySelector('[name="item_precio[]"]').value || "0");
+    const qty = parseInt(tr.querySelector('[name="item_cantidad[]"]').value || "0");
+    const sub = (price * qty) || 0;
+    tr.querySelector(".subtotal").innerText = money(sub);
+    total += sub;
+  });
+  document.getElementById("grandTotal").innerText = money(total);
+}
+
+function removeRow(btn){
+  btn.closest("tr").remove();
+  recalc();
+}
+
+async function searchProducts(q){
+  const r = await fetch("{% url 'api_productos' %}?q=" + encodeURIComponent(q));
+  return await r.json();
+}
+
+function wireAutocomplete(tr){
+  const input = tr.querySelector(".item-nombre");
+  const box = tr.querySelector(".suggestions");
+  const priceInput = tr.querySelector('[name="item_precio[]"]');
+
+  let lastQ = "";
+  let t = null;
+
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    recalc();
+    if (t) clearTimeout(t);
+
+    t = setTimeout(async () => {
+      if (q.length < 2) {
+        box.classList.add("d-none");
+        box.innerHTML = "";
+        return;
+      }
+
+      lastQ = q;
+      const data = await searchProducts(q);
+
+      if (input.value.trim() !== lastQ) return;
+
+      const items = (data.results || []);
+      if (!items.length){
+        box.classList.add("d-none");
+        box.innerHTML = "";
+        return;
+      }
+
+      box.innerHTML = items.map(p => `
+        <button type="button" class="list-group-item list-group-item-action"
+          data-nombre="${(p.nombre || "").replaceAll('"','&quot;')}"
+          data-precio="${p.precio}">
+          <div class="d-flex justify-content-between">
+            <span>${p.nombre}</span>
+            <small class="text-muted">$${p.precio}</small>
+          </div>
+        </button>
+      `).join("");
+
+      box.classList.remove("d-none");
+
+      box.querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", () => {
+          input.value = btn.dataset.nombre;
+          priceInput.value = btn.dataset.precio;
+          box.classList.add("d-none");
+          box.innerHTML = "";
+          recalc();
+        });
+      });
+    }, 250);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!tr.contains(e.target)) {
+      box.classList.add("d-none");
+      box.innerHTML = "";
+    }
+  });
+}
+
+function addRow(nombre="", precio="", cantidad=1){
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td style="position:relative;">
+      <input class="form-control form-control-sm item-nombre" name="item_nombre[]" value="${nombre}" autocomplete="off" required>
+      <div class="list-group position-absolute w-100 shadow-sm d-none suggestions" style="z-index:20;"></div>
+    </td>
+    <td><input class="form-control form-control-sm" name="item_precio[]" value="${precio}" inputmode="decimal" placeholder="0.00" required></td>
+    <td><input class="form-control form-control-sm" name="item_cantidad[]" value="${cantidad}" type="number" min="1" required></td>
+    <td class="subtotal">0.00</td>
+    <td class="text-end">
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)">X</button>
+    </td>
+  `;
+
+  document.getElementById("itemsBody").appendChild(tr);
+
+  tr.querySelectorAll("input").forEach(i => i.addEventListener("input", recalc));
+  wireAutocomplete(tr);
+  recalc();
+}
+
+addRow();
+</script>
+{% endblock %}

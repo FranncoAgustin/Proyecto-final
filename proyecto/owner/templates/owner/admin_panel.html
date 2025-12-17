@@ -3,244 +3,299 @@
 {% block title %}Panel de administración{% endblock %}
 
 {% block content %}
+<style>
+  :root {
+    --mp-surface: #fff;
+    --mp-muted: #6c757d;
+    --mp-border: rgba(0, 0, 0, .1);
+    --mp-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+  }
+
+  .admin-wrap {
+    background: linear-gradient(180deg, rgba(13, 110, 253, .05), transparent 60%);
+    padding: 18px;
+    border-radius: 10px;
+  }
+
+  .admin-card {
+    background: var(--mp-surface);
+    border: 1px solid var(--mp-border);
+    border-radius: 10px;
+    box-shadow: var(--mp-shadow);
+  }
+
+  .admin-card .card-header {
+    background: rgba(0, 0, 0, .03);
+    border-bottom: 1px solid var(--mp-border);
+    font-weight: 700;
+  }
+
+  .admin-subtitle {
+    color: var(--mp-muted);
+  }
+
+  /* ===== Botones ===== */
+  .btn-mp {
+    border-radius: 8px;
+    padding: .45rem .8rem;
+    border: 1px solid rgba(0, 0, 0, .12);
+    background: #fff;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .05);
+  }
+
+  .btn-mp.primary {
+    background: rgba(13, 110, 253, .08);
+  }
+
+  .btn-mp.success {
+    background: rgba(25, 135, 84, .12);
+  }
+
+  .btn-mp.warning {
+    background: rgba(255, 193, 7, .22);
+  }
+
+  .btn-mp.neutral {
+    background: rgba(108, 117, 125, .08);
+  }
+
+  /* ===== CATÁLOGO ===== */
+  .catalog-toolbar {
+    display: grid;
+    gap: .75rem;
+  }
+
+  .tech-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  .tech-tab {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .45rem .7rem;
+    border: 1px solid rgba(0, 0, 0, .12);
+    border-radius: 8px;
+    background: #fff;
+    color: #111;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .tech-tab.active {
+    border-color: rgba(13, 110, 253, .4);
+    background: rgba(13, 110, 253, .08);
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+
+  .dot-all {
+    background: #0d6efd;
+  }
+
+  .dot-sub {
+    background: #dc3545;
+  }
+
+  .dot-las {
+    background: #ffc107;
+  }
+
+  .dot-3d {
+    background: #198754;
+  }
+
+  .dot-otr {
+    background: #6c757d;
+  }
+
+  .order-box {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .order-label {
+    font-size: .9rem;
+    color: rgba(0, 0, 0, .65);
+    font-weight: 600;
+  }
+
+  .row-inactive {
+    opacity: .7;
+  }
+
+  .badge-soft {
+    background: rgba(0, 0, 0, .05);
+    color: #333;
+    border: 1px solid rgba(0, 0, 0, .08);
+  }
+</style>
+
 <div class="container-fluid my-4">
+  <div class="admin-wrap">
 
-  <!-- Encabezado general -->
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <div>
-      <h1 class="h4 mb-1">Panel de administración</h1>
-      <p class="text-muted mb-0">
-        Solo visible para dueño/admin. Acá manejás catálogo, listas de precios y facturas.
-      </p>
-    </div>
-  </div>
-
-  <!-- ACCIONES RÁPIDAS (todo lo admin acá, texto negro) -->
-  <div class="card mb-3 shadow-sm border-0">
-    <div class="card-body py-2">
-
-      <!-- ATAJO: Ir a editar producto -->
-      <div class="position-relative mb-2">
-        <div class="input-group input-group-sm">
-          <span class="input-group-text">✏️ Editar producto</span>
-          <input id="gotoEditQ" type="text" class="form-control" placeholder="Escribí SKU o nombre…">
-          <button id="gotoEditBtn" type="button" class="btn btn-outline-dark">Ir</button>
-        </div>
-
-        <div id="gotoEditTypeahead" class="dropdown-menu w-100 p-0 mt-1"
-          style="display:none; max-height:280px; overflow:auto;">
-        </div>
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+      <div>
+        <h1 class="h4 mb-1">Panel de administración</h1>
+        <p class="admin-subtitle mb-0">
+          Gestión de catálogo, precios y facturación
+        </p>
       </div>
-
-      <div class="d-flex flex-wrap gap-2">
-
-        <!-- ✅ dejamos solo UNO -->
-        <a class="btn btn-sm btn-outline-secondary text-dark" href="{% url 'ver_catalogo_completo' %}" target="_blank">
+      <div class="d-flex gap-2">
+        <a class="btn btn-mp neutral" href="{% url 'home' %}">🔄 Refrescar</a>
+        <a class="btn btn-mp primary" href="{% url 'ver_catalogo_completo' %}" target="_blank">
           🛍️ Catálogo público
         </a>
-
-        <a class="btn btn-sm btn-outline-primary text-dark" href="{% url 'importar_pdf' %}">
-          📥 Importar lista PDF
-        </a>
-
-        <a class="btn btn-sm btn-outline-primary text-dark" href="{% url 'procesar_factura' %}">
-          🧾 Procesar factura
-        </a>
-
-        <a class="btn btn-sm btn-outline-primary text-dark" href="{% url 'historia_listas' %}">
-          📚 Historia listas / ingresos
-        </a>
-
-        <a class="btn btn-sm btn-outline-warning text-dark" href="{% url 'owner_cupon_list' %}">
-          🎟️ Cupones
-        </a>
-
-        <a class="btn btn-sm btn-outline-success text-dark" href="{% url 'owner_oferta_list' %}">
-          💸 Ofertas
-        </a>
-
-        <a class="btn btn-sm btn-outline-info text-dark" href="{% url 'owner_producto_create_ui' %}">
-          ➕ Nuevo artículo
-        </a>
-
-        <a class="btn btn-sm btn-outline-secondary text-dark" href="{% url 'home' %}">
-          🔄 Refrescar
-        </a>
-
-        <a class="btn btn-sm btn-outline-primary text-dark" href="{% url 'descargar_lista_precios_pdf' %}"
-          target="_blank">
-          📄 Descargar lista de precios (PDF)
-        </a>
-
       </div>
-
-      <small class="text-muted d-block mt-2">
-        Todo lo de admin está centralizado acá.
-      </small>
-    </div>
-  </div>
-
-  <!-- ========== CATÁLOGO (ProductoPrecio) ========== -->
-  <div class="card mb-3 shadow-sm border-0">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <span class="fw-semibold">Catálogo de precios</span>
-      <span class="badge bg-primary">
-        {{ total_productos_precio|default:0 }} productos
-      </span>
     </div>
 
-    <div class="card-body">
-
-      <!-- Búsqueda -->
-      <form class="mb-3" method="get">
-        <div class="input-group">
-          <input type="text" class="form-control" name="q" value="{{ q }}"
-            placeholder="Buscar por SKU o nombre público">
-          {% if t %}<input type="hidden" name="t" value="{{ t }}">{% endif %}
-          {% if o %}<input type="hidden" name="o" value="{{ o }}">{% endif %}
-          {% if show_inactive %}<input type="hidden" name="show_inactive" value="1">{% endif %}
-          <button class="btn btn-outline-secondary" type="submit">Buscar</button>
-          {% if q or t or o or show_inactive %}
-          <a class="btn btn-outline-light border" href="{% url 'home' %}">Limpiar</a>
-          {% endif %}
-        </div>
-      </form>
-
-      <!-- Filtros por técnica -->
-      {% with tl=t|default:''|lower %}
-      <div class="d-flex flex-wrap gap-2 mb-2">
-        <a class="btn btn-sm {% if not tl %}btn-primary{% else %}btn-outline-primary text-dark{% endif %}"
-          href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if o %}o={{ o }}&{% endif %}{% if show_inactive %}show_inactive=1{% endif %}">
-          Todo
-        </a>
-
-        <a class="btn btn-sm {% if tl == 'sub' %}btn-primary{% else %}btn-outline-primary text-dark{% endif %}"
-          href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=sub{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
-          Sublimación
-        </a>
-
-        <a class="btn btn-sm {% if tl == 'laser' %}btn-primary{% else %}btn-outline-primary text-dark{% endif %}"
-          href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=laser{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
-          Grabado láser
-        </a>
-
-        <a class="btn btn-sm {% if tl == '3d' %}btn-primary{% else %}btn-outline-primary text-dark{% endif %}"
-          href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=3d{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
-          Impresión 3D
-        </a>
-
-        <a class="btn btn-sm {% if tl == 'otr' %}btn-primary{% else %}btn-outline-primary text-dark{% endif %}"
-          href="?{% if q %}q={{ q|urlencode }}&{% endif %}t=otr{% if o %}&o={{ o }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
-          Otro
-        </a>
+    <!-- ACCIONES -->
+    <div class="card admin-card mb-3">
+      <div class="card-body d-flex flex-wrap gap-2">
+        <a class="btn btn-mp primary" href="{% url 'importar_pdf' %}">📥 Importar PDF</a>
+        <a class="btn btn-mp primary" href="{% url 'procesar_factura' %}">🧾 Procesar factura</a>
+        <a class="btn btn-mp neutral" href="{% url 'historia_listas' %}">📚 Historia</a>
+        <a class="btn btn-mp warning" href="{% url 'owner_cupon_list' %}">🎟️ Cupones</a>
+        <a class="btn btn-mp success" href="{% url 'owner_oferta_list' %}">💸 Ofertas</a>
+        <a class="btn btn-mp primary" href="{% url 'owner_producto_create_ui' %}">➕ Nuevo artículo</a>
+        <a class="btn btn-mp neutral" href="{% url 'lista_precios_opciones' %}">📄 Lista PDF</a>
+        <a class="btn btn-mp primary" href="{% url 'factura_crear' %}">🧾 Generar factura</a>
       </div>
-      {% endwith %}
+    </div>
 
-      <!-- ORDEN + INACTIVOS -->
-      <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-        <div class="btn-group btn-group-sm">
-          <a class="btn btn-outline-secondary {% if not o %}active{% endif %}"
-            href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}{% if show_inactive %}show_inactive=1{% endif %}">
-            Nombre
-          </a>
-          <a class="btn btn-outline-secondary {% if o == 'recientes' %}active{% endif %}"
-            href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=recientes{% if show_inactive %}&show_inactive=1{% endif %}">
-            Más recientes
-          </a>
-          <a class="btn btn-outline-secondary {% if o == 'antiguos' %}active{% endif %}"
-            href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=antiguos{% if show_inactive %}&show_inactive=1{% endif %}">
-            Más antiguos
-          </a>
-          <a class="btn btn-outline-secondary {% if o == 'precio_desc' %}active{% endif %}"
-            href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=precio_desc{% if show_inactive %}&show_inactive=1{% endif %}">
-            Mayor precio
-          </a>
-          <a class="btn btn-outline-secondary {% if o == 'precio_asc' %}active{% endif %}"
-            href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if t %}t={{ t }}&{% endif %}o=precio_asc{% if show_inactive %}&show_inactive=1{% endif %}">
-            Menor precio
-          </a>
-        </div>
+    <!-- CATÁLOGO -->
+    <div class="card admin-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        Catálogo de precios
+        <span class="badge bg-primary">
+          {{ total_productos_precio|default:0 }} productos
+        </span>
+      </div>
 
-        <form method="get" class="ms-auto d-flex align-items-center gap-2">
-          <input type="hidden" name="q" value="{{ q }}">
-          <input type="hidden" name="t" value="{{ t }}">
-          <input type="hidden" name="o" value="{{ o }}">
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" name="show_inactive" value="1" {% if show_inactive %}checked{% endif %} onchange="this.form.submit()">
-            <label class="form-check-label">Mostrar inactivos</label>
+      <div class="card-body">
+
+        <!-- BUSCADOR -->
+        <form class="mb-3" method="get">
+          <div class="input-group">
+            <input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por SKU o nombre público">
+            <button class="btn btn-mp neutral">Buscar</button>
           </div>
         </form>
-      </div>
 
-      <!-- FORM ACCIONES MASIVAS -->
-      <form id="bulkForm" method="post" action="{% url 'owner_productos_acciones_masivas' %}">
-        {% csrf_token %}
-        <input type="hidden" name="accion" id="bulkAccion">
+        <div class="catalog-toolbar">
 
-        <div class="table-responsive">
+          <!-- FILTROS POR TÉCNICA -->
+          {% with tl=t|default:''|lower %}
+          <div class="tech-tabs">
+
+            <a class="tech-tab {% if not tl %}active{% endif %}" href="?">
+              <span class="dot dot-all"></span> Todo
+            </a>
+
+            <a class="tech-tab {% if tl == 'sub' %}active{% endif %}" href="?t=sub">
+              <span class="dot dot-sub"></span> Sublimación
+            </a>
+
+            <a class="tech-tab {% if tl == 'laser' %}active{% endif %}" href="?t=laser">
+              <span class="dot dot-las"></span> Láser
+            </a>
+
+            <a class="tech-tab {% if tl == '3d' %}active{% endif %}" href="?t=3d">
+              <span class="dot dot-3d"></span> 3D
+            </a>
+
+            <a class="tech-tab {% if tl == 'otr' %}active{% endif %}" href="?t=otr">
+              <span class="dot dot-otr"></span> Otro
+            </a>
+
+          </div>
+          {% endwith %}
+
+          <!-- ORDEN + INACTIVOS -->
+          <div class="order-box">
+            <span class="order-label">Orden:</span>
+            <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+              <input type="hidden" name="q" value="{{ q }}">
+              <input type="hidden" name="t" value="{{ t }}">
+              <select name="o" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">Nombre</option>
+                <option value="recientes">Más recientes</option>
+                <option value="antiguos">Más antiguos</option>
+                <option value="precio_desc">Mayor precio</option>
+                <option value="precio_asc">Menor precio</option>
+              </select>
+
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" name="show_inactive" value="1" {% if show_inactive %}checked{% endif %} onchange="this.form.submit()">
+                <label class="form-check-label text-muted">
+                  Mostrar inactivos
+                </label>
+              </div>
+            </form>
+          </div>
+
+        </div>
+
+        <!-- TABLA -->
+        <div class="table-responsive mt-3">
           <table class="table table-hover table-sm align-middle">
             <thead class="table-light">
               <tr>
-                <th><input type="checkbox" class="form-check-input" onclick="toggleSelectAll(this)"></th>
                 <th>SKU</th>
                 <th>Nombre público</th>
                 <th class="text-center">Técnica</th>
                 <th class="text-center">Stock</th>
                 <th class="text-end">Precio</th>
-                <th>Última actualización</th>
                 <th class="text-end">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {% for p in products %}
-              <tr class="{% if not p.activo %}table-secondary{% endif %}">
-                <td><input type="checkbox" class="form-check-input chk-producto" name="ids" value="{{ p.id }}"></td>
+              <tr class="{% if not p.activo %}row-inactive table-secondary{% endif %}">
                 <td class="small">{{ p.sku }}</td>
-                <td>{{ p.nombre_publico }}</td>
+                <td class="fw-semibold">{{ p.nombre_publico }}</td>
                 <td class="text-center">
-                  <span class="badge text-bg-light">
-                    {% if p.tech == 'SUB' %}Sublimación{% elif p.tech == 'LAS' %}
-                    Láser{% elif p.tech == '3D' %}3D{% else %}Otro{% endif %}
+                  <span class="badge badge-soft">
+                    {% if p.tech == 'SUB' %}Sublimación
+                    {% elif p.tech == 'LAS' %}Láser
+                    {% elif p.tech == '3D' %}3D
+                    {% else %}Otro{% endif %}
                   </span>
                 </td>
-                <td class="text-center">
-                  <span class="badge {% if p.stock > 0 %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-                    {{ p.stock }}
-                  </span>
-                </td>
-                <td class="text-end fw-semibold">$ {{ p.precio|floatformat:2 }}</td>
-                <td class="small text-muted">{{ p.ultima_actualizacion|date:"d/m/Y H:i" }}</td>
+                <td class="text-center">{{ p.stock }}</td>
+                <td class="text-end fw-bold">$ {{ p.precio|floatformat:2 }}</td>
                 <td class="text-end">
-                  <div class="btn-group btn-group-sm">
-                    <a class="btn btn-outline-primary text-dark"
-                      href="{% url 'owner_producto_editar' p.id %}">Editar</a>
-                    {% if p.activo %}
-                    <button type="button" class="btn btn-outline-warning text-dark"
-                      onclick="accionFila({{ p.id }}, 'baja')">Baja</button>
-                    {% else %}
-                    <button type="button" class="btn btn-outline-success text-dark"
-                      onclick="accionFila({{ p.id }}, 'alta')">Alta</button>
-                    {% endif %}
-                    <button type="button" class="btn btn-outline-danger text-dark"
-                      onclick="accionFila({{ p.id }}, 'eliminar')">Eliminar</button>
-                  </div>
+                  <a class="btn btn-sm btn-mp primary" href="{% url 'owner_producto_editar' p.id %}">
+                    Editar
+                  </a>
                 </td>
               </tr>
               {% empty %}
               <tr>
-                <td colspan="8" class="text-center text-muted py-4">
-                  No hay productos para mostrar con los filtros actuales.
+                <td colspan="6" class="text-center text-muted py-4">
+                  No hay productos para mostrar
                 </td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-      </form>
 
+      </div>
     </div>
-  </div>
 
+  </div>
 </div>
 
 <script>
@@ -285,7 +340,7 @@
         btn.type = "button";
         btn.className = "dropdown-item";
         btn.innerHTML = `<strong>${p.sku}</strong> — ${p.nombre_publico}
-                         <span class="badge text-bg-light ms-2">$ ${p.precio}</span>`;
+                         <span class="badge rounded-pill badge-soft ms-2">$ ${p.precio}</span>`;
         btn.addEventListener("click", () => {
           window.location.href = `{% url 'owner_producto_editar' 0 %}`.replace("/0/", `/${p.id}/`);
         });
