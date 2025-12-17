@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Mis compras - Mundo Personalizado{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+  <h2 class="mb-4 fw-bold">
+    <i class="fa-solid fa-bag-shopping me-2"></i>
+    Mis compras
+  </h2>
+
+  {% if pedidos %}
+    {% for pedido in pedidos %}
+      <div class="card mb-4 shadow-sm">
+
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div>
+            Pedido #{{ pedido.id }} · {{ pedido.creado_en|date:"d/m/Y H:i" }}
+            <span class="badge bg-secondary ms-2">
+              {{ pedido.estado }}
+            </span>
+          </div>
+          <strong>${{ pedido.total }}</strong>
+        </div>
+
+        <div class="card-body">
+          {% for item in pedido.items.all %}
+            <div class="d-flex align-items-center mb-3">
+
+              <div class="flex-grow-1">
+                <div class="fw-semibold">
+                  {{ item.titulo }}
+                </div>
+
+                <div class="text-muted small">
+                  Cantidad: {{ item.cantidad }}
+                </div>
+
+                <div class="small">
+                  Precio unitario: ${{ item.precio_unitario }}
+                </div>
+
+                <div class="fw-semibold text-success">
+                  Subtotal: ${{ item.subtotal }}
+                </div>
+              </div>
+
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if pedido.cupon_codigo %}
+          <div class="card-footer bg-light small">
+            🎟 Cupón aplicado:
+            <strong>{{ pedido.cupon_codigo }}</strong>
+            — Descuento:
+            <span class="text-success">
+              -${{ pedido.descuento_total }}
+            </span>
+          </div>
+        {% endif %}
+
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="alert alert-info">
+      Todavía no realizaste compras.
+    </div>
+    <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-primary">
+      Ir a comprar
+    </a>
+  {% endif %}
+
+</div>
+{% endblock %}
