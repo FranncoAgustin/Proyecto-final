@@ -22,4 +22,7 @@ urlpatterns = [
     path('api/verificar-producto/', views.verificar_producto_existente, name='verificar_producto'),
 
     path('historia/', views.historia_listas, name='historia_listas'),
+
+    path("lista-precios.pdf", views.descargar_lista_precios_pdf, name="descargar_lista_precios_pdf"),
+
 ]

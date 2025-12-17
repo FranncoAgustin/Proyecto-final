@@ -27,9 +27,8 @@
           <button id="gotoEditBtn" type="button" class="btn btn-outline-dark">Ir</button>
         </div>
 
-        <div id="gotoEditTypeahead"
-             class="dropdown-menu w-100 p-0 mt-1"
-             style="display:none; max-height:280px; overflow:auto;">
+        <div id="gotoEditTypeahead" class="dropdown-menu w-100 p-0 mt-1"
+          style="display:none; max-height:280px; overflow:auto;">
         </div>
       </div>
 
@@ -68,6 +67,11 @@
           🔄 Refrescar
         </a>
 
+        <a class="btn btn-sm btn-outline-primary text-dark" href="{% url 'descargar_lista_precios_pdf' %}"
+          target="_blank">
+          📄 Descargar lista de precios (PDF)
+        </a>
+
       </div>
 
       <small class="text-muted d-block mt-2">
@@ -97,7 +101,7 @@
           {% if show_inactive %}<input type="hidden" name="show_inactive" value="1">{% endif %}
           <button class="btn btn-outline-secondary" type="submit">Buscar</button>
           {% if q or t or o or show_inactive %}
-            <a class="btn btn-outline-light border" href="{% url 'home' %}">Limpiar</a>
+          <a class="btn btn-outline-light border" href="{% url 'home' %}">Limpiar</a>
           {% endif %}
         </div>
       </form>
