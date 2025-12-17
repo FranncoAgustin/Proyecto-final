@@ -14,24 +14,47 @@
             <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none text-dark">
                 <div class="card h-100 shadow-sm">
 
-                    <div class="position-relative">
-                        {% if item.producto.imagen %}
-                            <img src="{{ item.producto.imagen.url }}"
-                                 class="card-img-top"
-                                 style="height:200px; object-fit:contain;">
-                        {% else %}
-                            <div class="d-flex justify-content-center align-items-center bg-light"
-                                 style="height:200px;">
-                                <span class="text-muted">Sin imagen</span>
-                            </div>
-                        {% endif %}
+<div class="position-relative">
 
-                        {% if item.oferta %}
-                        <span class="badge bg-danger position-absolute top-0 start-0 m-2">
-                            -{{ item.oferta.valor }}%
-                        </span>
-                        {% endif %}
-                    </div>
+  {# ❤️ CORAZÓN — SIEMPRE VISIBLE #}
+  {% with favs=request.session.favoritos %}
+    {% if favs and item.producto.id|stringformat:"s" in favs %}
+      <a
+        href="{% url 'eliminar_favorito' item.producto.id %}?next={{ request.path }}"
+        class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm"
+        title="Quitar de favoritos"
+        onclick="event.stopPropagation();"
+      >
+        <i class="fa-solid fa-heart text-danger"></i>
+      </a>
+    {% else %}
+      <a
+        href="{% url 'agregar_favorito' item.producto.id %}?next={{ request.path }}"
+        class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm"
+        title="Agregar a favoritos"
+        onclick="event.stopPropagation();"
+      >
+        <i class="fa-regular fa-heart"></i>
+      </a>
+    {% endif %}
+  {% endwith %}
+
+  {# 🖼️ IMAGEN O PLACEHOLDER #}
+  {% if item.producto.imagen %}
+    <img
+      src="{{ item.producto.imagen.url }}"
+      class="card-img-top"
+      style="height:200px; object-fit:contain;"
+    >
+  {% else %}
+    <div class="d-flex justify-content-center align-items-center bg-light"
+         style="height:200px;">
+      <span class="text-muted">Sin imagen</span>
+    </div>
+  {% endif %}
+
+</div>
+
 
                     <div class="card-body">
                         <h6 class="card-title">

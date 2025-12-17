@@ -69,21 +69,37 @@ def _to_decimal(v, default="0"):
     except (InvalidOperation, ValueError):
         return Decimal(default)
 
-def mostrar_precios(request):
-    productos = ProductoPrecio.objects.filter(activo=True).order_by('nombre_publico')
+from django.db.models import Q
+from ofertas.utils import get_precio_con_oferta
+from .models import ProductoPrecio
 
-    productos_data = []
-    for p in productos:
-        data = get_precio_con_oferta(p)
-        productos_data.append({
-            "producto": p,
-            **data
+
+def mostrar_precios(request):
+    q = request.GET.get("q", "").strip()
+
+    productos_qs = ProductoPrecio.objects.filter(activo=True)
+
+    if q:
+        productos_qs = productos_qs.filter(
+            Q(nombre_publico__icontains=q)
+        )
+
+    productos = []
+    for producto in productos_qs:
+        precio_data = get_precio_con_oferta(producto)
+        productos.append({
+            "producto": producto,
+            "precio_original": producto.precio,
+            "precio_final": precio_data["precio_final"],
+            "oferta": precio_data["oferta"],
         })
 
     return render(
         request,
         "pdf/mostrar_precios.html",
-        {"productos": productos_data}
+        {
+            "productos": productos,
+        }
     )
 
 def exportar_csv_catalogo(request):
