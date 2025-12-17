@@ -57,6 +57,14 @@
       align-items: center;
       justify-content: center;
     }
+
+    /* ✅ ICONOS NAV EN NEGRO (carrito y favoritos) */
+    .nav-icon {
+      color: #111 !important;
+    }
+    .nav-icon:hover {
+      color: #000 !important;
+    }
   </style>
 
   {% block head %}{% endblock %}
@@ -87,6 +95,16 @@
 
         <ul class="navbar-nav ms-3 align-items-lg-center gap-2">
 
+          {# ✅ BOTÓN ADMIN PANEL (solo staff) #}
+          {% if request.user.is_authenticated and request.user.is_staff %}
+          <li class="nav-item">
+            <a class="nav-link d-flex align-items-center" href="{% url 'home' %}">
+              <i class="fa-solid fa-gauge-high me-1"></i>
+              <span class="d-none d-lg-inline">Admin panel</span>
+            </a>
+          </li>
+          {% endif %}
+
           {# CUENTA #}
           {% if request.user.is_authenticated %}
           <li class="nav-item dropdown">
@@ -101,25 +119,8 @@
               <!-- Zona cliente -->
               <li><a class="dropdown-item" href="{% url 'mi_cuenta' %}">Mi cuenta</a></li>
               <li><a class="dropdown-item" href="{% url 'mis_compras' %}">Mis compras</a></li>
-
-              <li>
-                <hr class="dropdown-divider">
-              </li>
+              <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item text-danger" href="{% url 'logout' %}">Cerrar sesión</a></li>
-
-              {% if request.user.is_staff %}
-              <li>
-                <hr class="dropdown-divider">
-              </li>
-              <li>
-                <h6 class="dropdown-header">Admin</h6>
-              </li>
-              <li><a class="dropdown-item" href="{% url 'home' %}">Panel admin</a></li>
-              <li><a class="dropdown-item" href="{% url 'ver_catalogo_completo' %}">Catálogo precios</a></li>
-              <li><a class="dropdown-item" href="{% url 'importar_pdf' %}">Importar lista PDF</a></li>
-              <li><a class="dropdown-item" href="{% url 'procesar_factura' %}">Procesar factura</a></li>
-              <li><a class="dropdown-item" href="{% url 'historia_listas' %}">Historia ingresos</a></li>
-              {% endif %}
             </ul>
           </li>
           {% else %}
@@ -133,9 +134,9 @@
 
           {# CARRITO #}
           <li class="nav-item dropdown">
-            <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown"
-              aria-expanded="false">
-              <i class="fa-solid fa-cart-shopping"></i>
+            <a class="nav-link position-relative nav-icon" href="#" role="button" data-bs-toggle="dropdown"
+              aria-expanded="false" aria-label="Carrito">
+              <i class="fa-solid fa-bag-shopping"></i>
               {% if cart_total_qty %}
               <span class="badge bg-primary rounded-pill position-absolute top-0 start-100 translate-middle">
                 {{ cart_total_qty }}
@@ -159,9 +160,7 @@
                 </div>
               </li>
               {% endfor %}
-              <li>
-                <hr class="dropdown-divider">
-              </li>
+              <li><hr class="dropdown-divider"></li>
               <li>
                 <a class="dropdown-item text-center fw-semibold" href="{% url 'ver_carrito' %}">
                   Ver carrito
@@ -177,9 +176,9 @@
 
           {# FAVORITOS #}
           <li class="nav-item dropdown">
-            <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown"
-              aria-expanded="false">
-              <i class="fa-regular fa-heart"></i>
+            <a class="nav-link position-relative nav-icon" href="#" role="button" data-bs-toggle="dropdown"
+              aria-expanded="false" aria-label="Favoritos">
+              <i class="fa-solid fa-heart"></i>
               {% if favorites_count %}
               <span class="badge bg-danger rounded-pill position-absolute top-0 start-100 translate-middle">
                 {{ favorites_count }}
@@ -202,9 +201,7 @@
                 </a>
               </li>
               {% endfor %}
-              <li>
-                <hr class="dropdown-divider">
-              </li>
+              <li><hr class="dropdown-divider"></li>
               <li>
                 <a class="dropdown-item text-center fw-semibold" href="{% url 'mis_favoritos' %}">
                   Ver todos los favoritos
@@ -217,7 +214,6 @@
               {% endif %}
             </ul>
           </li>
-
 
         </ul>
       </div>

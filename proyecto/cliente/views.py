@@ -39,11 +39,12 @@ def _save_favoritos(request, favs):
 
 def _parse_key(item_key: str):
     try:
-        prod_id, var_id = item_key.split(":")
-        return int(prod_id), int(var_id)
+        if ":" in item_key:
+            prod_id, var_id = item_key.split(":")
+            return int(prod_id), int(var_id)
+        return int(item_key), 0
     except Exception:
         return None, None
-
 
 # =========================
 # VISTAS: CARRITO
@@ -159,33 +160,36 @@ def aplicar_cupon(request):
 
     return redirect("ver_carrito")
 
-
-from decimal import Decimal
-from django.utils import timezone
-from django.shortcuts import redirect
-
 def agregar_al_carrito(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk)
 
+    # si no mandás variante, queda 0 (sin variante)
+    var_id = request.POST.get("variante_id") or request.GET.get("variante_id") or "0"
+    try:
+        var_id = int(var_id)
+    except Exception:
+        var_id = 0
+
     cart = _get_cart(request)
-    prod_key = str(producto.id)
-    cart[prod_key] = cart.get(prod_key, 0) + 1
+
+    item_key = f"{producto.id}:{var_id}"  # ✅ clave consistente
+    cart[item_key] = int(cart.get(item_key, 0)) + 1
+
     _save_cart(request, cart)
 
     messages.success(request, f'"{producto.nombre_publico}" se agregó al carrito.')
-
     next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or "ver_carrito"
     return redirect(next_url)
 
 
-def eliminar_del_carrito(request, pk):
+def eliminar_del_carrito(request, item_key):
     cart = _get_cart(request)
-    cart.pop(str(pk), None)
+    cart.pop(str(item_key), None)
     _save_cart(request, cart)
     return redirect("ver_carrito")
 
 
-def actualizar_cantidad(request, pk):
+def actualizar_cantidad(request, item_key):
     if request.method == "POST":
         try:
             qty = int(request.POST.get("cantidad", 1))
@@ -195,9 +199,9 @@ def actualizar_cantidad(request, pk):
         cart = _get_cart(request)
 
         if qty <= 0:
-            cart.pop(str(pk), None)
+            cart.pop(str(item_key), None)
         else:
-            cart[str(pk)] = qty
+            cart[str(item_key)] = qty
 
         _save_cart(request, cart)
 
