@@ -2,15 +2,22 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.db import IntegrityError, transaction
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.views.decorators.http import require_POST
 from datetime import datetime
+from django.utils import timezone
 from django.contrib import messages
 import os
 import csv
 import re
 from difflib import SequenceMatcher
 from django.db.models import F
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
 
 from .forms import ListaPrecioForm, FacturaProveedorForm
 from .models import ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ItemFactura, ProductoVariante
@@ -20,6 +27,8 @@ from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
 from ofertas.utils import get_precio_con_oferta
 
 # ===================== CATÁLOGO / LISTAS =====================
+
+Q2 = Decimal("0.01")
 
 def _get_cart(request):
     return request.session.get("carrito", {})
@@ -686,3 +695,134 @@ def historia_listas(request):
     return render(request, 'pdf/historia_listas.html', {
         'listas': listas,
     })
+
+
+def _precio_mayorista(precio_unitario: Decimal) -> Decimal:
+    """
+    ✅ Regla simple (editable):
+    Ej: 20% off para mayorista.
+    Cambiá el 0.80 por el coeficiente que uses.
+    """
+    if precio_unitario is None:
+        return Decimal("0.00")
+    return (precio_unitario * Decimal("0.80")).quantize(Q2, rounding=ROUND_HALF_UP)
+
+
+def _tech_label(tech: str) -> str:
+    return {
+        "SUB": "Sublimación",
+        "LAS": "Grabado láser",
+        "3D":  "Impresión 3D",
+        "OTR": "Otros",
+        "":    "Otros",
+        None:  "Otros",
+    }.get(tech, "Otros")
+
+
+def descargar_lista_precios_pdf(request):
+    """
+    Genera un PDF con:
+    Imagen | Nombre | Precio unitario | Precio mayorista
+    Agrupado por técnica (SUB/LAS/3D/OTR).
+    """
+    # Si querés filtrar solo activos:
+    productos = (
+        ProductoPrecio.objects
+        .filter(activo=True)
+        .order_by("tech", "nombre_publico")
+    )
+
+    # Agrupar
+    buckets = {"SUB": [], "LAS": [], "3D": [], "OTR": []}
+    for p in productos:
+        tech = p.tech if p.tech in buckets else "OTR"
+        buckets[tech].append(p)
+
+    # Response PDF
+    filename = f"lista_precios_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
+    resp = HttpResponse(content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    # Doc
+    doc = SimpleDocTemplate(
+        resp,
+        pagesize=A4,
+        leftMargin=1.2*cm,
+        rightMargin=1.2*cm,
+        topMargin=1.2*cm,
+        bottomMargin=1.2*cm,
+        title="Lista de precios",
+    )
+
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("Lista de precios", styles["Title"]))
+    story.append(Paragraph(f"Generada: {timezone.localtime().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
+    story.append(Spacer(1, 0.4*cm))
+
+    def safe_img(path_or_field, w=1.6*cm, h=1.6*cm):
+        """
+        ReportLab Image desde un archivo local.
+        Si no hay imagen, devuelve un texto.
+        """
+        try:
+            if not path_or_field:
+                return Paragraph("—", styles["Normal"])
+            # ImageField -> path local: .path
+            pth = getattr(path_or_field, "path", None) or str(path_or_field)
+            img = Image(pth, width=w, height=h)
+            img.hAlign = "CENTER"
+            return img
+        except Exception:
+            return Paragraph("—", styles["Normal"])
+
+    # Armado por sección
+    for tech_code in ["SUB", "LAS", "3D", "OTR"]:
+        items = buckets[tech_code]
+        if not items:
+            continue
+
+        story.append(Paragraph(_tech_label(tech_code), styles["Heading1"]))
+        story.append(Spacer(1, 0.2*cm))
+
+        data = [["Imagen", "Producto", "Unitario", "Mayorista"]]
+
+        for p in items:
+            unit = (p.precio or Decimal("0.00")).quantize(Q2)
+            may = _precio_mayorista(unit)
+
+            data.append([
+                safe_img(p.imagen),
+                Paragraph(f"<b>{p.nombre_publico}</b><br/><font size=9>SKU: {p.sku}</font>", styles["Normal"]),
+                Paragraph(f"$ {unit:.2f}", styles["Normal"]),
+                Paragraph(f"$ {may:.2f}", styles["Normal"]),
+            ])
+
+        # Tabla
+        table = Table(
+            data,
+            colWidths=[2.0*cm, 10.5*cm, 3.0*cm, 3.0*cm],
+            repeatRows=1,
+        )
+
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+            ("TEXTCOLOR",  (0,0), (-1,0), colors.black),
+            ("GRID",       (0,0), (-1,-1), 0.25, colors.grey),
+            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+            ("ALIGN",      (2,1), (3,-1), "RIGHT"),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+            ("FONTSIZE",   (0,0), (-1,0), 10),
+            ("FONTSIZE",   (0,1), (-1,-1), 9),
+            ("TOPPADDING", (0,0), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ]))
+
+        story.append(table)
+        story.append(Spacer(1, 0.5*cm))
+        story.append(PageBreak())
+
+    # si quedó un PageBreak extra al final, no es grave; si querés lo saco.
+    doc.build(story)
+    return resp
