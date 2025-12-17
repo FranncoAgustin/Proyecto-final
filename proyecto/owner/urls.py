@@ -22,11 +22,18 @@ from .views import (
     owner_producto_variantes,
     owner_variante_editar,
     owner_variante_eliminar,
+    owner_producto_create_ui,
+    owner_api_product_suggest,
+    owner_api_product_detail,
     
 )
 
 urlpatterns = [
     path("", AdminDashboardView.as_view(), name="home"),
+    path("productos/nuevo/", owner_producto_create_ui, name="owner_producto_create_ui"),
+    path("api/product-suggest/", owner_api_product_suggest, name="owner_api_product_suggest"),
+    path("api/product-detail/<int:pk>/", owner_api_product_detail, name="owner_api_product_detail"),
+
 
     path("historia/", HistoriaIngresosView.as_view(), name="historia_ingresos"),
     path("historia/listas/", historia_listas, name="historia_listas"),

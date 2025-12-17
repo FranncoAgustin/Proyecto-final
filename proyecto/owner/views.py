@@ -1,16 +1,19 @@
 # owner/views.py
 
-from decimal import Decimal
-
+from decimal import Decimal,InvalidOperation
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import TemplateView
 
 from pdf.models import ItemFactura, ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ProductoVariante
-from owner.forms import ProductoVarianteForm
+from owner.forms import ProductoVarianteForm, ProductoPrecioForm, ProductoVarianteFormSet
 
 
 # -------------------------------------------------------------------
@@ -100,6 +103,13 @@ class AdminDashboardView(LoginRequiredMixin, TemplateView):
         return context
 
 
+def _parse_decimal(raw, fallback="0"):
+    s = (raw if raw is not None else fallback)
+    s = str(s).strip().replace(".", "").replace(",", ".")  # 1.234,56 -> 1234.56
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return Decimal(str(fallback))
 # -------------------------------------------------------------------
 # Historia de listas / facturas
 # -------------------------------------------------------------------
@@ -188,35 +198,61 @@ def owner_producto_editar(request, pk):
     variantes = producto.variantes.all()
 
     if request.method == "POST":
+        action = request.POST.get("action", "")
 
-        # ====== PRODUCTO ======
-        producto.sku = request.POST.get("sku", producto.sku)
-        producto.nombre_publico = request.POST.get("nombre_publico", producto.nombre_publico)
-        producto.precio = Decimal(request.POST.get("precio", producto.precio))
-        producto.stock = int(request.POST.get("stock", producto.stock))
-        producto.tech = request.POST.get("tech", "")
+        # ✅ 1) Eliminar foto
+        if action == "delete_image":
+            if producto.imagen:
+                # borra el archivo del storage y limpia el campo
+                producto.imagen.delete(save=False)
+                producto.imagen = None
+                producto.save(update_fields=["imagen"])
+            messages.success(request, "Imagen eliminada.")
+            return redirect("owner_producto_editar", pk=producto.pk)
+
+        # ✅ 2) Toggle activo (baja/alta)
+        if action == "toggle_active":
+            producto.activo = not bool(producto.activo)
+            producto.save(update_fields=["activo"])
+            messages.success(request, "Estado actualizado.")
+            return redirect("owner_producto_editar", pk=producto.pk)
+
+        # ✅ 3) Eliminar producto
+        if action == "delete_product":
+            producto.delete()
+            messages.success(request, "Producto eliminado.")
+            return redirect("home")
+
+        # ✅ 4) Guardar cambios (default)
+        producto.sku = (request.POST.get("sku") or producto.sku).strip()
+        producto.nombre_publico = (request.POST.get("nombre_publico") or producto.nombre_publico).strip()
+        producto.precio = _parse_decimal(request.POST.get("precio"), fallback=str(producto.precio))
+        producto.stock = int(request.POST.get("stock") or producto.stock or 0)
+        producto.tech = request.POST.get("tech", "") or ""
         producto.activo = request.POST.get("activo") == "on"
+
+        if request.FILES.get("imagen"):
+            producto.imagen = request.FILES["imagen"]
+
         producto.save()
 
-        # ====== NUEVA VARIANTE ======
-        if request.POST.get("nueva_variante_nombre"):
+        # (tu lógica de nueva variante si la querés mantener)
+        nv_nombre = (request.POST.get("nueva_variante_nombre") or "").strip()
+        if nv_nombre:
             ProductoVariante.objects.create(
                 producto=producto,
-                nombre=request.POST.get("nueva_variante_nombre"),
-                descripcion_corta=request.POST.get("nueva_variante_desc", ""),
+                nombre=nv_nombre,
+                descripcion_corta=(request.POST.get("nueva_variante_desc") or "").strip(),
                 imagen=request.FILES.get("nueva_variante_imagen"),
             )
 
-        messages.success(request, "Producto y variantes actualizados.")
+        messages.success(request, "Producto actualizado.")
         return redirect("owner_producto_editar", pk=producto.pk)
 
     return render(
         request,
         "owner/producto_editar.html",
-        {
-            "producto": producto,
-            "variantes": variantes,
-        },
+        {"producto": producto, "variantes": variantes},
     )
 
 @login_required
@@ -429,3 +465,88 @@ def owner_oferta_delete(request, oferta_id):
     oferta = get_object_or_404(Oferta, id=oferta_id)
     oferta.delete()
     return redirect("owner_oferta_list")
+
+
+@login_required(login_url="/admin/login/")
+@transaction.atomic
+def owner_producto_create_ui(request):
+    """
+    Alta de 1 artículo:
+    - ProductoPrecio: sku, nombre_publico, imagen, precio, stock, tech, activo
+    - Variantes opcionales: ProductoVariante (nombre, imagen, stock, etc.)
+    """
+    if request.method == "POST":
+        form = ProductoPrecioForm(request.POST, request.FILES)
+        vformset = ProductoVarianteFormSet(request.POST, request.FILES, prefix="variants")
+
+        if form.is_valid() and vformset.is_valid():
+            producto = form.save(commit=False)
+
+            # si no ponen nombre_publico, usar sku
+            if not (producto.nombre_publico or "").strip():
+                producto.nombre_publico = producto.sku
+
+            producto.save()
+
+            vformset.instance = producto
+            vformset.save()
+
+            # Si hay variantes activas, podés setear stock total = suma(stock variantes)
+            variantes_activas = producto.variantes.filter(activo=True)
+            if variantes_activas.exists():
+                total = sum(v.stock or 0 for v in variantes_activas)
+                producto.stock = total
+                producto.save(update_fields=["stock"])
+
+            messages.success(request, "Artículo creado correctamente.")
+            return redirect("owner_producto_create_ui")
+
+    else:
+        form = ProductoPrecioForm()
+        vformset = ProductoVarianteFormSet(prefix="variants")
+
+    return render(request, "owner/producto_create.html", {"form": form, "vformset": vformset})
+
+@require_GET
+def owner_api_product_suggest(request):
+    """
+    GET ?q=taza
+    Devuelve lista corta para typeahead:
+    [{id, sku, nombre_publico, precio, tech}, ...]
+    """
+    q = (request.GET.get("q") or "").strip()
+    if not q:
+        return JsonResponse({"results": []})
+
+    qs = (ProductoPrecio.objects
+          .filter(Q(sku__icontains=q) | Q(nombre_publico__icontains=q))
+          .order_by("nombre_publico")[:20])
+
+    results = [{
+        "id": p.id,
+        "sku": p.sku,
+        "nombre_publico": p.nombre_publico,
+        "precio": f"{p.precio:.2f}",
+        "tech": p.tech or "",
+    } for p in qs]
+
+    return JsonResponse({"results": results})
+
+
+@require_GET
+def owner_api_product_detail(request, pk: int):
+    """
+    Devuelve data para autocompletar campos del form.
+    """
+    p = get_object_or_404(ProductoPrecio, pk=pk)
+    return JsonResponse({
+        "id": p.id,
+        "sku": p.sku,
+        "nombre_publico": p.nombre_publico,
+        "precio": f"{p.precio:.2f}",
+        "stock": p.stock,
+        "precio_costo": f"{p.precio_costo:.2f}" if p.precio_costo is not None else "",
+        "tech": p.tech or "",
+        "activo": bool(p.activo),
+        "imagen_url": p.imagen.url if p.imagen else "",
+    })

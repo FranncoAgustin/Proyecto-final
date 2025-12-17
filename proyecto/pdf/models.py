@@ -36,6 +36,8 @@ class ProductoPrecio(models.Model):
     # El nombre que verán los usuarios finales
     nombre_publico = models.CharField(max_length=255)
 
+    descripcion = models.TextField(blank=True, default="")
+
     precio_costo = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     
     imagen = models.ImageField(upload_to='productos/', null=True, blank=True)
