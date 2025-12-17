@@ -7,7 +7,6 @@ urlpatterns = [
     
     # Catálogo
     path('catalogo/', views.mostrar_precios, name='ver_catalogo_completo'),
-    path('exportar/csv/', views.exportar_csv_catalogo, name='exportar_csv_catalogo'),
     
     # NOTA: Las rutas 'confirmar/' ya no son necesarias.
 
@@ -23,6 +22,9 @@ urlpatterns = [
 
     path('historia/', views.historia_listas, name='historia_listas'),
 
-    path("lista-precios.pdf", views.descargar_lista_precios_pdf, name="descargar_lista_precios_pdf"),
+    path("lista-precios/", views.lista_precios_opciones, name="lista_precios_opciones"),
+
+    path("factura/", views.factura_crear, name="factura_crear"),
+    path("api/productos/", views.api_productos, name="api_productos"),
 
 ]

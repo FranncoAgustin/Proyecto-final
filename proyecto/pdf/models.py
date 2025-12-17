@@ -1,4 +1,5 @@
 from django.db import models
+from decimal import Decimal
 
 class ListaPrecioPDF(models.Model):
     """Modelo para almacenar el archivo PDF subido."""
@@ -115,3 +116,35 @@ class ProductoVariante(models.Model):
 
     def __str__(self):
         return f"{self.producto.sku} - {self.nombre}"
+    
+class Factura(models.Model):
+    creado = models.DateTimeField(auto_now_add=True)
+
+    # Vendedor (precargado)
+    vendedor_nombre = models.CharField(max_length=120, default="Mundo Personalizado")
+    vendedor_whatsapp = models.CharField(max_length=50, default="11 5663-7260")
+    vendedor_horario = models.CharField(max_length=80, default="9:00 a 20:00")
+    vendedor_direccion = models.CharField(max_length=160, default="Virrey del Pino, La Matanza")
+
+    # Cliente
+    cliente_nombre = models.CharField(max_length=140)
+    cliente_telefono = models.CharField(max_length=60, blank=True)
+    cliente_doc = models.CharField(max_length=60, blank=True)  # DNI/CUIL
+    cliente_direccion = models.CharField(max_length=180, blank=True)
+
+    # Totales
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    def __str__(self):
+        return f"Factura #{self.id} - {self.cliente_nombre}"
+
+class FacturaItem(models.Model):
+    factura = models.ForeignKey(Factura, on_delete=models.CASCADE, related_name="items")
+    producto_nombre = models.CharField(max_length=200)
+    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+    cantidad = models.PositiveIntegerField(default=1)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    def save(self, *args, **kwargs):
+        self.subtotal = (self.precio_unitario * self.cantidad)
+        super().save(*args, **kwargs)
