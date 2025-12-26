@@ -104,7 +104,7 @@ class ProductoVariante(models.Model):
     descripcion_corta = models.CharField(max_length=255, blank=True, default="")
     imagen = models.ImageField(upload_to="productos/variantes/", null=True, blank=True)
 
-    stock = models.IntegerField(default=0)
+    stock = models.PositiveIntegerField(default=0)
     orden = models.PositiveIntegerField(default=0)
     activo = models.BooleanField(default=True)
 
@@ -117,6 +117,10 @@ class ProductoVariante(models.Model):
     def __str__(self):
         return f"{self.producto.sku} - {self.nombre}"
     
+    def en_stock(self) -> bool:
+        return self.stock > 0 and self.activo
+
+
 class Factura(models.Model):
     creado = models.DateTimeField(auto_now_add=True)
 

@@ -38,9 +38,32 @@ from .utils_ocr import extraer_datos_factura
 from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
 from ofertas.utils import get_precio_con_oferta
 
-# ===================== CATÁLOGO / LISTAS =====================
-
 Q2 = Decimal("0.01")
+
+# ===================== STOCK =====================
+
+def get_stock_disponible(producto, variante_id: int) -> int:
+    """
+    Devuelve el stock disponible real según variante o producto base.
+    variante_id=0 => usa producto.stock
+    variante_id!=0 => usa variante.stock
+    """
+    if int(variante_id) == 0:
+        return max(0, int(getattr(producto, "stock", 0) or 0))
+
+    variante = ProductoVariante.objects.filter(
+        pk=variante_id,
+        producto=producto,
+        activo=True
+    ).first()
+
+    if not variante:
+        return 0
+
+    return max(0, int(getattr(variante, "stock", 0) or 0))
+
+
+# ===================== CARRITO =====================
 
 def _get_cart(request):
     return request.session.get("carrito", {})
@@ -55,14 +78,19 @@ def _make_key(prod_id: int, var_id: int | None):
     var_id = int(var_id or 0)
     return f"{int(prod_id)}:{var_id}"
 
+
+# ===================== BUSQUEDA / SUGERENCIAS =====================
+
 def _norm(s: str) -> str:
     s = (s or "").lower()
     s = re.sub(r"[^a-z0-9áéíóúñü\s]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
+
 def _score(a: str, b: str) -> float:
     return SequenceMatcher(None, _norm(a), _norm(b)).ratio()
+
 
 @require_GET
 def api_productos(request):
@@ -87,8 +115,8 @@ def api_productos(request):
         })
     return JsonResponse({"results": data})
 
+
 def sugerencias_para(nombre_item: str, productos, top=8):
-    # productos: iterable de (id, sku, nombre_publico)
     scored = []
     for pid, sku, nom in productos:
         s = max(_score(nombre_item, nom), _score(nombre_item, sku))
@@ -96,57 +124,68 @@ def sugerencias_para(nombre_item: str, productos, top=8):
     scored.sort(reverse=True, key=lambda x: x[0])
     return scored[:top]
 
+
 def _to_decimal(v, default="0"):
     try:
         s = str(v).strip().replace(",", ".")
         return Decimal(s)
     except (InvalidOperation, ValueError):
         return Decimal(default)
-    
-def mostrar_precios(request):
-    productos = ProductoPrecio.objects.filter(activo=True).order_by('nombre_publico')
 
 
+# ===================== CATÁLOGO / LISTAS =====================
+
 def mostrar_precios(request):
-    q = request.GET.get("q", "").strip()
+    q = (request.GET.get("q", "") or "").strip()
 
     productos_qs = ProductoPrecio.objects.filter(activo=True)
 
     if q:
-        productos_qs = productos_qs.filter(
-            Q(nombre_publico__icontains=q)
-        )
+        productos_qs = productos_qs.filter(Q(nombre_publico__icontains=q))
 
     productos = []
     for producto in productos_qs:
         precio_data = get_precio_con_oferta(producto)
+
+        stock_principal = get_stock_disponible(producto, 0)
+        # Si querés que el catálogo diga "Sin stock" SOLO cuando el principal está en 0:
+        sin_stock = (stock_principal <= 0)
+
+        # Si en cambio querés que diga "Sin stock" SOLO cuando NO hay stock en ninguna variante,
+        # descomentá esta alternativa y comentá la anterior:
+        # sin_stock = (stock_principal <= 0 and not producto.variantes.filter(activo=True, stock__gt=0).exists())
+
         productos.append({
             "producto": producto,
             "precio_original": producto.precio,
             "precio_final": precio_data["precio_final"],
             "oferta": precio_data["oferta"],
+            "sin_stock": sin_stock,
+            "stock_principal": stock_principal,
         })
 
     return render(
         request,
         "pdf/mostrar_precios.html",
-        {
-            "productos": productos,
-        }
+        {"productos": productos},
     )
 
 
-def detalle_producto(request, pk):
-    producto = get_object_or_404(ProductoPrecio, pk=pk)
-    variantes = producto.variantes.all().order_by("orden")
+# ===================== DETALLE =====================
 
-    # Variante principal implícita (producto base)
+def detalle_producto(request, pk):
+    producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
+    variantes = producto.variantes.filter(activo=True).order_by("orden")
+
+    stock_principal = get_stock_disponible(producto, 0)
+
     variante_principal = {
         "id": 0,
         "nombre": "Principal",
         "imagen": producto.imagen,
         "descripcion_corta": producto.nombre_publico,
         "es_principal": True,
+        "stock": stock_principal,
     }
 
     variantes_ui = [variante_principal]
@@ -158,6 +197,7 @@ def detalle_producto(request, pk):
             "imagen": v.imagen,
             "descripcion_corta": v.descripcion_corta,
             "es_principal": False,
+            "stock": max(0, int(getattr(v, "stock", 0) or 0)),
         })
 
     return render(
@@ -166,8 +206,33 @@ def detalle_producto(request, pk):
         {
             "producto": producto,
             "variantes_ui": variantes_ui,
+            "stock_inicial": stock_principal,  # stock del principal
         },
     )
+
+
+# ===================== API (OPCIONAL) PARA CAMBIO DE VARIANTE =====================
+# Esto sirve para que el front, al cambiar la variante, consulte stock real y actualice leyendas.
+@require_GET
+def api_stock_variante(request, pk):
+    producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
+    var_id = request.GET.get("variante_id", "0")
+    try:
+        var_id = int(var_id)
+    except ValueError:
+        var_id = 0
+
+    # validar que variante pertenezca al producto si no es principal
+    if var_id:
+        ok = ProductoVariante.objects.filter(pk=var_id, producto=producto, activo=True).exists()
+        if not ok:
+            var_id = 0
+
+    stock = get_stock_disponible(producto, var_id)
+    return JsonResponse({"stock": stock})
+
+
+# ===================== CARRITO (AGREGAR) =====================
 
 @require_POST
 def agregar_al_carrito(request, pk):
@@ -179,7 +244,7 @@ def agregar_al_carrito(request, pk):
     except ValueError:
         variante_id = 0
 
-    # Validar que la variante pertenece al producto
+    # Validar variante
     if variante_id:
         ok = ProductoVariante.objects.filter(
             pk=variante_id, producto=producto, activo=True
@@ -187,12 +252,31 @@ def agregar_al_carrito(request, pk):
         if not ok:
             variante_id = 0
 
+    # Cantidad
+    try:
+        cantidad = int(request.POST.get("cantidad", 1))
+    except ValueError:
+        cantidad = 1
+    if cantidad < 1:
+        cantidad = 1
+
+    stock_disp = get_stock_disponible(producto, variante_id)
+
+    if stock_disp <= 0:
+        messages.error(request, "Este producto/variante no tiene stock.")
+        return redirect("detalle_producto", pk=pk)
+
+    if cantidad > stock_disp:
+        cantidad = stock_disp
+        messages.warning(request, f"Solo hay {stock_disp} unidades disponibles.")
+
     cart = _get_cart(request)
     key = _make_key(producto.id, variante_id)
 
-    cart[key] = cart.get(key, 0) + 1
+    cart[key] = min(stock_disp, cart.get(key, 0) + cantidad)
     _save_cart(request, cart)
 
+    messages.success(request, "Producto agregado al carrito.")
     return redirect("detalle_producto", pk=pk)
 
 

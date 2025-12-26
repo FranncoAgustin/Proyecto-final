@@ -14,6 +14,13 @@
 
       <div class="card h-100 shadow-sm position-relative">
 
+        {# BADGE SIN STOCK (no bloquea el link) #}
+        {% if item.sin_stock %}
+          <span class="badge bg-danger position-absolute top-0 start-0 m-2 z-3">
+            Sin stock
+          </span>
+        {% endif %}
+
         {# ❤️ FAVORITOS #}
         {% with favs=request.session.favoritos %}
           {% if favs and item.producto.id|stringformat:"s" in favs %}
@@ -35,7 +42,7 @@
           {% endif %}
         {% endwith %}
 
-        {# 🔗 LINK AL DETALLE (SOLO ESTA PARTE) #}
+        {# 🔗 LINK AL DETALLE #}
         <a href="{% url 'detalle_producto' item.producto.id %}"
            class="text-decoration-none text-dark">
 

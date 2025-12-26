@@ -1,75 +1,151 @@
 {% extends "base.html" %}
-
-{% block title %}Mis compras - Mundo Personalizado{% endblock %}
+{% block title %}Mis compras{% endblock %}
 
 {% block content %}
-<div class="container my-4">
+<div class="container py-4" style="max-width: 980px;">
 
-  <h2 class="mb-4 fw-bold">
-    <i class="fa-solid fa-bag-shopping me-2"></i>
-    Mis compras
-  </h2>
-
-  {% if pedidos %}
-    {% for pedido in pedidos %}
-      <div class="card mb-4 shadow-sm">
-
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <div>
-            Pedido #{{ pedido.id }} · {{ pedido.creado_en|date:"d/m/Y H:i" }}
-            <span class="badge bg-secondary ms-2">
-              {{ pedido.estado }}
-            </span>
-          </div>
-          <strong>${{ pedido.total }}</strong>
-        </div>
-
-        <div class="card-body">
-          {% for item in pedido.items.all %}
-            <div class="d-flex align-items-center mb-3">
-
-              <div class="flex-grow-1">
-                <div class="fw-semibold">
-                  {{ item.titulo }}
-                </div>
-
-                <div class="text-muted small">
-                  Cantidad: {{ item.cantidad }}
-                </div>
-
-                <div class="small">
-                  Precio unitario: ${{ item.precio_unitario }}
-                </div>
-
-                <div class="fw-semibold text-success">
-                  Subtotal: ${{ item.subtotal }}
-                </div>
-              </div>
-
-            </div>
-          {% endfor %}
-        </div>
-
-        {% if pedido.cupon_codigo %}
-          <div class="card-footer bg-light small">
-            🎟 Cupón aplicado:
-            <strong>{{ pedido.cupon_codigo }}</strong>
-            — Descuento:
-            <span class="text-success">
-              -${{ pedido.descuento_total }}
-            </span>
-          </div>
-        {% endif %}
-
-      </div>
-    {% endfor %}
-  {% else %}
-    <div class="alert alert-info">
-      Todavía no realizaste compras.
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Mis compras</h1>
+      <div class="text-muted small">Historial de tus pedidos y su estado.</div>
     </div>
-    <a href="{% url 'ver_catalogo_completo_directo' %}" class="btn btn-primary">
-      Ir a comprar
+    <a href="{% url 'ver_catalogo_completo' %}" class="btn btn-outline-secondary btn-sm">
+      Seguir comprando
     </a>
+  </div>
+
+  {% if messages %}
+    <div class="mb-3">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} mb-2" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if not pedidos %}
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3">
+          <div class="fs-3">🧾</div>
+          <div>
+            <div class="fw-semibold">Todavía no tenés compras registradas.</div>
+            <div class="text-muted small">Cuando hagas una compra, va a aparecer acá con su estado.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% else %}
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Pedido</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th class="text-end">Total</th>
+                <th class="text-end pe-3">Acciones</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for p in pedidos %}
+              <tr>
+                <td class="ps-3 fw-semibold">
+                  #{{ p.id }}
+                  {% if p.cupon_codigo %}
+                    <div class="text-muted small">Cupón: <span class="fw-semibold">{{ p.cupon_codigo }}</span></div>
+                  {% endif %}
+                </td>
+
+                <td class="text-muted small">
+                  {{ p.creado_en|date:"d/m/Y H:i" }}
+                  <div class="text-muted small">
+                    <span class="badge text-bg-light text-dark">hace {{ p.creado_en|timesince }}</span>
+                  </div>
+                </td>
+
+                <td>
+                  {% if p.estado == "APROBADO" %}
+                    <span class="badge text-bg-success">Aprobado</span>
+                  {% elif p.estado == "PENDIENTE" %}
+                    <span class="badge text-bg-warning">Pendiente</span>
+                  {% elif p.estado == "RECHAZADO" %}
+                    <span class="badge text-bg-danger">Rechazado</span>
+                  {% elif p.estado == "CANCELADO" %}
+                    <span class="badge text-bg-secondary">Cancelado</span>
+                  {% else %}
+                    <span class="badge text-bg-light text-dark">Creado</span>
+                  {% endif %}
+
+                  {% if p.estado == "CREADO" %}
+                    <div class="text-muted small mt-1">Iniciado pero no finalizado.</div>
+                  {% endif %}
+                </td>
+
+                <td class="text-end fw-semibold">
+                  ${{ p.total }}
+                  {% if p.descuento_total and p.descuento_total > 0 %}
+                    <div class="text-muted small">- ${{ p.descuento_total }} desc.</div>
+                  {% endif %}
+                </td>
+
+                <td class="text-end pe-3">
+                  <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
+
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'mis_compras_detalle' p.id %}">
+                      Ver detalle
+                    </a>
+
+                    {# ✅ Continuar pago si quedó iniciado #}
+                    {% if p.estado == "CREADO" or p.estado == "PENDIENTE" %}
+                      {% if p.pago_mp and p.pago_mp.init_point %}
+                        <a class="btn btn-primary btn-sm" href="{{ p.pago_mp.init_point }}">
+                          Continuar pago
+                        </a>
+                      {% endif %}
+
+                      <form method="post" action="{% url 'pedido_cancelar' p.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button class="btn btn-outline-danger btn-sm"
+                                type="submit"
+                                onclick="return confirm('¿Cancelar el pedido #{{ p.id }}?');">
+                          Cancelar
+                        </button>
+                      </form>
+                    {% endif %}
+
+                    {# ✅ Eliminar si quedó muerto (rechazado/cancelado) #}
+                    {% if p.estado == "CANCELADO" or p.estado == "RECHAZADO" %}
+                      <form method="post" action="{% url 'pedido_eliminar' p.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button class="btn btn-outline-secondary btn-sm"
+                                type="submit"
+                                onclick="return confirm('¿Eliminar el pedido #{{ p.id }} de tu historial?');">
+                          Eliminar
+                        </button>
+                      </form>
+                    {% endif %}
+
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-muted small mt-3">
+      Tip: si un pedido queda en <span class="fw-semibold">Creado</span> por mucho tiempo, podés <span class="fw-semibold">Cancelar</span> o <span class="fw-semibold">Continuar pago</span>.
+    </div>
+
   {% endif %}
 
 </div>
