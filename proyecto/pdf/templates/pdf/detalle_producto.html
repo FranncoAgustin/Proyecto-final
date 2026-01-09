@@ -33,7 +33,13 @@
 
       <div class="mb-3">
         <span class="h3 text-success fw-bold">
-          ${{ producto.precio }}
+          $<span id="price-amount">
+            {% if variantes_ui %}
+              {{ precio_inicial }}
+            {% else %}
+              {{ producto.precio }}
+            {% endif %}
+          </span>
         </span>
       </div>
 
@@ -60,9 +66,14 @@
         <select id="variant-select" class="form-select">
           {% for v in variantes_ui %}
           <option value="{{ v.id }}"
-            {% if v.imagen %} data-image="{{ v.imagen.url }}" {% endif %}
+            {% if v.imagen %}
+              data-image="{{ v.imagen.url }}"
+            {% elif producto.imagen %}
+              data-image="{{ producto.imagen.url }}"
+            {% endif %}
             data-desc="{{ v.descripcion_corta|default:'' }}"
             data-stock="{{ v.stock|default:0 }}"
+            data-price="{{ v.precio_final }}"
           >
             {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
           </option>
@@ -130,10 +141,12 @@
     const stockNum = document.getElementById("stock-num");
     const qtyInput = document.getElementById("qty-input");
     const addBtn = document.getElementById("add-cart-btn");
+    const priceSpan = document.getElementById("price-amount");
 
     function applyVariant() {
       if (!sel) return;
       const opt = sel.options[sel.selectedIndex];
+      if (!opt) return;
 
       // id variante
       if (hiddenVar) hiddenVar.value = opt.value;
@@ -145,6 +158,12 @@
       // descripción
       const d = opt.getAttribute("data-desc") || "";
       if (desc) desc.textContent = d;
+
+      // precio
+      const p = opt.getAttribute("data-price");
+      if (priceSpan && p !== null && p !== "") {
+        priceSpan.textContent = p;
+      }
 
       // stock
       const s = parseInt(opt.getAttribute("data-stock") || "0", 10) || 0;
@@ -161,12 +180,13 @@
       if (qtyInput) {
         qtyInput.max = String(s);
         qtyInput.disabled = !inStock;
-        if (!inStock) qtyInput.value = "1";
-        else {
-          // si quedó mayor al max, lo ajusta
-          const current = parseInt(qtyInput.value || "1", 10) || 1;
-          if (current > s) qtyInput.value = String(s);
-          if (current < 1) qtyInput.value = "1";
+        if (!inStock) {
+          qtyInput.value = "1";
+        } else {
+          let current = parseInt(qtyInput.value || "1", 10) || 1;
+          if (current > s) current = s;
+          if (current < 1) current = 1;
+          qtyInput.value = String(current);
         }
       }
 

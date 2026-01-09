@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block title %}Editar producto{% endblock %}
 
 {% block content %}
@@ -12,22 +11,17 @@
   <div class="card shadow-sm border-0">
     <div class="card-body">
 
-      <!-- ✅ IMPORTANTE: enctype para archivos -->
       <form method="post" enctype="multipart/form-data" id="mainForm">
         {% csrf_token %}
 
-        <!-- ACCIONES PELIGROSAS / RÁPIDAS -->
         <div class="d-flex flex-wrap gap-2 justify-content-end mb-3">
-          <!-- Baja/Alta -->
           <button type="submit" name="action" value="toggle_active"
-                  class="btn btn-sm {% if producto.activo %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+            class="btn btn-sm {% if producto.activo %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
             {% if producto.activo %}🔻 Dar de baja{% else %}✅ Dar de alta{% endif %}
           </button>
 
-          <!-- Eliminar producto -->
-          <button type="submit" name="action" value="delete_product"
-                  class="btn btn-sm btn-outline-danger"
-                  onclick="return confirm('¿Eliminar definitivamente este producto? Esta acción no se puede deshacer.')">
+          <button type="submit" name="action" value="delete_product" class="btn btn-sm btn-outline-danger"
+            onclick="return confirm('¿Eliminar definitivamente este producto? Esta acción no se puede deshacer.')">
             🗑️ Eliminar producto
           </button>
         </div>
@@ -35,17 +29,11 @@
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label">SKU</label>
-
             <div class="position-relative">
-              <input id="id_sku" type="text" name="sku" class="form-control"
-                     value="{{ producto.sku }}" autocomplete="off">
-
-              <div id="skuTypeahead"
-                   class="dropdown-menu w-100 p-0"
-                   style="display:none; max-height:280px; overflow:auto;">
-              </div>
+              <input id="id_sku" type="text" name="sku" class="form-control" value="{{ producto.sku }}" autocomplete="off">
+              <div id="skuTypeahead" class="dropdown-menu w-100 p-0"
+                style="display:none; max-height:280px; overflow:auto;"></div>
             </div>
-
             <div class="form-text">
               Escribí para buscar productos (por SKU o nombre) y saltar directo a su edición.
             </div>
@@ -67,20 +55,53 @@
           <div class="col-md-4">
             <label class="form-label">Stock</label>
             <input type="number" name="stock" class="form-control" value="{{ producto.stock }}">
+            <div class="form-text">Si usás variantes, se recalcula al guardar.</div>
           </div>
 
           <div class="col-md-4">
             <label class="form-label">Técnica</label>
-            <select name="tech" class="form-select">
+            <select name="tech" class="form-select" id="id_tech">
               <option value="">(Sin especificar)</option>
               <option value="SUB" {% if producto.tech == "SUB" %}selected{% endif %}>Sublimación</option>
               <option value="LAS" {% if producto.tech == "LAS" %}selected{% endif %}>Grabado láser</option>
-              <option value="3D"  {% if producto.tech == "3D"  %}selected{% endif %}>Impresión 3D</option>
+              <option value="3D" {% if producto.tech == "3D" %}selected{% endif %}>Impresión 3D</option>
               <option value="OTR" {% if producto.tech == "OTR" %}selected{% endif %}>Otro</option>
             </select>
           </div>
 
-          <!-- ✅ IMAGEN -->
+          <div class="col-md-6">
+            <div class="d-flex justify-content-between align-items-center">
+              <label class="form-label mb-0">Rubro</label>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="btnNuevoRubro">+ Nuevo rubro</button>
+            </div>
+            <select name="rubro_nombre" class="form-select" id="id_rubro">
+              <option value="">(Sin rubro)</option>
+              {% for r in rubros %}
+                <option value="{{ r.nombre }}" data-rubro-id="{{ r.id }}"
+                  {% if producto.rubro == r.nombre %}selected{% endif %}>
+                  [{{ r.tech }}] {{ r.nombre }}
+                </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Se guarda como texto en el producto (coincide con <code>Rubro.nombre</code>).</div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="d-flex justify-content-between align-items-center">
+              <label class="form-label mb-0">Sub-filtro</label>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="btnNuevoSubrubro">+ Nuevo sub-filtro</button>
+            </div>
+            <select name="subrubro_nombre" class="form-select" id="id_subrubro">
+              <option value="">(Sin sub-filtro)</option>
+              {% for s in subrubros %}
+                <option value="{{ s.nombre }}" data-rubro-id="{{ s.rubro_id }}"
+                  {% if producto.subrubro == s.nombre %}selected{% endif %}>
+                  {{ s.rubro.nombre }} → {{ s.nombre }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
           <div class="col-md-12">
             <label class="form-label">Imagen principal</label>
 
@@ -89,61 +110,218 @@
                 <img src="{{ producto.imagen.url }}" alt="Imagen del producto"
                   style="width: 120px; height: 120px; object-fit: cover; border-radius: 12px;" class="border">
                 <div class="small text-muted">
-                  Imagen actual cargada.<br>
-                  Si subís otra, se reemplaza.
+                  Imagen actual cargada.<br>Si subís otra, se reemplaza.
                 </div>
               </div>
 
-              <!-- ✅ Eliminar imagen -->
-              <button type="submit" name="action" value="delete_image"
-                      class="btn btn-sm btn-outline-danger mb-2"
-                      onclick="return confirm('¿Eliminar la imagen actual?')">
+              <button type="submit" name="action" value="delete_image" class="btn btn-sm btn-outline-danger mb-2"
+                onclick="return confirm('¿Eliminar la imagen actual?')">
                 🗑️ Eliminar imagen
               </button>
             {% else %}
-              <div class="small text-muted mb-2">
-                Este producto todavía no tiene imagen.
-              </div>
+              <div class="small text-muted mb-2">Este producto todavía no tiene imagen.</div>
             {% endif %}
 
             <input type="file" name="imagen" class="form-control" accept="image/*">
-            <div class="form-text">
-              Formatos recomendados: JPG/PNG. Ideal cuadrada (ej: 800×800).
-            </div>
+            <div class="form-text">Formatos recomendados: JPG/PNG. Ideal cuadrada (ej: 800×800).</div>
           </div>
 
           <div class="col-md-12">
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="activoCheck" name="activo"
-                {% if producto.activo %}checked{% endif %}>
-              <label class="form-check-label" for="activoCheck">
-                Producto activo (se puede usar en el catálogo / cálculos)
-              </label>
+              <input class="form-check-input" type="checkbox" id="activoCheck" name="activo" {% if producto.activo %}checked{% endif %}>
+              <label class="form-check-label" for="activoCheck">Producto activo</label>
             </div>
           </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mt-4">
+        <hr class="my-4">
+
+        <!-- ================= Variantes ================= -->
+        <div class="d-flex align-items-center justify-content-between gap-2">
           <div>
-            <a href="{% url 'owner_producto_variantes' producto.id %}" class="btn btn-outline-primary">
-              Gestionar variantes
-            </a>
+            <h2 class="h6 mb-1">🎛️ Variantes (opcional)</h2>
+            <div class="form-text">Si dejás precio vacío: usa el precio principal.</div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddVar">
+            + Agregar variante
+          </button>
+        </div>
+
+        <div class="mt-3">
+          {{ vformset.management_form }}
+
+          <div id="variantsContainer" class="vstack gap-2">
+            {% for f in vformset %}
+              <div class="card border-0 shadow-sm variant-item">
+                <div class="card-body">
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                      <label class="form-label">Nombre *</label>
+                      {{ f.nombre }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Descripción corta</label>
+                      {{ f.descripcion_corta }}
+                    </div>
+
+                    <!-- 🔹 IMAGEN VARIANTE CON PREVIEW COMO EL PRINCIPAL -->
+                    <div class="col-md-3">
+                      <label class="form-label">Imagen</label>
+
+                      {% if f.instance.pk and f.instance.imagen %}
+                        <div class="mb-2">
+                          <img src="{{ f.instance.imagen.url }}"
+                               alt="Imagen de variante"
+                               class="border rounded"
+                               style="width: 120px; height: 120px; object-fit: cover;">
+                        </div>
+                        <div class="small text-muted mb-1">
+                          Imagen actual de la variante. Si subís otra, se reemplaza.
+                        </div>
+                      {% else %}
+                        <div class="small text-muted mb-1">
+                          Esta variante todavía no tiene imagen.
+                        </div>
+                      {% endif %}
+
+                      {{ f.imagen }}
+                      <div class="form-text">JPG/PNG cuadrada (ej: 800×800).</div>
+                    </div>
+                    <!-- 🔹 FIN BLOQUE IMAGEN VARIANTE -->
+
+                    <div class="col-md-1">
+                      <label class="form-label">Stock</label>
+                      {{ f.stock }}
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Precio (opcional)</label>
+                      {{ f.precio }}
+                    </div>
+
+                    <div class="col-12 d-flex justify-content-between align-items-center mt-2">
+                      <div class="d-none">
+                        {{ f.id }} {{ f.DELETE }}
+                      </div>
+                      <button type="button" class="btn btn-sm btn-outline-danger btnRemoveVar">
+                        Eliminar variante
+                      </button>
+                      <small class="text-muted">Se borra al guardar.</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
           </div>
 
-          <div>
-            <button type="submit" class="btn btn-primary">
-              Guardar cambios
-            </button>
-            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
-              Cancelar
-            </a>
-          </div>
+          <!-- TEMPLATE PARA NUEVA VARIANTE -->
+          <template id="emptyVarTemplate">
+            <div class="card border-0 shadow-sm variant-item">
+              <div class="card-body">
+                <div class="row g-2 align-items-end">
+                  <div class="col-md-3">
+                    <label class="form-label">Nombre *</label>
+                    {{ vformset.empty_form.nombre }}
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Descripción corta</label>
+                    {{ vformset.empty_form.descripcion_corta }}
+                  </div>
+
+                  <!-- 🔹 IMAGEN EN NUEVA VARIANTE (SIN PREVIEW) -->
+                  <div class="col-md-3">
+                    <label class="form-label">Imagen</label>
+                    <div class="small text-muted mb-1">
+                      Aún sin imagen. Podés subir una.
+                    </div>
+                    {{ vformset.empty_form.imagen }}
+                    <div class="form-text">JPG/PNG cuadrada (ej: 800×800).</div>
+                  </div>
+                  <!-- 🔹 FIN IMAGEN NUEVA VARIANTE -->
+
+                  <div class="col-md-1">
+                    <label class="form-label">Stock</label>
+                    {{ vformset.empty_form.stock }}
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Precio (opcional)</label>
+                    {{ vformset.empty_form.precio }}
+                  </div>
+
+                  <div class="col-12 d-flex justify-content-between align-items-center mt-2">
+                    <div class="d-none">
+                      {{ vformset.empty_form.id }} {{ vformset.empty_form.DELETE }}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger btnRemoveVar">
+                      Eliminar variante
+                    </button>
+                    <small class="text-muted">Se borra al guardar.</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+          <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancelar</a>
         </div>
       </form>
 
     </div>
   </div>
 </div>
+
+<script>
+  // ===================== Variantes (Formset dinámico) =====================
+  (function () {
+    const prefix = "v";
+    const container = document.getElementById("variantsContainer");
+    const addBtn = document.getElementById("btnAddVar");
+    const tpl = document.getElementById("emptyVarTemplate");
+
+    function totalFormsInput() {
+      return document.querySelector(`input[name="${prefix}-TOTAL_FORMS"]`);
+    }
+
+    function renumberForm(html, index) {
+      return html.replaceAll("__prefix__", String(index));
+    }
+
+    function removeSafe(item) {
+      const del = item.querySelector(`input[name$="-DELETE"]`);
+      if (del) del.checked = true;
+      item.style.display = "none";
+    }
+
+    function wireExisting() {
+      container.querySelectorAll(".btnRemoveVar").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const item = btn.closest(".variant-item");
+          if (item) removeSafe(item);
+        });
+      });
+    }
+
+    addBtn.addEventListener("click", () => {
+      const totalEl = totalFormsInput();
+      const index = parseInt(totalEl.value, 10);
+
+      const html = renumberForm(tpl.innerHTML, index);
+      const temp = document.createElement("div");
+      temp.innerHTML = html.trim();
+      const node = temp.firstElementChild;
+
+      container.appendChild(node);
+      totalEl.value = index + 1;
+
+      const btn = node.querySelector(".btnRemoveVar");
+      if (btn) btn.addEventListener("click", () => removeSafe(node));
+    });
+
+    wireExisting();
+  })();
+</script>
 
 <script>
   const skuInput = document.getElementById("id_sku");
@@ -226,5 +404,158 @@
   });
 
   skuInput.addEventListener("blur", () => setTimeout(hideTA, 150));
+
+  // 🔹 Rubros / Subrubros + creación rápida
+  document.addEventListener("DOMContentLoaded", function () {
+    const rubroSelect = document.getElementById("id_rubro");
+    const subrubroSelect = document.getElementById("id_subrubro");
+    const btnNuevoRubro = document.getElementById("btnNuevoRubro");
+    const btnNuevoSubrubro = document.getElementById("btnNuevoSubrubro");
+    const techSelect = document.getElementById("id_tech");
+
+    function filtrarSubrubros() {
+      const rubroOption = rubroSelect.options[rubroSelect.selectedIndex];
+      const rubroId = rubroOption ? rubroOption.getAttribute("data-rubro-id") : null;
+
+      Array.from(subrubroSelect.options).forEach(function (opt) {
+        const optRubroId = opt.getAttribute("data-rubro-id");
+
+        if (!optRubroId || !rubroId) {
+          opt.hidden = false;
+        } else {
+          opt.hidden = (optRubroId !== rubroId);
+        }
+      });
+
+      if (subrubroSelect.selectedOptions.length && subrubroSelect.selectedOptions[0].hidden) {
+        subrubroSelect.value = "";
+      }
+    }
+
+    if (rubroSelect && subrubroSelect) {
+      rubroSelect.addEventListener("change", filtrarSubrubros);
+      filtrarSubrubros();
+    }
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + "=")) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+    const csrftoken = getCookie("csrftoken");
+
+    async function crearRubroDesdeProducto() {
+      if (!techSelect || !rubroSelect) return;
+
+      const tech = techSelect.value || "";
+      const nombre = prompt("Nombre del nuevo rubro (ej: Mates, Tazas, Llaveros):");
+      if (!nombre) return;
+
+      try {
+        const resp = await fetch("{% url 'owner_api_rubro_create' %}", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            nombre: nombre,
+            tech: tech,
+          }),
+        });
+
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          alert(data.error || "Error al crear el rubro.");
+          return;
+        }
+
+        const r = data.rubro;
+
+        const opt = document.createElement("option");
+        opt.value = r.nombre;
+        opt.textContent = `[${r.tech || ""}] ${r.nombre}`;
+        opt.setAttribute("data-rubro-id", r.id);
+
+        rubroSelect.appendChild(opt);
+        rubroSelect.value = r.nombre;
+        rubroSelect.dispatchEvent(new Event("change"));
+
+        alert(`Rubro “${r.nombre}” creado y asignado al producto.`);
+      } catch (e) {
+        console.error(e);
+        alert("Error inesperado al crear el rubro.");
+      }
+    }
+
+    async function crearSubrubroDesdeProducto() {
+      if (!rubroSelect || !subrubroSelect) return;
+
+      const rubroOption = rubroSelect.options[rubroSelect.selectedIndex];
+      const rubroId = rubroOption ? rubroOption.getAttribute("data-rubro-id") : null;
+      const rubroNombre = rubroOption ? rubroOption.value : "";
+
+      if (!rubroId) {
+        alert("Primero seleccioná un rubro para crear un sub-filtro.");
+        return;
+      }
+
+      const nombre = prompt(`Nombre del nuevo sub-filtro para “${rubroNombre}” (ej: Mate imperial de calabaza):`);
+      if (!nombre) return;
+
+      try {
+        const resp = await fetch("{% url 'owner_api_subrubro_create' %}", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            rubro_id: rubroId,
+            nombre: nombre,
+          }),
+        });
+
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          alert(data.error || "Error al crear el sub-filtro.");
+          return;
+        }
+
+        const s = data.subrubro;
+
+        const opt = document.createElement("option");
+        opt.value = s.nombre;
+        opt.textContent = `${s.rubro_nombre} → ${s.nombre}`;
+        opt.setAttribute("data-rubro-id", s.rubro_id);
+
+        subrubroSelect.appendChild(opt);
+        subrubroSelect.value = s.nombre;
+
+        alert(`Sub-filtro “${s.nombre}” creado y asignado al producto.`);
+      } catch (e) {
+        console.error(e);
+        alert("Error inesperado al crear el sub-filtro.");
+      }
+    }
+
+    if (btnNuevoRubro) {
+      btnNuevoRubro.addEventListener("click", crearRubroDesdeProducto);
+    }
+    if (btnNuevoSubrubro) {
+      btnNuevoSubrubro.addEventListener("click", crearSubrubroDesdeProducto);
+    }
+  });
 </script>
 {% endblock %}

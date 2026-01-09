@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Auto-asignar filtros{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h1 class="h5 mb-0">Auto-asignar filtros por nombre</h1>
+      <p class="text-muted mb-0">
+        Sugerencias de rubro y sub-filtro para productos. Podés ajustar antes de aplicar.
+      </p>
+    </div>
+    <a href="{% url 'owner_filtros_panel' %}" class="btn btn-sm btn-outline-secondary">
+      ← Volver a filtros
+    </a>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if sugerencias %}
+    <form method="post" class="card shadow-sm">
+      {% csrf_token %}
+      <div class="card-body">
+        <p class="small text-muted">
+          Marcá qué filas querés aplicar. Si cambiás el rubro o sub-filtro, la fila se marca sola.
+        </p>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th style="width:40px;">
+                  <input type="checkbox" id="checkAll">
+                </th>
+                <th>Producto</th>
+                <th>SKU</th>
+                <th>Técnica</th>
+                <th style="min-width: 220px;">Rubro a asignar</th>
+                <th style="min-width: 240px;">Sub-filtro (opcional)</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in sugerencias %}
+                {% with p=s.producto r_sug=s.rubro s_sug=s.subrubro %}
+                <tr>
+                  <!-- Checkbox de aplicar -->
+                  <td>
+                    <input
+                      type="checkbox"
+                      name="aplicar"
+                      value="{{ p.id }}"
+                      class="aplicar-checkbox"
+                      data-product-id="{{ p.id }}"
+                    >
+                  </td>
+
+                  <!-- Datos producto -->
+                  <td>{{ p.nombre_publico }}</td>
+                  <td class="text-muted small">{{ p.sku }}</td>
+                  <td class="text-muted small">{{ p.get_tech_display }}</td>
+
+                  <!-- Select de rubro (preseleccionado sugerido) -->
+                  <td>
+                    <select
+                      name="rubro_{{ p.id }}"
+                      class="form-select form-select-sm rubro-select"
+                      data-product-id="{{ p.id }}"
+                    >
+                      <option value="">
+                        (Sin rubro / dejar en blanco)
+                      </option>
+                      {% for r in rubros %}
+                        <option
+                          value="{{ r.nombre }}"
+                          data-rubro-id="{{ r.id }}"
+                          {% if r_sug.id == r.id %}selected{% endif %}
+                        >
+                          [{{ r.tech }}] {{ r.nombre }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+
+                  <!-- Select de subfiltro (preseleccionado si la sugerencia trae subrubro) -->
+                  <td>
+                    <select
+                      name="subrubro_{{ p.id }}"
+                      class="form-select form-select-sm subrubro-select"
+                      data-product-id="{{ p.id }}"
+                    >
+                      <option value="">
+                        (Sin sub-filtro)
+                      </option>
+                      {% for sbr in subrubros %}
+                        <option
+                          value="{{ sbr.nombre }}"
+                          data-rubro-id="{{ sbr.rubro_id }}"
+                          {% if s_sug and s_sug.id == sbr.id %}selected{% endif %}
+                        >
+                          {{ sbr.rubro.nombre }} → {{ sbr.nombre }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+
+                  <!-- Score de similitud -->
+                  <td class="text-muted small">
+                    {{ s.score|floatformat:1 }}
+                  </td>
+                </tr>
+                {% endwith %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div class="small text-muted">
+            Total de sugerencias: {{ sugerencias|length }}
+          </div>
+          <button type="submit" class="btn btn-primary">
+            Aplicar filtros seleccionados
+          </button>
+        </div>
+      </div>
+    </form>
+  {% else %}
+    <p class="text-muted">
+      No hay sugerencias por ahora. Probablemente todos los productos ya tienen rubro
+      o sus nombres no matchean con los rubros/sub-filtros definidos.
+    </p>
+  {% endif %}
+</div>
+
+<script>
+  // ✅ Seleccionar / deseleccionar todos
+  const checkAll = document.getElementById("checkAll");
+  if (checkAll) {
+    checkAll.addEventListener("change", function () {
+      document
+        .querySelectorAll('input[type="checkbox"][name="aplicar"]')
+        .forEach(cb => cb.checked = checkAll.checked);
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const rubroSelects = document.querySelectorAll(".rubro-select");
+    const subrubroSelects = document.querySelectorAll(".subrubro-select");
+
+    function marcarCheckbox(productId) {
+      const cb = document.querySelector(
+        `.aplicar-checkbox[data-product-id="${productId}"]`
+      );
+      if (cb) cb.checked = true;
+    }
+
+    function filtrarSubrubrosParaProducto(productId) {
+      const rubroSelect = document.querySelector(
+        `.rubro-select[data-product-id="${productId}"]`
+      );
+      const subSelect = document.querySelector(
+        `.subrubro-select[data-product-id="${productId}"]`
+      );
+      if (!rubroSelect || !subSelect) return;
+
+      const rubroOption = rubroSelect.options[rubroSelect.selectedIndex];
+      const rubroId = rubroOption ? rubroOption.getAttribute("data-rubro-id") : null;
+
+      Array.from(subSelect.options).forEach(function (opt) {
+        const optRubroId = opt.getAttribute("data-rubro-id");
+
+        if (!optRubroId || !rubroId) {
+          // Primera opción "sin sub-filtro" o no hay rubro seleccionado
+          opt.hidden = false;
+        } else {
+          opt.hidden = (optRubroId !== rubroId);
+        }
+      });
+
+      // Si el subfiltro seleccionado ya no coincide con el rubro, lo limpiamos
+      if (subSelect.selectedOptions.length && subSelect.selectedOptions[0].hidden) {
+        subSelect.value = "";
+      }
+    }
+
+    // Al cambiar rubro, filtramos subrubros y marcamos la fila como "a aplicar"
+    rubroSelects.forEach(function (rs) {
+      const pid = rs.getAttribute("data-product-id");
+      rs.addEventListener("change", function () {
+        filtrarSubrubrosParaProducto(pid);
+        marcarCheckbox(pid);
+      });
+      // Filtrar una vez al inicio para respetar rubro sugerido
+      filtrarSubrubrosParaProducto(pid);
+    });
+
+    // Al cambiar subfiltro, marcamos la fila como "a aplicar"
+    subrubroSelects.forEach(function (ss) {
+      const pid = ss.getAttribute("data-product-id");
+      ss.addEventListener("change", function () {
+        marcarCheckbox(pid);
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -13,7 +13,7 @@ urlpatterns = [
     # Cuando entren a "/", los mando al catálogo completo
     path(
         "",
-        RedirectView.as_view(pattern_name="ver_catalogo_completo", permanent=False),
+        RedirectView.as_view(pattern_name="catalogo", permanent=False),
         name="home_publica",
     ),
 
@@ -33,7 +33,7 @@ urlpatterns = [
     path("registro/", RedirectView.as_view(pattern_name="account_signup", permanent=False), name="registro"),
 
     # Catálogo donde se listan todos los productos
-    path("catalogo/", pdf_views.mostrar_precios, name="ver_catalogo_completo"),
+    path("catalogo/", pdf_views.mostrar_precios, name="catalogo"),
 
 
     # URLs del owner (panel admin, historia ingresos, etc.)

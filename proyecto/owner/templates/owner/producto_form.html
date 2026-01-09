@@ -1,0 +1,71 @@
+{% extends "owner/base_owner.html" %}
+{% load static %}
+
+{% block content %}
+<h1 class="h4 mb-3">Nuevo producto</h1>
+
+<form method="post" enctype="multipart/form-data" class="card p-3 shadow-sm">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      {{ form.sku.label_tag }} {{ form.sku }}
+    </div>
+    <div class="col-md-8">
+      {{ form.nombre_publico.label_tag }} {{ form.nombre_publico }}
+    </div>
+
+    <div class="col-12">
+      {{ form.descripcion.label_tag }} {{ form.descripcion }}
+    </div>
+
+    <div class="col-md-3">
+      {{ form.precio.label_tag }} {{ form.precio }}
+    </div>
+    <div class="col-md-3">
+      {{ form.precio_costo.label_tag }} {{ form.precio_costo }}
+    </div>
+    <div class="col-md-3">
+      {{ form.stock.label_tag }} {{ form.stock }}
+    </div>
+    <div class="col-md-3">
+      {{ form.imagen.label_tag }} {{ form.imagen }}
+    </div>
+
+    <div class="col-md-4">
+      {{ form.tech.label_tag }} {{ form.tech }}
+    </div>
+
+    <!-- Rubro con botoncito "+" para crearlo en otra pestaña -->
+    <div class="col-md-4">
+      <label class="form-label">Rubro</label>
+      <div class="input-group">
+        {{ form.rubro }}
+        <a href="{% url 'owner_rubro_create' %}" target="_blank"
+           class="btn btn-outline-secondary" title="Nuevo rubro">
+          <i class="fa fa-plus"></i>
+        </a>
+      </div>
+    </div>
+
+    <!-- Sub-rubro con botón "+" -->
+    <div class="col-md-4">
+      <label class="form-label">Sub-rubro</label>
+      <div class="input-group">
+        {{ form.subrubro }}
+        <a href="{% url 'owner_subrubro_create' %}" target="_blank"
+           class="btn btn-outline-secondary" title="Nuevo sub-rubro">
+          <i class="fa fa-plus"></i>
+        </a>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      {{ form.activo.label_tag }} {{ form.activo }}
+    </div>
+  </div>
+
+  <hr>
+  <button type="submit" class="btn btn-primary">Guardar</button>
+</form>
+{% endblock %}

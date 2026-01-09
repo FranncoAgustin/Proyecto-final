@@ -1,0 +1,142 @@
+<!-- 
+  Sidebar de filtros del catálogo
+
+  Usa:
+  - filtros_menu: lista de técnicas y rubros (viene de _build_filtros_menu)
+  - tech_actual: código de técnica seleccionada (LAS / SUB / 3D / OTR)
+  - rubro_actual: nombre de rubro seleccionado (coincide con Rubro.nombre)
+  - q: término de búsqueda libre (si lo usás en la vista) -->
+
+
+<!-- <form method="get" class="mb-3">
+  <div class="mb-2">
+    <label class="form-label">Buscar producto</label>
+    <div class="input-group">
+      <input
+        type="text"
+        name="q"
+        class="form-control"
+        placeholder="Buscar por nombre o SKU..."
+        value="{{ q|default_if_none:'' }}"
+      >
+      <button class="btn btn-primary" type="submit">
+        <i class="fa fa-search"></i>
+      </button>
+    </div>
+  </div>
+</form> -->
+
+{# Resumen de filtros activos #}
+{% if tech_actual or rubro_actual or subrubro_actual %}
+  <div class="mb-3">
+    <div class="small text-muted mb-1">Filtros aplicados:</div>
+    {% if tech_actual %}
+      <span class="badge bg-secondary me-1">
+        Técnica: {{ tech_actual }}
+      </span>
+    {% endif %}
+    {% if rubro_actual %}
+      <span class="badge bg-secondary me-1">
+        Rubro: {{ rubro_actual }}
+      </span>
+    {% endif %}
+    {% if subrubro_actual %}
+      <span class="badge bg-secondary me-1">
+        Subfiltro: {{ subrubro_actual }}
+      </span>
+    {% endif %}
+
+    <div class="mt-2">
+      {# 👇 acá sacamos el {% url %} que rompía #}
+      <a href="{{ request.path }}" class="small text-decoration-none">
+        Quitar filtros
+      </a>
+    </div>
+  </div>
+{% endif %}
+
+<hr>
+
+{% if filtros_menu %}
+  <div class="accordion" id="accordionFiltros">
+
+    {% for t in filtros_menu %}
+      <div class="accordion-item mb-2">
+        <h2 class="accordion-header" id="heading-{{ t.key }}">
+          <button
+            class="accordion-button {% if not tech_actual or tech_actual != t.key %}collapsed{% endif %}"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#collapse-{{ t.key }}"
+            aria-expanded="{% if tech_actual == t.key %}true{% else %}false{% endif %}"
+            aria-controls="collapse-{{ t.key }}"
+          >
+            {{ t.label }}
+          </button>
+        </h2>
+
+        <div
+          id="collapse-{{ t.key }}"
+          class="accordion-collapse collapse {% if tech_actual == t.key %}show{% endif %}"
+          aria-labelledby="heading-{{ t.key }}"
+          data-bs-parent="#accordionFiltros"
+        >
+          <div class="accordion-body p-2">
+
+            {% if t.rubros %}
+              <ul class="list-unstyled mb-0">
+                {% for r in t.rubros %}
+                  <li class="mb-2">
+                    {# Link principal por rubro #}
+                    <a
+                      href="?tech={{ t.key }}&rubro={{ r.key|urlencode }}"
+                      class="text-decoration-none d-flex justify-content-between align-items-center
+                             {% if rubro_actual == r.key and not subrubro_actual and tech_actual == t.key %}fw-bold{% endif %}"
+                    >
+                      <span>{{ r.label }}</span>
+                      <span class="badge bg-light text-muted border">
+                        {{ r.count }}
+                      </span>
+                    </a>
+
+                    {# Sub-filtros (Subrubros) #}
+                    {% if r.subrubros %}
+                      <ul class="list-unstyled ms-3 mt-1">
+                        {% for s in r.subrubros %}
+                          <li class="small">
+                            <a
+                              href="?tech={{ t.key }}&rubro={{ r.key|urlencode }}&subrubro={{ s.key|urlencode }}"
+                              class="text-decoration-none
+                                     {% if tech_actual == t.key and rubro_actual == r.key and subrubro_actual == s.key %}fw-bold{% else %}text-muted{% endif %}"
+                            >
+                              • {{ s.label }}
+                              {% if s.count %}
+                                <span class="badge bg-light text-muted border ms-1">
+                                  {{ s.count }}
+                                </span>
+                              {% endif %}
+                            </a>
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="text-muted small">
+                (sin rubros configurados para esta técnica)
+              </div>
+            {% endif %}
+
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+
+  </div>
+{% else %}
+  <p class="text-muted mb-0">
+    No hay filtros configurados todavía.
+  </p>
+{% endif %}

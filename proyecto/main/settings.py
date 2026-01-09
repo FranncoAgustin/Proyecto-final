@@ -69,7 +69,7 @@ AUTHENTICATION_BACKENDS = [
 SITE_ID = 3
 
 LOGIN_REDIRECT_URL = "/mi-cuenta/"
-LOGOUT_REDIRECT_URL = "/ver_catalogo_completo/"
+LOGOUT_REDIRECT_URL = "/catalogo/"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = "email"
@@ -114,6 +114,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 "cliente.context_processors.carrito_y_favoritos",
+                "owner.context_processors.siteinfo_blocks",
+
             ],
         },
     },
@@ -169,3 +171,13 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'
 # DEFAULT MODEL
 # ==============================
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Para que Django reconozca https detrás del proxy (ngrok)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Para que allauth construya URLs con https
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
+
+# (recomendado con proxies)
+USE_X_FORWARDED_HOST = True

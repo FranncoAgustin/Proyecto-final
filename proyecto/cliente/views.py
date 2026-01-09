@@ -491,7 +491,7 @@ def mi_cuenta(request):
         if form.is_valid():
             form.save()
             messages.success(request, "¡Tus datos se guardaron correctamente! 🎉")
-            return redirect("ver_catalogo_completo")
+            return redirect("catalogo")
     else:
         form = ProfileForm(instance=profile)
 
@@ -603,7 +603,7 @@ def pedido_eliminar(request, pedido_id: int):
 def logout_view(request):
     logout(request)
     messages.info(request, "Cerraste sesión correctamente.")
-    return redirect("ver_catalogo_completo")
+    return redirect("catalogo")
 
 
 # =========================

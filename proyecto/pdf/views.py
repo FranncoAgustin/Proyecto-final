@@ -11,14 +11,12 @@ from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
 from django.contrib import messages
 from django.db.models import F, Q
+from django.urls import reverse  # 👈 añadido
 
-
-
-
+from collections import defaultdict
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime
 from difflib import SequenceMatcher
-
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -30,9 +28,8 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.utils import ImageReader
 
-
 from .forms import ListaPrecioForm, FacturaProveedorForm, ListaPreciosPDFForm, FacturaForm
-from .models import ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ItemFactura, ProductoVariante
+from .models import ListaPrecioPDF, ProductoPrecio, FacturaProveedor, ItemFactura, ProductoVariante, Rubro
 from .utils import extraer_precios_de_pdf, get_similarity
 from .utils_ocr import extraer_datos_factura
 from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
@@ -80,6 +77,51 @@ def _make_key(prod_id: int, var_id: int | None):
 
 
 # ===================== BUSQUEDA / SUGERENCIAS =====================
+
+@require_GET
+def catalogo_suggest(request):
+    """
+    Sugerencias para el buscador del navbar.
+    Devuelve productos del catálogo (ProductoPrecio) con imagen y precio final.
+    """
+    q = (request.GET.get("q") or "").strip()
+    if not q:
+        return JsonResponse({"results": []})
+
+    productos = (
+        ProductoPrecio.objects
+        .filter(activo=True)
+        .filter(
+            Q(nombre_publico__icontains=q) |
+            Q(sku__icontains=q)
+        )
+        .order_by("nombre_publico")[:8]
+    )
+
+    results = []
+    for p in productos:
+        # Precio con oferta aplicada (si la hay)
+        precio_info = get_precio_con_oferta(p)
+        precio_final = precio_info.get("precio_final") or Decimal("0.00")
+
+        # Imagen segura
+        imagen_url = ""
+        if getattr(p, "imagen", None):
+            try:
+                imagen_url = p.imagen.url
+            except Exception:
+                imagen_url = ""
+
+        results.append({
+            "id": p.id,
+            "nombre": p.nombre_publico,
+            "precio": float(precio_final),
+            "imagen_url": imagen_url,
+            "url": reverse("detalle_producto", args=[p.id]),
+        })
+
+    return JsonResponse({"results": results})
+
 
 def _norm(s: str) -> str:
     s = (s or "").lower()
@@ -135,25 +177,127 @@ def _to_decimal(v, default="0"):
 
 # ===================== CATÁLOGO / LISTAS =====================
 
+def _build_filtros_menu():
+    """
+    Devuelve estructura para el menú de filtros:
+
+    [
+      {
+        key: 'LAS',
+        label: 'Grabado láser',
+        rubros: [
+          {
+            key: 'Mate imperial',         # Rubro.nombre
+            label: 'Mate imperial',
+            count: X,                     # productos con rubro = 'Mate imperial'
+            subrubros: [
+              {
+                key: 'Mate imperial de calabaza',
+                label: 'Mate imperial de calabaza',
+                count: Y,                 # productos con rubro + subrubro
+              },
+              ...
+            ],
+          },
+          ...
+        ]
+      },
+      ...
+    ]
+    """
+
+    techs = [
+        ("LAS", "Grabado láser"),
+        ("SUB", "Sublimación"),
+        ("3D",  "Impresión 3D"),
+        ("OTR", "Otro"),
+    ]
+
+    filtros = []
+
+    for tech_key, tech_label in techs:
+        # Productos activos por técnica
+        base = ProductoPrecio.objects.filter(activo=True, tech=tech_key)
+
+        rubros_data = []
+
+        # Rubros en BD para esa técnica
+        rubros = Rubro.objects.filter(
+            tech=tech_key,
+            activo=True,
+        ).order_by("orden", "nombre")
+
+        for rubro in rubros:
+            # Productos que matchean el rubro por nombre (CharField en ProductoPrecio)
+            qs_r = base.filter(rubro__iexact=rubro.nombre)
+
+            # Subrubros asociados a ese Rubro
+            subs_data = []
+            for sub in rubro.subrubros.filter(activo=True).order_by("orden", "nombre"):
+                qs_sub = qs_r.filter(subrubro__iexact=sub.nombre)
+                subs_data.append({
+                    "key": sub.nombre,        # se usará en ?subrubro=<nombre>
+                    "label": sub.nombre,
+                    "count": qs_sub.count(),
+                })
+
+            rubros_data.append({
+                "key": rubro.nombre,          # ?rubro=<nombre>
+                "label": rubro.nombre,
+                "count": qs_r.count(),
+                "subrubros": subs_data,
+            })
+
+        filtros.append({
+            "key": tech_key,
+            "label": tech_label,
+            "rubros": rubros_data,
+        })
+
+    return filtros
+
+
 def mostrar_precios(request):
     q = (request.GET.get("q", "") or "").strip()
+    tech_filter = (request.GET.get("tech") or "").strip()
+    rubro_filter = (request.GET.get("rubro") or "").strip()
+    subrubro_filter = (request.GET.get("subrubro") or "").strip()
+    producto_id = (request.GET.get("prod") or "").strip()
 
     productos_qs = ProductoPrecio.objects.filter(activo=True)
 
+    # Búsqueda libre
     if q:
-        productos_qs = productos_qs.filter(Q(nombre_publico__icontains=q))
+        productos_qs = productos_qs.filter(
+            Q(nombre_publico__icontains=q) |
+            Q(sku__icontains=q)
+        )
+
+    # Técnica
+    if tech_filter:
+        productos_qs = productos_qs.filter(tech=tech_filter)
+
+    # Rubro (CharField, matchea con Rubro.nombre)
+    if rubro_filter:
+        productos_qs = productos_qs.filter(rubro__iexact=rubro_filter)
+
+    # Subrubro (CharField, matchea con SubRubro.nombre)
+    if subrubro_filter:
+        productos_qs = productos_qs.filter(subrubro__iexact=subrubro_filter)
+
+    # Producto puntual
+    if producto_id:
+        try:
+            productos_qs = productos_qs.filter(pk=int(producto_id))
+        except ValueError:
+            pass
 
     productos = []
     for producto in productos_qs:
         precio_data = get_precio_con_oferta(producto)
 
         stock_principal = get_stock_disponible(producto, 0)
-        # Si querés que el catálogo diga "Sin stock" SOLO cuando el principal está en 0:
         sin_stock = (stock_principal <= 0)
-
-        # Si en cambio querés que diga "Sin stock" SOLO cuando NO hay stock en ninguna variante,
-        # descomentá esta alternativa y comentá la anterior:
-        # sin_stock = (stock_principal <= 0 and not producto.variantes.filter(activo=True, stock__gt=0).exists())
 
         productos.append({
             "producto": producto,
@@ -164,10 +308,26 @@ def mostrar_precios(request):
             "stock_principal": stock_principal,
         })
 
+    productos.sort(
+        key=lambda x: (
+            x["sin_stock"],
+            x["producto"].nombre_publico.lower(),
+        )
+    )
+
+    context = {
+        "productos": productos,
+        "filtros_menu": _build_filtros_menu(),
+        "q": q,
+        "tech_actual": tech_filter,
+            "rubro_actual": rubro_filter,
+        "subrubro_actual": subrubro_filter,
+    }
+
     return render(
         request,
-        "pdf/mostrar_precios.html",
-        {"productos": productos},
+        "pdf/catalogo.html",
+        context,
     )
 
 
@@ -175,10 +335,15 @@ def mostrar_precios(request):
 
 def detalle_producto(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
-    variantes = producto.variantes.filter(activo=True).order_by("orden")
 
+    # Precio base + oferta a nivel producto
+    precio_data = get_precio_con_oferta(producto)
+    precio_principal = precio_data["precio_final"]
+
+    # Stock del producto “principal”
     stock_principal = get_stock_disponible(producto, 0)
 
+    # Variante “principal” (sin variante seleccionada)
     variante_principal = {
         "id": 0,
         "nombre": "Principal",
@@ -186,11 +351,22 @@ def detalle_producto(request, pk):
         "descripcion_corta": producto.nombre_publico,
         "es_principal": True,
         "stock": stock_principal,
+        "precio_final": precio_principal,
     }
 
     variantes_ui = [variante_principal]
 
-    for v in variantes:
+    # Variantes activas
+    variantes_qs = producto.variantes.filter(activo=True).order_by("orden", "id")
+
+    for v in variantes_qs:
+        # Si la variante tiene precio propio lo usamos; si no, el del producto (ya con oferta aplicada)
+        precio_var = getattr(v, "precio", None)
+        if precio_var is None:
+            precio_final = precio_principal
+        else:
+            precio_final = precio_var
+
         variantes_ui.append({
             "id": v.id,
             "nombre": v.nombre,
@@ -198,7 +374,12 @@ def detalle_producto(request, pk):
             "descripcion_corta": v.descripcion_corta,
             "es_principal": False,
             "stock": max(0, int(getattr(v, "stock", 0) or 0)),
+            "precio_final": precio_final,
         })
+
+    # Valores iniciales para la primera opción (principal)
+    stock_inicial = variantes_ui[0]["stock"]
+    precio_inicial = variantes_ui[0]["precio_final"]
 
     return render(
         request,
@@ -206,15 +387,19 @@ def detalle_producto(request, pk):
         {
             "producto": producto,
             "variantes_ui": variantes_ui,
-            "stock_inicial": stock_principal,  # stock del principal
+            "stock_inicial": stock_inicial,
+            "precio_inicial": precio_inicial,
+            "oferta": precio_data["oferta"],  # por si querés mostrar badge de oferta
         },
     )
 
-
 # ===================== API (OPCIONAL) PARA CAMBIO DE VARIANTE =====================
-# Esto sirve para que el front, al cambiar la variante, consulte stock real y actualice leyendas.
+
 @require_GET
 def api_stock_variante(request, pk):
+    """
+    Para que el front, al cambiar la variante, consulte stock real y actualice leyendas.
+    """
     producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
     var_id = request.GET.get("variante_id", "0")
     try:
@@ -224,7 +409,9 @@ def api_stock_variante(request, pk):
 
     # validar que variante pertenezca al producto si no es principal
     if var_id:
-        ok = ProductoVariante.objects.filter(pk=var_id, producto=producto, activo=True).exists()
+        ok = ProductoVariante.objects.filter(
+            pk=var_id, producto=producto, activo=True
+        ).exists()
         if not ok:
             var_id = 0
 
@@ -300,6 +487,31 @@ def verificar_producto_existente(request):
             'precio_actual': producto.precio,
         })
     return JsonResponse({'existe': False})
+
+
+def _safe_img(img_field, styles, w=1.6*cm, h=1.6*cm):
+    try:
+        if not img_field:
+            return Paragraph("—", styles["Normal"])
+        pth = getattr(img_field, "path", None)
+        if not pth:
+            return Paragraph("—", styles["Normal"])
+        im = Image(pth, width=w, height=h)
+        im.hAlign = "CENTER"
+        return im
+    except Exception:
+        return Paragraph("—", styles["Normal"])
+
+
+def _tech_label(tech: str) -> str:
+    return {
+        "SUB": "Sublimación",
+        "LAS": "Grabado láser",
+        "3D":  "Impresión 3D",
+        "OTR": "Otros",
+        "":    "Otros",
+        None:  "Otros",
+    }.get(tech, "Otros")
 
 
 # ===================== IMPORTAR LISTA DE PRECIOS (PDF) =====================
@@ -821,30 +1033,6 @@ def _precio_mayorista(precio_unitario: Decimal, coef: Decimal = Decimal("0.90"))
         return Decimal("0.00")
     return (precio_unitario * coef).quantize(Q2, rounding=ROUND_HALF_UP)
 
-def _safe_img(img_field, styles, w=1.6*cm, h=1.6*cm):
-    try:
-        if not img_field:
-            return Paragraph("—", styles["Normal"])
-        pth = getattr(img_field, "path", None)
-        if not pth:
-            return Paragraph("—", styles["Normal"])
-        im = Image(pth, width=w, height=h)
-        im.hAlign = "CENTER"
-        return im
-    except Exception:
-        return Paragraph("—", styles["Normal"])
-
-
-def _tech_label(tech: str) -> str:
-    return {
-        "SUB": "Sublimación",
-        "LAS": "Grabado láser",
-        "3D":  "Impresión 3D",
-        "OTR": "Otros",
-        "":    "Otros",
-        None:  "Otros",
-    }.get(tech, "Otros")
-
 
 def lista_precios_opciones(request):
     """
@@ -990,8 +1178,8 @@ def lista_precios_opciones(request):
                 pagesize=A4,
                 leftMargin=1.2 * cm,
                 rightMargin=1.2 * cm,
-                topMargin=3.2 * cm,     # 👈 clave para que no lo tape la tabla
-                bottomMargin=1.2 * cm,
+                topMargin=3.2 * cm,
+                bottomMargin=3.5 * cm,  # 👈 RESERVA REAL PARA LOS BOTONES
                 title="Lista de precios",
             )
 
@@ -1038,15 +1226,11 @@ def lista_precios_opciones(request):
 
                 table = Table(data, colWidths=colw, repeatRows=1)
                 table.setStyle(TableStyle([
-                    # ❌ SIN FONDOS (TRANSPARENTE)
                     ("GRID",       (0,0), (-1,-1), 0.25, colors.grey),
-
                     ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
                     ("ALIGN",      (-2,1), (-1,-1), "RIGHT"),
-
                     ("FONTSIZE",   (0,0), (-1,0), 10),
                     ("FONTSIZE",   (0,1), (-1,-1), 9),
-
                     ("TOPPADDING", (0,0), (-1,-1), 6),
                     ("BOTTOMPADDING", (0,0), (-1,-1), 6),
                 ]))
@@ -1065,6 +1249,7 @@ def lista_precios_opciones(request):
         form = ListaPreciosPDFForm()
 
     return render(request, "pdf/lista_precios_opciones.html", {"form": form})
+
 
 def factura_crear(request):
     # Defaults vendedor
@@ -1115,6 +1300,7 @@ def factura_crear(request):
         form = FacturaForm(initial=initial)
 
     return render(request, "pdf/factura_form.html", {"form": form})
+
 
 def _factura_pdf_response(data, items, total):
     filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"

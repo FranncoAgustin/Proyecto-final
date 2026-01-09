@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Filtros del catálogo{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Filtros del catálogo</h1>
+      <p class="text-muted mb-0">
+        Administrá los filtros (rubro) y sub-filtros que luego vas a poder asignar a cada producto.
+      </p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'home' %}">⬅ Volver al panel</a>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-3">
+
+    <!-- Alta de rubro -->
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Nuevo filtro (Rubro)</div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="add_rubro" value="1">
+            <div class="mb-2">
+              <label class="form-label">Nombre del rubro</label>
+              <input name="nombre_rubro" class="form-control" placeholder="Mates, Tazas cerámica, Termos...">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Técnica</label>
+              <select name="tech" class="form-select">
+                <option value="">-- elegí una --</option>
+                {% for code, label in TECH_CHOICES %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button class="btn btn-primary w-100">Guardar rubro</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alta de subrubro + listado árbol agrupado -->
+    <div class="col-md-8">
+
+      <!-- Alta de subrubro -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">Nuevo sub-filtro (Subrubro)</div>
+        <div class="card-body">
+          <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="add_subrubro" value="1">
+
+            <div class="col-md-5">
+              <label class="form-label">Rubro</label>
+              <select name="rubro_id" class="form-select">
+                <option value="">-- elegí un rubro --</option>
+                {% for grupo in rubros_por_tech %}
+                  {% for r in grupo.rubros %}
+                    <option value="{{ r.id }}">
+                      [{{ grupo.label }}] {{ r.nombre }}
+                    </option>
+                  {% endfor %}
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-5">
+              <label class="form-label">Nombre del subfiltro</label>
+              <input name="nombre_subrubro" class="form-control"
+                     placeholder="Ej: Taza espejada, Mate imperial...">
+            </div>
+
+            <div class="col-md-2 d-grid">
+              <button class="btn btn-success">Agregar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Buscador + Accordion de rubros -->
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>Estructura actual</span>
+        </div>
+        <div class="card-body">
+
+          <!-- Buscador -->
+          <div class="mb-3">
+            <label class="form-label mb-1">Buscar filtro</label>
+            <input
+              type="text"
+              id="filtroBuscar"
+              class="form-control form-control-sm"
+              placeholder="Escribí parte del nombre de un rubro o subfiltro..."
+            >
+            <div class="form-text">
+              Filtra por nombre de rubro o sub-filtro. Se desplegarán solo las técnicas que tengan coincidencias.
+            </div>
+          </div>
+
+          {% if rubros_por_tech %}
+            <div class="accordion" id="accordionRubros">
+              {% for grupo in rubros_por_tech %}
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="heading_{{ grupo.code }}">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapse_{{ grupo.code }}"
+                      aria-expanded="false"
+                      aria-controls="collapse_{{ grupo.code }}"
+                    >
+                      {{ grupo.label }}
+                      <span class="badge bg-secondary ms-2">{{ grupo.rubros|length }}</span>
+                    </button>
+                  </h2>
+                  <div
+                    id="collapse_{{ grupo.code }}"
+                    class="accordion-collapse collapse"
+                    aria-labelledby="heading_{{ grupo.code }}"
+                    data-bs-parent="#accordionRubros"
+                  >
+                    <div class="accordion-body">
+                      {% if grupo.rubros %}
+                        <ul class="list-unstyled mb-0">
+                          {% for r in grupo.rubros %}
+                            <li class="mb-2 rubro-item" data-nombre="{{ r.nombre|lower }}">
+                              <!-- Cabecera de rubro: nombre + editar/eliminar -->
+                              <div class="d-flex align-items-center gap-2">
+                                <strong>{{ r.nombre }}</strong>
+
+                                <!-- Editar rubro -->
+                                <form method="post" class="d-flex align-items-center gap-1">
+                                  {% csrf_token %}
+                                  <input type="hidden" name="rubro_id" value="{{ r.id }}">
+                                  <input type="hidden" name="edit_rubro" value="1">
+                                  <input
+                                    type="text"
+                                    name="nuevo_nombre_rubro"
+                                    value="{{ r.nombre }}"
+                                    class="form-control form-control-sm"
+                                    style="max-width: 180px;"
+                                  >
+                                  <select name="nuevo_tech" class="form-select form-select-sm" style="max-width: 140px;">
+                                    {% for code, label in TECH_CHOICES %}
+                                      <option value="{{ code }}" {% if r.tech == code %}selected{% endif %}>
+                                        {{ label }}
+                                      </option>
+                                    {% endfor %}
+                                  </select>
+                                  <button type="submit" class="btn btn-sm btn-outline-primary">
+                                    💾
+                                  </button>
+                                </form>
+
+                                <!-- Eliminar rubro -->
+                                <form method="post" onsubmit="return confirm('¿Eliminar este rubro y todos sus subfiltros?');">
+                                  {% csrf_token %}
+                                  <input type="hidden" name="rubro_id" value="{{ r.id }}">
+                                  <button type="submit" name="delete_rubro" value="1"
+                                          class="btn btn-sm btn-outline-danger">
+                                    🗑
+                                  </button>
+                                </form>
+                              </div>
+
+                              <!-- Subrubros -->
+                              {% with subs=r.subrubros.all %}
+                                {% if subs %}
+                                  <ul class="mt-1">
+                                    {% for s in subs %}
+                                      <li class="small subrubro-item d-flex align-items-center gap-2"
+                                          data-nombre="{{ s.nombre|lower }}">
+                                        <span>• {{ s.nombre }}</span>
+
+                                        <!-- Editar subrubro -->
+                                        <form method="post" class="d-flex align-items-center gap-1">
+                                          {% csrf_token %}
+                                          <input type="hidden" name="subrubro_id" value="{{ s.id }}">
+                                          <input type="hidden" name="edit_subrubro" value="1">
+                                          <input
+                                            type="text"
+                                            name="nuevo_nombre_subrubro"
+                                            value="{{ s.nombre }}"
+                                            class="form-control form-control-sm"
+                                            style="max-width: 200px;"
+                                          >
+                                          <button type="submit" class="btn btn-sm btn-outline-primary">
+                                            💾
+                                          </button>
+                                        </form>
+
+                                        <!-- Eliminar subrubro -->
+                                        <form method="post" onsubmit="return confirm('¿Eliminar este subfiltro?');">
+                                          {% csrf_token %}
+                                          <input type="hidden" name="subrubro_id" value="{{ s.id }}">
+                                          <button type="submit" name="delete_subrubro" value="1"
+                                                  class="btn btn-sm btn-outline-danger">
+                                            🗑
+                                          </button>
+                                        </form>
+                                      </li>
+                                    {% endfor %}
+                                  </ul>
+                                {% else %}
+                                  <div class="text-muted small ms-2">
+                                    (sin sub-filtros aún)
+                                  </div>
+                                {% endif %}
+                              {% endwith %}
+                            </li>
+                          {% endfor %}
+                        </ul>
+                      {% else %}
+                        <p class="text-muted small mb-0">
+                          No hay filtros cargados para esta técnica.
+                        </p>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">
+              Todavía no creaste filtros. Empezá cargando un rubro a la izquierda.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const input = document.getElementById("filtroBuscar");
+    const accordion = document.getElementById("accordionRubros");
+    if (!input || !accordion) return;
+
+    input.addEventListener("input", function () {
+      const term = input.value.trim().toLowerCase();
+
+      const accordionItems = accordion.querySelectorAll(".accordion-item");
+      const rubroItems = accordion.querySelectorAll(".rubro-item");
+
+      // Reset: sin búsqueda -> mostrar todo y colapsar
+      if (!term) {
+        rubroItems.forEach(li => li.style.display = "");
+        accordionItems.forEach(item => {
+          const collapse = item.querySelector(".accordion-collapse");
+          if (collapse) collapse.classList.remove("show");
+          item.style.display = "";
+        });
+        return;
+      }
+
+      // Ocultamos todo por defecto
+      accordionItems.forEach(item => {
+        item.style.display = "none";
+        const collapse = item.querySelector(".accordion-collapse");
+        if (collapse) collapse.classList.remove("show");
+      });
+
+      // Buscamos coincidencias en rubros y subrubros
+      const gruposConMatch = new Set();
+
+      rubroItems.forEach(li => {
+        const texto = (li.textContent || "").toLowerCase();
+        const match = texto.includes(term);
+        li.style.display = match ? "" : "none";
+
+        if (match) {
+          const accordionItem = li.closest(".accordion-item");
+          const collapse = li.closest(".accordion-collapse");
+          if (accordionItem) {
+            accordionItem.style.display = "";
+          }
+          if (collapse) {
+            gruposConMatch.add(collapse.id);
+          }
+        }
+      });
+
+      // Expandir solo los grupos con match
+      gruposConMatch.forEach(id => {
+        const col = document.getElementById(id);
+        if (col && !col.classList.contains("show")) {
+          col.classList.add("show");
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

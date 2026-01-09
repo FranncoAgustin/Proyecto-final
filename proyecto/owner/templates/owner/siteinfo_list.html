@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Información del sitio{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 960px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h5 mb-1">📝 Información del sitio</h1>
+      <p class="text-muted small mb-0">
+        Estos bloques aparecen al final del catálogo como listas desplegables.
+      </p>
+    </div>
+    <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">← Volver al panel</a>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} small">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+
+      {% for bloque, form in bloques_forms %}
+        <div class="border rounded p-3 mb-3 bg-light">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong>Bloque #{{ forloop.counter }}</strong>
+            <span class="badge bg-secondary">{{ bloque.get_clave_display }}</span>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Clave</label>
+              {{ form.clave }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Título</label>
+              {{ form.titulo }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Orden</label>
+              {{ form.orden }}
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <div class="form-check">
+                {{ form.activo }}
+                <label class="form-check-label small">Activo</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-1 mt-1">Contenido</label>
+              {{ form.contenido }}
+              <div class="form-text small">
+                Podés usar saltos de línea. Se muestran como texto normal debajo del título.
+              </div>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-muted">Todavía no hay bloques creados.</p>
+      {% endfor %}
+
+      <hr>
+
+      <h2 class="h6 mb-2">➕ Agregar nuevo bloque</h2>
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label small mb-1">Clave</label>
+          {{ nuevo_form.clave }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-1">Título</label>
+          {{ nuevo_form.titulo }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Orden</label>
+          {{ nuevo_form.orden }}
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <div class="form-check">
+            {{ nuevo_form.activo }}
+            <label class="form-check-label small">Activo</label>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1 mt-1">Contenido</label>
+          {{ nuevo_form.contenido }}
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end mt-4">
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+      </div>
+
+    </div>
+  </form>
+</div>
+{% endblock %}

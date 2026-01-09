@@ -2,6 +2,8 @@ from django import forms
 from .models import ListaPrecioPDF, FacturaProveedor
 from decimal import Decimal
 
+
+
 class ListaPrecioForm(forms.ModelForm):
     # Checkbox para decidir si solo se actualizan precios o se cargan nuevos productos
     actualizar_solo_precios = forms.BooleanField(
