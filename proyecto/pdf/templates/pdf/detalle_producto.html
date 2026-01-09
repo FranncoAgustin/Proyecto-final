@@ -33,8 +33,25 @@
 
       <div class="mb-3">
         <span class="h3 text-success fw-bold">
-          ${{ producto.precio }}
+          $<span id="price-amount">
+            {% if variantes_ui %}
+              {{ precio_inicial }}
+            {% else %}
+              {{ producto.precio }}
+            {% endif %}
+          </span>
         </span>
+      </div>
+
+      {# BADGE STOCK (dinámico) #}
+      <div class="mb-3">
+        <span id="stock-badge"
+              class="badge {% if stock_inicial|default:0 <= 0 %}bg-danger{% else %}bg-success{% endif %}">
+          {% if stock_inicial|default:0 <= 0 %}Sin stock{% else %}En stock{% endif %}
+        </span>
+        <small class="text-muted ms-2">
+          Disponibles: <span id="stock-num">{{ stock_inicial|default:0 }}</span>
+        </small>
       </div>
 
       <!-- ===================== -->
@@ -48,12 +65,17 @@
 
         <select id="variant-select" class="form-select">
           {% for v in variantes_ui %}
-          <option value="{{ v.id }}" {% if v.imagen %} data-image="{{ v.imagen.url }}" {% endif %}
-            data-desc="{{ v.descripcion_corta|default:'' }}">
-            {{ v.nombre }}
-            {% if v.es_principal %}
-            (Principal)
+          <option value="{{ v.id }}"
+            {% if v.imagen %}
+              data-image="{{ v.imagen.url }}"
+            {% elif producto.imagen %}
+              data-image="{{ producto.imagen.url }}"
             {% endif %}
+            data-desc="{{ v.descripcion_corta|default:'' }}"
+            data-stock="{{ v.stock|default:0 }}"
+            data-price="{{ v.precio_final }}"
+          >
+            {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
           </option>
           {% endfor %}
         </select>
@@ -78,7 +100,25 @@
           <input type="hidden" name="variante_id" value="0">
           {% endif %}
 
-          <button type="submit" class="btn btn-primary btn-lg">
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Cantidad</label>
+            <input
+              type="number"
+              class="form-control"
+              name="cantidad"
+              id="qty-input"
+              value="1"
+              min="1"
+              max="{{ stock_inicial|default:0 }}"
+              {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}
+            >
+            <div class="form-text">
+              Se limita automáticamente al stock disponible de la variante.
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg" id="add-cart-btn"
+                  {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}>
             🛒 Agregar al carrito
           </button>
         </form>
@@ -89,8 +129,85 @@
 
 </div>
 
-<!-- ===================== -->
 <!-- JS VARIANTES -->
-<!-- ===================== -->
-<script src="{% static 'js/producto_variantes.js' %}"></script>
+<script>
+  (function () {
+    const sel = document.getElementById("variant-select");
+    const img = document.getElementById("product-image");
+    const desc = document.getElementById("variant-desc");
+    const hiddenVar = document.getElementById("variante_id_input");
+
+    const badge = document.getElementById("stock-badge");
+    const stockNum = document.getElementById("stock-num");
+    const qtyInput = document.getElementById("qty-input");
+    const addBtn = document.getElementById("add-cart-btn");
+    const priceSpan = document.getElementById("price-amount");
+
+    function applyVariant() {
+      if (!sel) return;
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt) return;
+
+      // id variante
+      if (hiddenVar) hiddenVar.value = opt.value;
+
+      // imagen
+      const imgUrl = opt.getAttribute("data-image");
+      if (img && imgUrl) img.src = imgUrl;
+
+      // descripción
+      const d = opt.getAttribute("data-desc") || "";
+      if (desc) desc.textContent = d;
+
+      // precio
+      const p = opt.getAttribute("data-price");
+      if (priceSpan && p !== null && p !== "") {
+        priceSpan.textContent = p;
+      }
+
+      // stock
+      const s = parseInt(opt.getAttribute("data-stock") || "0", 10) || 0;
+      if (stockNum) stockNum.textContent = String(s);
+
+      const inStock = s > 0;
+
+      if (badge) {
+        badge.classList.remove("bg-danger", "bg-success");
+        badge.classList.add(inStock ? "bg-success" : "bg-danger");
+        badge.textContent = inStock ? "En stock" : "Sin stock";
+      }
+
+      if (qtyInput) {
+        qtyInput.max = String(s);
+        qtyInput.disabled = !inStock;
+        if (!inStock) {
+          qtyInput.value = "1";
+        } else {
+          let current = parseInt(qtyInput.value || "1", 10) || 1;
+          if (current > s) current = s;
+          if (current < 1) current = 1;
+          qtyInput.value = String(current);
+        }
+      }
+
+      if (addBtn) addBtn.disabled = !inStock;
+    }
+
+    if (sel) {
+      sel.addEventListener("change", applyVariant);
+      applyVariant(); // inicial
+    }
+
+    // cuando el usuario cambia cantidad, forzamos límite
+    if (qtyInput) {
+      qtyInput.addEventListener("input", function () {
+        const max = parseInt(qtyInput.max || "1", 10) || 1;
+        let v = parseInt(qtyInput.value || "1", 10) || 1;
+        if (v < 1) v = 1;
+        if (v > max) v = max;
+        qtyInput.value = String(v);
+      });
+    }
+  })();
+</script>
 {% endblock %}

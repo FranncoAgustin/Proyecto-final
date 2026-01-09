@@ -1,11 +1,19 @@
 import os
 import mercadopago
 from pathlib import Path
+from dotenv import load_dotenv
 
 # ==============================
 # BASE
 # ==============================
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env")
+
+MP_PUBLIC_KEY = os.getenv("MP_PUBLIC_KEY", "")
+MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN", "")
+MP_WEBHOOK_SECRET = os.getenv("MP_WEBHOOK_SECRET", "")
+SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
 # ==============================
 # SECURITY
@@ -13,9 +21,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-l^&=+p0jlju3o40u3q0$=6tsy+_(g3k^!4y(j!%53*+0o3lq^='
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "*"]
-CSRF_TRUSTED_ORIGINS = ["https://*.ngrok-free.app"]
-
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "petronila-irremovable-abnormally.ngrok-free.dev"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.ngrok-free.dev",
+    "https://*.ngrok-free.app",
+    # opcional: si alguna vez usás el dominio viejo de ngrok
+    "https://*.ngrok.io",
+]
 
 # ==============================
 # APPLICATIONS
@@ -57,7 +69,7 @@ AUTHENTICATION_BACKENDS = [
 SITE_ID = 3
 
 LOGIN_REDIRECT_URL = "/mi-cuenta/"
-LOGOUT_REDIRECT_URL = "/ver_catalogo_completo/"
+LOGOUT_REDIRECT_URL = "/catalogo/"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = "email"
@@ -102,6 +114,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 "cliente.context_processors.carrito_y_favoritos",
+                "owner.context_processors.siteinfo_blocks",
+
             ],
         },
     },
@@ -159,4 +173,11 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN", "")
+# Para que Django reconozca https detrás del proxy (ngrok)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Para que allauth construya URLs con https
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
+
+# (recomendado con proxies)
+USE_X_FORWARDED_HOST = True

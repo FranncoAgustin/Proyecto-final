@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Compra #{{ pedido.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 980px;">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Compra #{{ pedido.id }}</h1>
+      <div class="text-muted small">Realizada el {{ pedido.creado_en|date:"d/m/Y H:i" }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'mis_compras' %}" class="btn btn-outline-secondary btn-sm">Volver</a>
+      <a href="{% url 'catalogo' %}" class="btn btn-outline-secondary btn-sm">Tienda</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+          <div class="fw-semibold mb-2">Estado</div>
+
+          {% if pedido.estado == "APROBADO" %}
+            <div class="alert alert-success py-2 mb-3">✅ Pago aprobado</div>
+          {% elif pedido.estado == "PENDIENTE" %}
+            <div class="alert alert-warning py-2 mb-3">⏳ Pago pendiente</div>
+          {% elif pedido.estado == "RECHAZADO" %}
+            <div class="alert alert-danger py-2 mb-3">❌ Pago rechazado</div>
+          {% elif pedido.estado == "CANCELADO" %}
+            <div class="alert alert-secondary py-2 mb-3">⚪ Pedido cancelado</div>
+          {% else %}
+            <div class="alert alert-light py-2 mb-3">🧾 Pedido creado</div>
+          {% endif %}
+
+          <div class="small text-muted">Total</div>
+          <div class="fs-4 fw-semibold mb-2">$ {{ pedido.total }}</div>
+
+          {% if pedido.descuento_total and pedido.descuento_total > 0 %}
+            <div class="d-flex justify-content-between small">
+              <span class="text-muted">Descuento</span>
+              <span class="fw-semibold">- $ {{ pedido.descuento_total }}</span>
+            </div>
+          {% endif %}
+
+          {% if pedido.cupon_codigo %}
+            <div class="mt-3">
+              <div class="small text-muted">Cupón</div>
+              <div class="fw-semibold">{{ pedido.cupon_codigo }}</div>
+            </div>
+          {% endif %}
+
+          <hr class="my-3">
+
+          <div class="small text-muted">Moneda</div>
+          <div class="fw-semibold">{{ pedido.moneda }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+          <div class="p-4 border-bottom">
+            <div class="fw-semibold">Detalle de productos</div>
+            <div class="text-muted small">Precios guardados al momento de la compra.</div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-3">Producto</th>
+                  <th class="text-center">Cant.</th>
+                  <th class="text-end">Unit.</th>
+                  <th class="text-end pe-3">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for it in items %}
+                <tr>
+                  <td class="ps-3">
+                    <div class="fw-semibold">{{ it.titulo }}</div>
+                    <div class="text-muted small">SKU: {{ it.sku }}</div>
+                  </td>
+                  <td class="text-center">{{ it.cantidad }}</td>
+                  <td class="text-end">$ {{ it.precio_unitario }}</td>
+                  <td class="text-end pe-3 fw-semibold">$ {{ it.subtotal }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="p-4 border-top d-flex justify-content-end">
+            <div style="min-width: 280px;">
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">Total</span>
+                <span class="fw-semibold">$ {{ pedido.total }}</span>
+              </div>
+              {% if pedido.descuento_total and pedido.descuento_total > 0 %}
+                <div class="d-flex justify-content-between small mt-1">
+                  <span class="text-muted">Incluye descuento</span>
+                  <span class="fw-semibold">- $ {{ pedido.descuento_total }}</span>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -6,7 +6,7 @@ urlpatterns = [
     path('importar/', views.importar_pdf, name='importar_pdf'),
     
     # Catálogo
-    path('catalogo/', views.mostrar_precios, name='ver_catalogo_completo'),
+    path('catalogo/', views.mostrar_precios, name='catalogo'),
     
     # NOTA: Las rutas 'confirmar/' ya no son necesarias.
 
@@ -26,5 +26,5 @@ urlpatterns = [
 
     path("factura/", views.factura_crear, name="factura_crear"),
     path("api/productos/", views.api_productos, name="api_productos"),
-
+     path("api/catalogo/suggest/", views.catalogo_suggest, name="catalogo_api_suggest"),
 ]

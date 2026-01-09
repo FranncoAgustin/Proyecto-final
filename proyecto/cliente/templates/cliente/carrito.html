@@ -5,166 +5,196 @@
 {% block content %}
 <h1 class="h4 mb-4">Mi carrito</h1>
 
+{# ✅ Mostrar mensajes (errores MP / warnings stock / etc) #}
+{% if messages %}
+  <div class="mb-3">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} mb-2" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
 {% if items %}
-  <div class="table-responsive mb-3">
-    <table class="table align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>Producto</th>
-          <th class="text-center">Cantidad</th>
-          <th class="text-end">Precio</th>
-          <th class="text-end">Subtotal</th>
-          <th></th>
-        </tr>
-      </thead>
+<div class="table-responsive mb-3">
+  <table class="table align-middle">
+    <thead class="table-light">
+      <tr>
+        <th style="width:70px;"></th>
+        <th>Producto</th>
+        <th class="text-center">Cantidad</th>
+        <th class="text-end">Precio</th>
+        <th class="text-end">Subtotal</th>
+        <th></th>
+      </tr>
+    </thead>
 
-      <tbody>
-        {% for item in items %}
-          <tr>
-            <td>
-              <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none">
-                {{ item.producto.nombre_publico }}
-              </a>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>
+          {% if item.imagen_url %}
+            <img
+              src="{{ item.imagen_url }}"
+              alt="{{ item.producto.nombre_publico }}"
+              class="rounded border"
+              style="width:60px; height:60px; object-fit:contain; background:#fff;"
+            >
+          {% else %}
+            <div
+              class="rounded border bg-light d-flex align-items-center justify-content-center"
+              style="width:60px; height:60px;"
+            >
+              <span class="text-muted small">—</span>
+            </div>
+          {% endif %}
+        </td>
 
-              {% if item.variante %}
-                <div class="text-muted small">
-                  Variante: <strong>{{ item.variante.nombre }}</strong>
-                </div>
-              {% endif %}
-            </td>
+        <td>
+          <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none">
+            {{ item.producto.nombre_publico }}
+          </a>
 
-            <td class="text-center" style="max-width:120px;">
-              <form
-                action="{% url 'actualizar_cantidad' item.key %}"
-                method="post"
-                class="d-inline-flex"
-              >
-                {% csrf_token %}
-                <input
-                  type="number"
-                  name="cantidad"
-                  min="0"
-                  class="form-control form-control-sm me-2"
-                  value="{{ item.cantidad }}"
-                >
-                <button class="btn btn-sm btn-outline-primary" type="submit">
-                  Actualizar
-                </button>
-              </form>
-            </td>
+          {% if item.variante %}
+            <div class="text-muted small">
+              Variante: <strong>{{ item.variante.nombre }}</strong>
+            </div>
+          {% endif %}
 
-            <td class="text-end">
-              {% if item.oferta %}
-                <del class="text-muted">
-                  ${{ item.precio_original }}
-                </del><br>
-                <strong>
-                  ${{ item.precio_final }}
-                </strong>
-                <span class="badge bg-success ms-1">
-                  -{{ item.oferta.descuento }}%
-                </span>
-              {% else %}
-                ${{ item.precio_original }}
-              {% endif %}
-            </td>
+          {% if item.stock_efectivo is not None %}
+            <div class="text-muted small">
+              Stock disponible ahora: {{ item.stock_efectivo }}
+            </div>
+          {% endif %}
+        </td>
 
-            <td class="text-end">
-              ${{ item.subtotal }}
-            </td>
+        <td class="text-center" style="max-width:160px;">
+          <form action="{% url 'actualizar_cantidad' item.key %}" method="post" class="d-inline-flex">
+            {% csrf_token %}
+            <input
+              type="number"
+              name="cantidad"
+              min="0"
+              class="form-control form-control-sm me-2"
+              value="{{ item.cantidad }}"
+              style="max-width:90px;"
+            >
+            <button class="btn btn-sm btn-outline-primary" type="submit">
+              Actualizar
+            </button>
+          </form>
+        </td>
 
-            <td class="text-end">
-              <a
-                href="{% url 'eliminar_del_carrito' item.key %}"
-                class="btn btn-sm btn-outline-danger"
-              >
-                <i class="fa-solid fa-trash-can"></i>
-              </a>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        <td class="text-end">
+          {% if item.oferta %}
+            <del class="text-muted">${{ item.precio_original }}</del><br>
+            <strong>${{ item.precio_final }}</strong>
+            <span class="badge bg-success ms-1">-{{ item.oferta.descuento }}%</span>
+          {% else %}
+            ${{ item.precio_original }}
+          {% endif %}
+        </td>
+
+        <td class="text-end">
+          ${{ item.subtotal }}
+        </td>
+
+        <td class="text-end">
+          <a href="{% url 'eliminar_del_carrito' item.key %}" class="btn btn-sm btn-outline-danger">
+            <i class="fa-solid fa-trash-can"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="{% url 'aplicar_cupon' %}" class="row g-2 mb-3">
+  {% csrf_token %}
+  <div class="col-auto">
+    <input type="text" name="codigo" class="form-control" placeholder="Código de cupón" required>
   </div>
-
-  <form method="post" action="{% url 'aplicar_cupon' %}" class="row g-2">
-    {% csrf_token %}
-    <div class="col-auto">
-      <input
-        type="text"
-        name="codigo"
-        class="form-control"
-        placeholder="Código de cupón"
-        required
-      >
-    </div>
-    <div class="col-auto">
-      <button type="submit" class="btn btn-outline-primary">
-        Aplicar
-      </button>
-    </div>
-  </form>
-
-  {% if cupon %}
-    <div class="mt-2 text-success">
-      Cupón aplicado:
-      <strong>{{ cupon.codigo }}</strong>
-      (-{{ cupon.descuento }}%)
-    </div>
-  {% endif %}
-
-  {% if error_cupon %}
-    <div class="mt-2 text-danger">
-      {{ error_cupon }}
-    </div>
-  {% endif %}
-
-  <div class="d-flex justify-content-between align-items-center">
-    <a href="{% url 'ver_catalogo_completo' %}" class="btn btn-outline-secondary">
-      Seguir comprando
-    </a>
-
-    <div class="text-end">
-      {% if cupon %}
-        <div class="text-success small mb-1">
-          Cupón aplicado:
-          <strong>{{ cupon.codigo }}</strong><br>
-          Descuento:
-          -${{ descuento_cupon|floatformat:2 }}
-        </div>
-      {% endif %}
-
-      {% if error_cupon %}
-        <div class="text-danger small mb-1">
-          {{ error_cupon }}
-        </div>
-      {% endif %}
-
-      <div class="fw-semibold fs-5">
-        Total: ${{ total|floatformat:2 }}
-      </div>
-
-      <div class="mt-2 d-flex gap-2 justify-content-end">
-        <a href="{% url 'vaciar_carrito' %}" class="btn btn-outline-danger btn-sm">
-          Vaciar carrito
-        </a>
-
-        <form method="post" action="{% url 'mp_crear_preferencia' %}">
-          {% csrf_token %}
-          <button class="btn btn-primary btn-sm" type="submit">
-            Finalizar compra con Mercado Pago
-          </button>
-        </form>
-      </div>
-    </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-outline-primary">
+      Aplicar
+    </button>
   </div>
+</form>
+
+{% if cupon %}
+  <div class="text-success mb-2">
+    Cupón aplicado: <strong>{{ cupon.codigo }}</strong> (-{{ cupon.descuento }}%)
+  </div>
+{% endif %}
+
+{% if error_cupon %}
+  <div class="text-danger mb-2">
+    {{ error_cupon }}
+  </div>
+{% endif %}
+
+<div class="d-flex justify-content-between align-items-start mt-3">
+  <a href="{% url 'catalogo' %}" class="btn btn-outline-secondary">
+    Seguir comprando
+  </a>
+
+  <div class="text-end">
+    {% if cupon %}
+      <div class="text-success small mb-1">
+        Cupón aplicado: <strong>{{ cupon.codigo }}</strong><br>
+        Descuento: -${{ descuento_cupon|floatformat:2 }}
+      </div>
+    {% endif %}
+
+    <div class="fw-semibold fs-5">
+      Total: ${{ total|floatformat:2 }}
+    </div>
+
+    <div class="mt-2 d-flex gap-2 justify-content-end">
+      <a href="{% url 'vaciar_carrito' %}" class="btn btn-outline-danger btn-sm">
+        Vaciar carrito
+      </a>
+
+      {# ✅ MP: form limpio, sin código python dentro #}
+      <form method="post" action="{% url 'mp_crear_preferencia' %}" id="mp-form">
+        {% csrf_token %}
+        <button class="btn btn-primary btn-sm" type="submit" id="mp-btn">
+          Finalizar compra con Mercado Pago
+        </button>
+      </form>
+    </div>
+
+    {% if hold_minutes %}
+      <div class="text-muted small mt-2">
+        Reservas de stock: {{ hold_minutes }} min
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  // Evita doble click y muestra feedback
+  (function () {
+    const form = document.getElementById("mp-form");
+    const btn = document.getElementById("mp-btn");
+    if (!form || !btn) return;
+
+    form.addEventListener("submit", function () {
+      btn.disabled = true;
+      btn.textContent = "Redirigiendo a Mercado Pago…";
+    });
+  })();
+</script>
 
 {% else %}
-  <div class="alert alert-info">
-    Tu carrito está vacío.
-  </div>
-  <a href="{% url 'ver_catalogo_completo' %}" class="btn btn-primary">
-    Ver productos
-  </a>
+<div class="alert alert-info">
+  Tu carrito está vacío.
+</div>
+<a href="{% url 'catalogo' %}" class="btn btn-primary">
+  Ver productos
+</a>
 {% endif %}
+
 {% endblock %}

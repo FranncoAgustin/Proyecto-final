@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Pago pendiente{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 720px;">
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4 p-md-5">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div class="rounded-circle d-inline-flex align-items-center justify-content-center"
+             style="width:52px;height:52px;background:rgba(255,193,7,.18);">
+          <span style="font-size:26px;">⏳</span>
+        </div>
+        <div>
+          <h1 class="h4 mb-1">Pago pendiente</h1>
+          <div class="text-muted">Tu pago está en proceso o esperando confirmación.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-warning mb-4">
+        No te preocupes: si el pago se acredita, el pedido se confirma automáticamente.
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'catalogo' %}" class="btn btn-primary">
+          Volver al catálogo
+        </a>
+        <a href="{% url 'ver_carrito' %}" class="btn btn-outline-secondary">
+          Revisar carrito
+        </a>
+      </div>
+
+      <hr class="my-4">
+      <div class="text-muted small">
+        Si querés, guardá esta página. A veces la acreditación tarda unos minutos.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

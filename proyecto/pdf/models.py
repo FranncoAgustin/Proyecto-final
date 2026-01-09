@@ -23,6 +23,17 @@ class ProductoPrecio(models.Model):
         D3  = "3D",  "Impresión 3D"
         OTR = "OTR", "Otro"
 
+    # (Opcional) si querés seguir usando esta idea a nivel código,
+    # pero ya no la estamos usando como campo en la base:
+    class RubroChoices(models.TextChoices):
+        MATES = "MATES", "Mates"
+        DIJES = "DIJES", "Dijes de acero"
+        BOMB = "BOMB", "Bombillas"
+        TERM = "TERM", "Termos"
+        TAZA = "TAZA", "Tazas"
+        LLAV = "LLAV", "Llaveros"
+        OTRO = "OTRO", "Otros"
+
     lista_pdf = models.ForeignKey(
         ListaPrecioPDF,
         on_delete=models.SET_NULL,
@@ -39,8 +50,10 @@ class ProductoPrecio(models.Model):
 
     descripcion = models.TextField(blank=True, default="")
 
-    precio_costo = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    
+    precio_costo = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+
     imagen = models.ImageField(upload_to='productos/', null=True, blank=True)
 
     # Precio de venta actual
@@ -49,12 +62,26 @@ class ProductoPrecio(models.Model):
     # Stock actual (para tu control interno)
     stock = models.IntegerField(default=0)
 
-    # Técnica principal
+    # Técnica principal (Sublimación / Grabado láser / 3D / Otros)
     tech = models.CharField(
         max_length=3,
         choices=TechChoices.choices,
         blank=True,
         default="",
+    )
+
+    # 🔹 Filtros del menú (EDITABLES DESDE EL OWNER)
+    rubro = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Ej: Mates, Dijes de acero, Tazas, Llaveros..."
+    )
+    subrubro = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Ej: Mate Imperial, Mate Camionero, Dije corazón, etc."
     )
 
     # Si está activo se puede vender / mostrar
@@ -63,10 +90,9 @@ class ProductoPrecio(models.Model):
     # Fechas
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     ultima_actualizacion = models.DateTimeField(auto_now=True, null=True, blank=True)
+
     def __str__(self):
         return f"{self.nombre_publico} (SKU: {self.sku}) - ${self.precio}"
-    
-    
 
 
 class FacturaProveedor(models.Model):
@@ -92,7 +118,8 @@ class ItemFactura(models.Model):
 
     def __str__(self):
         return f"{self.cantidad} x {self.producto}"
-    
+
+
 class ProductoVariante(models.Model):
     producto = models.ForeignKey(
         "ProductoPrecio",
@@ -104,9 +131,19 @@ class ProductoVariante(models.Model):
     descripcion_corta = models.CharField(max_length=255, blank=True, default="")
     imagen = models.ImageField(upload_to="productos/variantes/", null=True, blank=True)
 
-    stock = models.IntegerField(default=0)
+    stock = models.PositiveIntegerField(default=0)
     orden = models.PositiveIntegerField(default=0)
     activo = models.BooleanField(default=True)
+
+    # 👇 NUEVO: precio propio de la variante (opcional)
+    precio = models.DecimalField(
+        "Precio de la variante",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Si lo dejás vacío, se usa el precio del producto."
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -116,7 +153,22 @@ class ProductoVariante(models.Model):
 
     def __str__(self):
         return f"{self.producto.sku} - {self.nombre}"
-    
+
+    def en_stock(self) -> bool:
+        return self.stock > 0 and self.activo
+
+    @property
+    def precio_final(self):
+        """
+        Precio efectivo de la variante:
+        - si tiene precio propio -> lo usa
+        - si no -> usa el precio del producto principal
+        """
+        if self.precio is not None:
+            return self.precio
+        return self.producto.precio
+
+
 class Factura(models.Model):
     creado = models.DateTimeField(auto_now_add=True)
 
@@ -138,6 +190,7 @@ class Factura(models.Model):
     def __str__(self):
         return f"Factura #{self.id} - {self.cliente_nombre}"
 
+
 class FacturaItem(models.Model):
     factura = models.ForeignKey(Factura, on_delete=models.CASCADE, related_name="items")
     producto_nombre = models.CharField(max_length=200)
@@ -148,3 +201,48 @@ class FacturaItem(models.Model):
     def save(self, *args, **kwargs):
         self.subtotal = (self.precio_unitario * self.cantidad)
         super().save(*args, **kwargs)
+
+
+class Rubro(models.Model):
+    """
+    Filtro de nivel 1 (Mates, Tazas, Dijes, etc).
+    Lo podés asociar a una técnica para que el menú se arme por técnica → rubro.
+    """
+    nombre = models.CharField(max_length=120)  # 👈 SACAMOS unique=True
+    tech = models.CharField(
+        max_length=3,
+        choices=ProductoPrecio.TechChoices.choices,
+        blank=True,
+        default="",
+    )
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["orden", "nombre"]
+        # 👇 Ahora la unicidad es "nombre + tech" (ej: Tazas+SUB, Tazas+LAS)
+        unique_together = ("nombre", "tech")
+
+    def __str__(self):
+        return self.nombre
+
+
+class SubRubro(models.Model):
+    """
+    Filtro de nivel 2 (por ejemplo: Mates imperiales, Mates camioneros, etc).
+    """
+    rubro = models.ForeignKey(
+        Rubro,
+        on_delete=models.CASCADE,
+        related_name="subrubros",
+    )
+    nombre = models.CharField(max_length=120)
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["orden", "nombre"]
+        unique_together = ("rubro", "nombre")
+
+    def __str__(self):
+        return f"{self.rubro.nombre} → {self.nombre}"
