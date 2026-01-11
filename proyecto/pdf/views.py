@@ -489,18 +489,21 @@ def verificar_producto_existente(request):
     return JsonResponse({'existe': False})
 
 
-def _safe_img(img_field, styles, w=1.6*cm, h=1.6*cm):
+def _safe_img(imagen_field, styles):
+    # Si no hay imagen, celda vacía (sin guion)
+    if not imagen_field:
+        # Opción 1: totalmente vacío
+        return ""
+
+        # Opción 2 (si querés que mantenga la altura de la fila):
+        # return Spacer(2*cm, 2*cm)
+
     try:
-        if not img_field:
-            return Paragraph("—", styles["Normal"])
-        pth = getattr(img_field, "path", None)
-        if not pth:
-            return Paragraph("—", styles["Normal"])
-        im = Image(pth, width=w, height=h)
-        im.hAlign = "CENTER"
-        return im
+        return Image(imagen_field.path, width=2*cm, height=2*cm)
     except Exception:
-        return Paragraph("—", styles["Normal"])
+        # Si hay error al cargar la imagen, también dejamos vacío
+        return ""
+        # o Spacer(2*cm, 2*cm)
 
 
 def _tech_label(tech: str) -> str:
