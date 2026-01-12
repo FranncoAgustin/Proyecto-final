@@ -201,6 +201,12 @@ class BitacoraEvento(models.Model):
 
     # Datos extra (IDs, montos, etc.)
     extra = models.JSONField(default=dict, blank=True)
+    archivo = models.FileField(
+        upload_to="bitacora/",
+        blank=True,
+        null=True,
+        help_text="Adjunto opcional (PDF, CSV, etc.) relacionado al evento.",
+    )
 
     class Meta:
         ordering = ("-created_at", "-id")

@@ -46,6 +46,7 @@ from ofertas.models import Oferta
 from ofertas.forms import OfertaForm
 from cupones.models import Cupon
 from cupones.forms import CuponForm
+from django.core.files.base import ContentFile
 
 
 User = get_user_model()
@@ -69,12 +70,13 @@ def _check_owner_or_403(user):
 def registrar_evento(tipo, titulo, detalle="", user=None, obj=None, extra=None):
     """
     Registra un evento en la bitácora global.
+
     - tipo: uno de BitacoraEvento.TIPO_CHOICES (ej: "producto_creado")
     - titulo: texto corto que se ve en la lista
-    - detalle: texto más largo (opcional)
+    - detalle: texto más largo y 'humano' (opcional)
     - user: request.user o None
-    - obj: algún modelo relacionado (ProductoPrecio, Pedido, etc.)
-    - extra: dict con datos (ids, montos, etc.)
+    - obj: algún modelo relacionado (ProductoPrecio, Pedido, FacturaProveedor, etc.)
+    - extra: dict con datos técnicos (ids, montos, cambios, etc.)
     """
     datos = extra.copy() if extra else {}
 
@@ -97,8 +99,8 @@ def registrar_evento(tipo, titulo, detalle="", user=None, obj=None, extra=None):
         obj_model=obj_model,
         obj_id=obj_id,
         extra=datos,
+        # NO hace falta pasar creado_en: auto_now_add=True lo rellena
     )
-
 
 # -------------------------------------------------------------------
 # Panel principal
@@ -330,6 +332,18 @@ def owner_producto_editar(request, pk):
         .order_by("rubro__orden", "orden", "nombre")
     )
 
+    # 📝 Guardamos valores originales para comparar luego
+    original_data = {
+        "sku": producto.sku,
+        "nombre_publico": producto.nombre_publico,
+        "precio": producto.precio,
+        "stock": producto.stock,
+        "tech": producto.tech,
+        "activo": producto.activo,
+        "rubro": producto.rubro,
+        "subrubro": producto.subrubro,
+    }
+
     if request.method == "POST":
         action = request.POST.get("action", "")
 
@@ -341,35 +355,55 @@ def owner_producto_editar(request, pk):
                 producto.imagen.delete(save=False)
                 producto.imagen = None
                 producto.save(update_fields=["imagen"])
+
+                # Evento: imagen eliminada
+                registrar_evento(
+                    tipo="producto_editado",
+                    titulo=f"Imagen eliminada: {producto.nombre_publico or producto.sku}",
+                    detalle="Se eliminó la imagen principal del producto.",
+                    user=request.user,
+                    obj=producto,
+                    extra={
+                        "cambios": {
+                            "imagen": {"antes": "con_imagen", "despues": "sin_imagen"}
+                        }
+                    },
+                )
+
             messages.success(request, "Imagen eliminada.")
             return redirect("owner_producto_editar", pk=producto.pk)
 
         if action == "toggle_active":
-            producto.activo = not bool(producto.activo)
+            old_activo = bool(producto.activo)
+            producto.activo = not old_activo
             producto.save(update_fields=["activo"])
 
             registrar_evento(
                 tipo="producto_editado",
                 titulo=f"Producto {'activado' if producto.activo else 'desactivado'}: {producto.nombre_publico or producto.sku}",
-                detalle="Cambio rápido de estado desde la pantalla de edición.",
+                detalle=f"Campo activo: {old_activo} → {producto.activo}",
                 user=request.user,
                 obj=producto,
-                extra={"activo": producto.activo},
+                extra={
+                    "cambios": {
+                        "activo": {"antes": old_activo, "despues": bool(producto.activo)}
+                    }
+                },
             )
 
             messages.success(request, "Estado actualizado.")
             return redirect("owner_producto_editar", pk=producto.pk)
 
         if action == "delete_product":
-            nombre_display = producto.nombre_publico or producto.sku
+            nombre = producto.nombre_publico or producto.sku
 
             registrar_evento(
                 tipo="producto_eliminado",
-                titulo=f"Producto eliminado: {nombre_display}",
-                detalle="El producto fue eliminado desde la pantalla de edición.",
+                titulo=f"Producto eliminado: {nombre}",
+                detalle=f"Producto '{nombre}' eliminado desde el panel owner.",
                 user=request.user,
                 obj=producto,
-                extra={"sku": producto.sku},
+                extra={"producto_id": producto.pk, "sku": producto.sku},
             )
 
             producto.delete()
@@ -386,6 +420,7 @@ def owner_producto_editar(request, pk):
             prefix="v",
         )
 
+        # --- Actualizamos el producto igual que antes ---
         producto.sku = (request.POST.get("sku") or producto.sku).strip()
         producto.nombre_publico = (request.POST.get("nombre_publico") or producto.nombre_publico).strip()
         producto.precio = _parse_decimal(request.POST.get("precio"), fallback=str(producto.precio))
@@ -396,15 +431,17 @@ def owner_producto_editar(request, pk):
         if request.FILES.get("imagen"):
             producto.imagen = request.FILES["imagen"]
 
+        # 🔹 Rubro / Subrubro desde el formulario
         rubro_nombre = (request.POST.get("rubro_nombre") or "").strip()
         subrubro_nombre = (request.POST.get("subrubro_nombre") or "").strip()
 
-        nombre = (producto.nombre_publico or producto.sku or "").strip()
+        nombre_prod = (producto.nombre_publico or producto.sku or "").strip()
         tech = producto.tech or ""
 
         rubro_obj = None
         if not rubro_nombre:
-            rubro_obj = _detectar_rubro_auto(nombre, tech)
+            # Intentar detectarlo automáticamente
+            rubro_obj = _detectar_rubro_auto(nombre_prod, tech)
             if rubro_obj:
                 rubro_nombre = rubro_obj.nombre
         else:
@@ -413,32 +450,53 @@ def owner_producto_editar(request, pk):
                 activo=True
             ).first()
 
+        # Guardamos siempre rubro y subrubro (subrubro puede quedar vacío)
         producto.rubro = rubro_nombre
         producto.subrubro = subrubro_nombre
 
         if vformset.is_valid():
             with transaction.atomic():
+                # Primero guardamos el producto
                 producto.save()
+
+                # Luego las variantes
                 vformset.save()
 
+                # Si hay variantes, recalculamos stock como suma
                 variantes_qs = producto.variantes.all()
                 if variantes_qs.exists():
                     total_stock = sum((v.stock or 0) for v in variantes_qs)
                     producto.stock = total_stock
                     producto.save(update_fields=["stock"])
 
+            # 🧾 Armar dif de campos básicos
+            cambios = {}
+            for field, old_val in original_data.items():
+                new_val = getattr(producto, field)
+                if new_val != old_val:
+                    cambios[field] = {
+                        "antes": str(old_val),
+                        "despues": str(new_val),
+                    }
+
+            detalle_str = "Producto actualizado."
+            if cambios:
+                partes = []
+                for field, diff in cambios.items():
+                    partes.append(
+                        f"{field}: '{diff['antes']}' → '{diff['despues']}'"
+                    )
+                detalle_str += " Cambios: " + "; ".join(partes)
+
             registrar_evento(
                 tipo="producto_editado",
                 titulo=f"Producto editado: {producto.nombre_publico or producto.sku}",
-                detalle="Se actualizaron datos y/o variantes del producto.",
+                detalle=detalle_str,
                 user=request.user,
                 obj=producto,
                 extra={
-                    "sku": producto.sku,
-                    "precio": str(producto.precio),
-                    "stock": producto.stock,
-                    "rubro": producto.rubro,
-                    "subrubro": producto.subrubro,
+                    "cambios": cambios,
+                    "variantes_modificadas": vformset.has_changed(),
                 },
             )
 
@@ -448,6 +506,7 @@ def owner_producto_editar(request, pk):
             messages.error(request, "Hay errores en las variantes. Revisá los campos resaltados.")
 
     else:
+        # GET
         vformset = ProductoVarianteFormSet(
             instance=producto,
             prefix="v",
@@ -466,7 +525,6 @@ def owner_producto_editar(request, pk):
             "vformset": vformset,
         },
     )
-
 
 @login_required
 def owner_producto_toggle_activo(request, pk):

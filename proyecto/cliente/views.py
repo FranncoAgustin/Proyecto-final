@@ -1,19 +1,20 @@
 # cliente/views.py
 from decimal import Decimal
 from datetime import timedelta
+from urllib.parse import quote
 
-from django import forms
 from django.conf import settings
-from django.db.models import Q, Sum
+from django.db.models import Sum
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import logout, authenticate, login
+from django.contrib.auth import logout
 from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
+from django.urls import reverse
 
-from cliente.forms import RegistroForm, ProfileForm
-from .models import Profile, StockHold
+from cliente.forms import ProfileForm
+from .models import StockHold
 from pdf.models import ProductoPrecio, ProductoVariante
 from cupones.models import Cupon
 from ofertas.utils import get_precio_con_oferta
@@ -248,6 +249,23 @@ def aplicar_cupon(request):
 
 @require_POST
 def agregar_al_carrito(request, pk):
+    """
+    Ahora obliga a estar logueado.
+    Si no está autenticado, redirige al login con ?next=<página anterior>.
+    """
+    if not request.user.is_authenticated:
+        messages.info(
+            request,
+            "Para agregar productos al carrito necesitás iniciar sesión o registrarte."
+        )
+        login_url = getattr(settings, "LOGIN_URL", "/accounts/login/")
+        next_url = (
+            request.GET.get("next")
+            or request.META.get("HTTP_REFERER")
+            or reverse("detalle_producto", args=[pk])
+        )
+        return redirect(f"{login_url}?next={quote(next_url)}")
+
     cleanup_expired_holds()
 
     producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
@@ -552,6 +570,7 @@ def vaciar_carrito(request):
 # VISTAS: FAVORITOS
 # =========================
 
+@login_required
 def mis_favoritos(request):
     favs = _get_favoritos(request)
     items = []
@@ -575,6 +594,7 @@ def mis_favoritos(request):
     return render(request, "cliente/favoritos.html", {"items": items})
 
 
+@login_required
 def agregar_favorito(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk)
 
@@ -597,6 +617,7 @@ def agregar_favorito(request, pk):
     return redirect(next_url)
 
 
+@login_required
 def eliminar_favorito(request, pk):
     favs = _get_favoritos(request)
     estaba = pk in favs or str(pk) in favs

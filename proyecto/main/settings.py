@@ -25,10 +25,18 @@ DEBUG = os.getenv("DEBUG", "True") == "True"
 MP_PUBLIC_KEY = os.getenv("MP_PUBLIC_KEY", "")
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN", "")
 MP_WEBHOOK_SECRET = os.getenv("MP_WEBHOOK_SECRET", "")
-SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
-# Render setea esto automáticamente
 RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME", "")
+
+# Si estás en Render y no seteaste SITE_URL a mano, armamos uno https://<host>
+_env_site_url = os.getenv("SITE_URL", "").strip()
+
+if _env_site_url:
+    SITE_URL = _env_site_url.rstrip("/")
+elif RENDER_EXTERNAL_HOSTNAME:
+    SITE_URL = f"https://{RENDER_EXTERNAL_HOSTNAME}".rstrip("/")
+else:
+    SITE_URL = "http://127.0.0.1:8000"
 
 # ==============================
 # SECURITY / HOSTS

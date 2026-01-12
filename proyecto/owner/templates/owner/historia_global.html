@@ -12,7 +12,7 @@
     </div>
   </div>
 
-  {# FILTROS RÁPIDOS (opcional, si tu vista los pasa en el contexto) #}
+  {# FILTROS #}
   {% if tipos or usuarios %}
   <form method="get" class="card card-body mb-3">
     <div class="row g-2 align-items-end">
@@ -71,7 +71,7 @@
                 {# Fila principal #}
                 <tr>
                   <td class="small text-muted">
-                    {{ ev.creado_en|date:"d/m/Y H:i" }}
+                    {{ ev.created_at|date:"d/m/Y H:i" }}
                   </td>
                   <td>
                     <span class="badge bg-light text-dark border">
@@ -94,6 +94,11 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
+                    {% if ev.archivo %}
+                      <a href="{{ ev.archivo.url }}" class="btn btn-xs btn-outline-primary me-1" target="_blank">
+                        Ver archivo
+                      </a>
+                    {% endif %}
                     <button
                       class="btn btn-xs btn-outline-secondary"
                       type="button"
@@ -106,13 +111,10 @@
                   </td>
                 </tr>
 
-                {# Fila extra GRANDE para detalles técnicos #}
+                {# Fila extra para detalles técnicos #}
                 <tr class="bg-light">
                   <td colspan="5" class="p-0 border-0">
-                    <div
-                      id="ev-tech-{{ ev.id }}"
-                      class="collapse"
-                    >
+                    <div id="ev-tech-{{ ev.id }}" class="collapse">
                       <div class="px-3 pb-3 pt-2">
                         <div class="border rounded bg-white p-2 bitacora-tech-wrapper">
                           <div class="row g-2">
@@ -147,8 +149,7 @@
                           {% if ev.detalle %}
                             <hr class="my-2">
                             <div class="small">
-                              <span class="text-muted fw-semibold">Detalle legible:</span>
-                              <br>
+                              <span class="text-muted fw-semibold">Detalle legible:</span><br>
                               {{ ev.detalle }}
                             </div>
                           {% endif %}
@@ -174,8 +175,8 @@
 
 <style>
   .bitacora-tech-wrapper {
-    max-height: 320px;      /* espacio cómodo */
-    overflow: auto;         /* scroll interno si hay mucho */
+    max-height: 320px;
+    overflow: auto;
   }
   .bitacora-tech-pre {
     font-family: monospace;
@@ -185,3 +186,4 @@
   }
 </style>
 {% endblock %}
+

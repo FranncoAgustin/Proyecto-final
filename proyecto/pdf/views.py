@@ -35,6 +35,9 @@ from .utils_ocr import extraer_datos_factura
 from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
 from ofertas.utils import get_precio_con_oferta
 from owner.models import BitacoraEvento
+from django.core.files.base import ContentFile
+
+
 
 Q2 = Decimal("0.01")
 
@@ -1445,31 +1448,8 @@ def factura_crear(request):
                     "subtotal": subtotal,
                 })
 
-            # 🔹 Bitácora: factura PDF (cliente) generada
-            registrar_evento(
-                tipo="factura_pdf_generada",
-                titulo=f"Factura PDF generada para {form.cleaned_data.get('cliente_nombre') or 'cliente sin nombre'}",
-                detalle=f"Total: {total.quantize(Q2)}",
-                user=getattr(request, "user", None),
-                extra={
-                    "cliente_nombre": form.cleaned_data.get("cliente_nombre"),
-                    "cliente_telefono": form.cleaned_data.get("cliente_telefono"),
-                    "total": str(total.quantize(Q2)),
-                    "items": [
-                        {
-                            "nombre": it["nombre"],
-                            "descripcion": it.get("descripcion") or "",
-                            "cantidad": it["cantidad"],
-                            "precio": str(it["precio"]),
-                            "subtotal": str(it["subtotal"]),
-                        }
-                        for it in items
-                    ],
-                },
-            )
-
-            # ====== generar PDF ======
-            return _factura_pdf_response(form.cleaned_data, items, total)
+            # ====== generar PDF + registrar en bitácora (con adjunto) ======
+            return _factura_pdf_response(request, form.cleaned_data, items, total)
 
     else:
         form = FacturaForm(initial=initial)
@@ -1477,7 +1457,234 @@ def factura_crear(request):
     return render(request, "pdf/factura_form.html", {"form": form})
 
 
-def _factura_pdf_response(data, items, total):
+def _factura_pdf_response(request, data, items, total):
+    filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
+
+    # Buffer en memoria para crear el PDF
+    buffer = BytesIO()
+
+    styles = getSampleStyleSheet()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=2.0 * cm,
+        rightMargin=2.0 * cm,
+        topMargin=1.8 * cm,
+        bottomMargin=1.8 * cm,
+    )
+
+    story = []
+
+    # Helper para texto seguro en Paragraph (evitar problemas con <, >, &)
+    def _rl_safe(text):
+        return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # Logo
+    logo_path = os.path.join(settings.MEDIA_ROOT, "branding", "logo.png")
+
+    left = []
+    if os.path.exists(logo_path):
+        left.append(Image(logo_path, width=2.8 * cm, height=2.8 * cm))
+    else:
+        left.append(Paragraph("<b>Mundo Personalizado</b>", styles["Title"]))
+
+    titulo = Paragraph(
+        "<para align='center'>"
+        "<b>FACTURA SIN VALOR FISCAL</b><br/>"
+        f"<font size=9>Fecha: {timezone.localtime().strftime('%d/%m/%Y %H:%M')}</font><br/>"
+        f"<font size=9>Validez: {int(data.get('validez_dias') or 7)} días</font>"
+        "</para>",
+        styles["Normal"],
+    )
+
+    vendedor = Paragraph(
+        "<para align='right'>"
+        f"<b>{_rl_safe(data['vendedor_nombre'])}</b><br/>"
+        f"WhatsApp: {_rl_safe(data['vendedor_whatsapp'])}<br/>"
+        f"Horario: {_rl_safe(data['vendedor_horario'])}<br/>"
+        f"{_rl_safe(data['vendedor_direccion'])}"
+        "</para>",
+        styles["Normal"],
+    )
+
+    header = Table([[left, titulo, vendedor]], colWidths=[3.2 * cm, 7.0 * cm, 6.0 * cm])
+    header.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.75, colors.lightgrey),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 10),
+            ]
+        )
+    )
+    story.append(header)
+    story.append(Spacer(1, 0.5 * cm))
+
+    # Cliente (cajita)
+    cliente = Table(
+        [
+            [
+                Paragraph(
+                    f"<b>Cliente</b><br/>"
+                    f"Nombre: {_rl_safe(data['cliente_nombre'])}<br/>"
+                    f"Tel: {_rl_safe(data.get('cliente_telefono') or '—')}<br/>"
+                    f"DNI/CUIL: {_rl_safe(data.get('cliente_doc') or '—')}<br/>"
+                    f"Dirección: {_rl_safe(data.get('cliente_direccion') or '—')}",
+                    styles["Normal"],
+                )
+            ]
+        ],
+        colWidths=[16.2 * cm],
+    )
+
+    cliente.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.6, colors.lightgrey),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    story.append(cliente)
+    story.append(Spacer(1, 0.5 * cm))
+
+    # Items (nombre + descripción debajo)
+    table_data = [["Producto", "Cant.", "Unitario", "Subtotal"]]
+
+    for it in items:
+        nombre_safe = _rl_safe(it["nombre"])
+        desc_safe = _rl_safe(it.get("descripcion") or "")
+
+        if desc_safe:
+            prod_text = (
+                f"<b>{nombre_safe}</b><br/>"
+                f"<font size='8' color='#777777'>{desc_safe}</font>"
+            )
+        else:
+            prod_text = f"<b>{nombre_safe}</b>"
+
+        prod_paragraph = Paragraph(prod_text, styles["Normal"])
+
+        table_data.append(
+            [
+                prod_paragraph,
+                str(it["cantidad"]),
+                f"$ {it['precio']:.2f}",
+                f"$ {it['subtotal']:.2f}",
+            ]
+        )
+
+    tabla = Table(
+        table_data,
+        colWidths=[9.5 * cm, 1.5 * cm, 2.6 * cm, 2.6 * cm],
+        repeatRows=1,
+    )
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.append(tabla)
+    story.append(Spacer(1, 0.5 * cm))
+
+    sena = _to_decimal(data.get("sena") or "0", "0").quantize(Q2)
+    saldo = (total - sena).quantize(Q2)
+
+    resumen = Table(
+        [
+            ["Seña:", f"$ {sena:.2f}"],
+            ["Total:", f"$ {total.quantize(Q2):.2f}"],
+            ["Falta abonar:", f"$ {saldo:.2f}"],
+        ],
+        colWidths=[12.0 * cm, 4.2 * cm],
+    )
+
+    resumen.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 11),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    story.append(resumen)
+
+    story.append(Spacer(1, 0.4 * cm))
+    story.append(
+        Paragraph(
+            "<para align='center'><font size=8 color='#666666'>"
+            "Presupuesto / Factura sin valor fiscal. Validez 7 días salvo indicación contraria."
+            "</font></para>",
+            styles["Normal"],
+        )
+    )
+
+    # Construimos el PDF en el buffer
+    doc.build(story)
+
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    # ====== Registrar evento con adjunto ======
+    usuario = request.user if request.user.is_authenticated else None
+
+    items_resumen = [
+        {
+            "nombre": it["nombre"],
+            "descripcion": it.get("descripcion") or "",
+            "cantidad": it["cantidad"],
+            "precio": str(it["precio"]),
+            "subtotal": str(it["subtotal"]),
+        }
+        for it in items
+    ]
+
+    extra = {
+        "cliente_nombre": data.get("cliente_nombre"),
+        "cliente_telefono": data.get("cliente_telefono"),
+        "cliente_doc": data.get("cliente_doc"),
+        "cliente_direccion": data.get("cliente_direccion"),
+        "total": str(total.quantize(Q2)),
+        "sena": str(sena),
+        "saldo": str(saldo),
+        "items": items_resumen,
+    }
+
+    evento = BitacoraEvento.objects.create(
+        usuario=usuario,
+        tipo="factura_pdf_generada",
+        titulo=f"Factura PDF generada para {data.get('cliente_nombre') or 'cliente sin nombre'}",
+        detalle=f"Total $ {total.quantize(Q2):.2f} - Items: {len(items)}",
+        obj_model="",
+        obj_id="",
+        extra=extra,
+    )
+
+    # Guardamos el PDF como archivo adjunto del evento
+    evento.archivo.save(filename, ContentFile(pdf_bytes))
+    # (archivo.save ya persiste el evento)
+
+    # ====== Respuesta HTTP con el PDF ======
+    resp = HttpResponse(content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    resp.write(pdf_bytes)
+    return resp
+
     filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
     resp = HttpResponse(content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
