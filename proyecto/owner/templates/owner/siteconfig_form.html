@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}Personalizar sitio{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 980px;">
+
+  <style>
+    .cfg-card {
+      border-radius: 1.25rem;
+      border: 1px solid #e5e7eb;
+    }
+
+    .cfg-section-title {
+      font-size: .85rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #6b7280;
+      font-weight: 600;
+    }
+
+    .cfg-divider {
+      border-top: 1px dashed #e5e7eb;
+      margin: 1.5rem 0;
+    }
+
+    .color-swatch-label {
+      font-size: .8rem;
+      font-weight: 600;
+      margin-bottom: .25rem;
+    }
+
+    .pill-btn {
+      border-radius: 999px;
+    }
+
+    .preview-box {
+      border-radius: .75rem;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      padding: .75rem 1rem;
+    }
+
+    .theme-preview {
+      border-radius: .75rem;
+      border: 1px solid #e5e7eb;
+      overflow: hidden;
+      background: var(--mp-surface, #ffffff);
+      color: var(--mp-text, #111111);
+    }
+
+    .theme-preview-header {
+      padding: .5rem .75rem;
+      background: var(--mp-primary, #0d6efd);
+      color: #fff;
+      font-size: .85rem;
+    }
+
+    .theme-preview-body {
+      padding: .75rem;
+    }
+
+    .theme-preview-badge {
+      display: inline-block;
+      border-radius: 999px;
+      font-size: .7rem;
+      padding: .15rem .6rem;
+      background: var(--mp-secondary, #6c757d);
+      color: #fff;
+    }
+
+    .theme-preview-btn {
+      border-radius: 999px;
+      border: none;
+      padding: .35rem .9rem;
+      font-size: .8rem;
+      background: var(--mp-success, #198754);
+      color: #fff;
+    }
+
+    .theme-preview-footer {
+      padding: .4rem .75rem;
+      background: var(--mp-bg, #f9fafb);
+      font-size: .7rem;
+      color: var(--mp-muted, #6b7280);
+    }
+  </style>
+
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">🎨 Personalizar sitio</h1>
+      <div class="text-muted small">Colores, tipografías y textos globales de la tienda</div>
+    </div>
+    <a class="btn btn-mp neutral pill-btn" href="{% url 'home' %}">← Volver al panel</a>
+  </div>
+
+  <div class="card shadow-sm cfg-card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <!-- COLORES -->
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+          <div class="cfg-section-title">Colores</div>
+        </div>
+
+        <div class="row g-3 mb-2">
+          <div class="col-md-3">
+            <div class="color-swatch-label">Primary</div>
+            {{ form.primary_color }}
+          </div>
+          <div class="col-md-3">
+            <div class="color-swatch-label">Secondary</div>
+            {{ form.secondary_color }}
+          </div>
+          <div class="col-md-3">
+            <div class="color-swatch-label">Success</div>
+            {{ form.success_color }}
+          </div>
+          <div class="col-md-3">
+            <div class="color-swatch-label">Danger</div>
+            {{ form.danger_color }}
+          </div>
+
+          <div class="col-md-3">
+            <div class="color-swatch-label">Muted</div>
+            {{ form.muted_color }}
+          </div>
+          <div class="col-md-3">
+            <div class="color-swatch-label">Background</div>
+            {{ form.background }}
+          </div>
+          <div class="col-md-3">
+            <div class="color-swatch-label">Surface</div>
+            {{ form.surface }}
+          </div>
+
+          <div class="col-md-3">
+            <div class="color-swatch-label">Color del texto</div>
+            {{ form.text_color }}
+          </div>
+
+          <div class="col-md-6 mt-2">
+            <label class="form-label mb-1">Primary RGB (para el degradado)</label>
+            {{ form.primary_rgb }}
+            <div class="form-text">
+              Formato: <code>13,110,253</code> (R,G,B)
+            </div>
+          </div>
+
+          <!-- Pequeña vista previa de tema -->
+          <div class="col-md-6 mt-2">
+            <div class="theme-preview">
+              <div class="theme-preview-header d-flex justify-content-between align-items-center">
+                <span>Mundo Personalizado</span>
+                <span class="theme-preview-badge">Etiqueta</span>
+              </div>
+              <div class="theme-preview-body">
+                <p class="mb-2" style="font-size:.8rem;">
+                  Vista rápida de cómo se ve tu paleta en fondos, texto y botón principal.
+                </p>
+                <button type="button" class="theme-preview-btn">
+                  Botón de ejemplo
+                </button>
+              </div>
+              <div class="theme-preview-footer">
+                Hecho con amor y detalle ✨
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cfg-divider"></div>
+
+        <!-- TIPOGRAFÍAS -->
+        <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="cfg-section-title">Tipografías</div>
+          <div class="d-flex gap-2 align-items-center">
+            <a href="https://fonts.google.com" class="btn btn-outline-secondary btn-sm pill-btn" target="_blank">
+              <i class="fa-brands fa-google me-1"></i> Abrir Google Fonts
+            </a>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Fuente base (texto)</label>
+            {{ form.font_base }}
+            {% if form.font_base.errors %}
+            <div class="text-danger small">{{ form.font_base.errors }}</div>
+            {% endif %}
+
+            <div class="preview-box mt-2">
+              <div class="text-muted small mb-1">Vista previa texto:</div>
+              <p id="previewFontBase" class="mb-0">
+                Esto es un ejemplo de texto para el cuerpo de la página.
+              </p>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Fuente títulos (h1, h2, etc.)</label>
+            {{ form.font_headings }}
+            {% if form.font_headings.errors %}
+            <div class="text-danger small">{{ form.font_headings.errors }}</div>
+            {% endif %}
+
+            <div class="preview-box mt-2">
+              <div class="text-muted small mb-1">Vista previa títulos:</div>
+              <p id="previewFontHeadings" class="h5 mb-0">
+                Título de ejemplo Mundo Personalizado
+              </p>
+            </div>
+          </div>
+
+          <div class="col-12 mt-3">
+            <label class="form-label">Google Fonts URL (opcional)</label>
+            <div class="input-group input-group-sm">
+              {{ form.google_fonts_url }}
+              <a class="btn btn-outline-secondary" href="https://fonts.google.com" target="_blank">
+                Buscar fuente
+              </a>
+            </div>
+            <div class="form-text">
+              Pegá el link CSS que te da Google Fonts, por ejemplo:<br>
+              <code>https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&amp;display=swap</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="cfg-divider"></div>
+
+        <!-- TEXTOS GLOBALES -->
+        <div class="mb-2 cfg-section-title">Textos globales</div>
+        <div class="alert alert-light border small">
+          Podés definir textos como JSON. Ejemplo:
+          <pre class="mb-0" style="white-space:pre-wrap;">{
+  "site_title": "Mundo Personalizado",
+  "brand_name": "Mundo Personalizado",
+  "search_placeholder": "Buscar productos…",
+  "whatsapp_url": "https://wa.me/message/NSO7K5POCXLKE1",
+  "whatsapp_cta": "¿Tenés dudas? ¡Escribinos!",
+  "instagram_url": "https://www.instagram.com/_mundo_personalizado/",
+  "instagram_cta": "Nuestro Instagram",
+  "footer_tagline": "Hecho con amor y detalle ✨",
+  "siteinfo_section_title": "Más sobre Mundo Personalizado"
+}</pre>
+        </div>
+
+        {{ form.texts }}
+        {% if form.texts.errors %}
+        <div class="text-danger small mt-1">{{ form.texts.errors }}</div>
+        {% endif %}
+
+        <div class="d-flex gap-2 mt-4">
+          <button class="btn btn-primary pill-btn px-4">Guardar cambios</button>
+          <a class="btn btn-mp neutral pill-btn" href="{% url 'catalogo' %}" target="_blank">
+            Ver tienda
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const root = document.documentElement;
+
+    // ===== COLORES EN VIVO =====
+    const colorMap = {
+      primary_color: "--mp-primary",
+      secondary_color: "--mp-secondary",
+      success_color: "--mp-success",
+      danger_color: "--mp-danger",
+      muted_color: "--mp-muted",
+      background: "--mp-bg",
+      surface: "--mp-surface",
+      text_color: "--mp-text",
+    };
+
+    function applyColorPreview() {
+      Object.entries(colorMap).forEach(function ([field, varName]) {
+        const input = document.getElementById("id_" + field);
+        if (input && input.value) {
+          root.style.setProperty(varName, input.value);
+        }
+      });
+
+      const rgbInput = document.getElementById("id_primary_rgb");
+      if (rgbInput && rgbInput.value.trim()) {
+        root.style.setProperty("--mp-primary-rgb", rgbInput.value.trim());
+      }
+    }
+
+    Object.keys(colorMap).forEach(function (field) {
+      const input = document.getElementById("id_" + field);
+      if (input) {
+        input.addEventListener("input", applyColorPreview);
+        input.addEventListener("change", applyColorPreview);
+      }
+    });
+
+    const rgbInput = document.getElementById("id_primary_rgb");
+    if (rgbInput) {
+      rgbInput.addEventListener("input", applyColorPreview);
+      rgbInput.addEventListener("change", applyColorPreview);
+    }
+
+    // ===== TIPOGRAFÍAS EN VIVO =====
+    const baseInput = document.getElementById("id_font_base");
+    const headingsInput = document.getElementById("id_font_headings");
+    const gfInput = document.getElementById("id_google_fonts_url");
+    const prevBase = document.getElementById("previewFontBase");
+    const prevHead = document.getElementById("previewFontHeadings");
+
+    function applyFontPreview() {
+      if (baseInput && baseInput.value.trim()) {
+        const val = baseInput.value.trim();
+        root.style.setProperty("--mp-font-base", val);
+        if (prevBase) prevBase.style.fontFamily = val;
+      }
+      if (headingsInput && headingsInput.value.trim()) {
+        const val = headingsInput.value.trim();
+        root.style.setProperty("--mp-font-headings", val);
+        if (prevHead) prevHead.style.fontFamily = val;
+      }
+    }
+
+    if (baseInput) baseInput.addEventListener("input", applyFontPreview);
+    if (headingsInput) headingsInput.addEventListener("input", applyFontPreview);
+
+    if (gfInput) {
+      gfInput.addEventListener("change", function () {
+        const url = gfInput.value.trim();
+        if (!url) return;
+
+        let link = document.getElementById("mp-dynamic-google-fonts");
+        if (!link) {
+          link = document.createElement("link");
+          link.id = "mp-dynamic-google-fonts";
+          link.rel = "stylesheet";
+          document.head.appendChild(link);
+        }
+        link.href = url;
+        applyFontPreview();
+      });
+    }
+
+    // Primera carga con los valores actuales
+    applyColorPreview();
+    applyFontPreview();
+  });
+</script>
+{% endblock %}

@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",  # <-- NECESARIO para allauth / Sites
+    "django.contrib.humanize",
 
     # Allauth
     "allauth",
@@ -139,6 +140,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "cliente.context_processors.carrito_y_favoritos",
                 "owner.context_processors.siteinfo_blocks",
+                "owner.context_processors.site_cfg",
             ],
         },
     },

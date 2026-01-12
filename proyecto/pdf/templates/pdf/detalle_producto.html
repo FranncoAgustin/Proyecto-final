@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load humanize %}
 
 {% block title %}{{ producto.nombre_publico }}{% endblock %}
 
@@ -35,9 +36,9 @@
         <span class="h3 text-success fw-bold">
           $<span id="price-amount">
             {% if variantes_ui %}
-              {{ precio_inicial }}
+              {{ precio_inicial|floatformat:0|intcomma }}
             {% else %}
-              {{ producto.precio }}
+              {{ producto.precio|floatformat:0|intcomma }}
             {% endif %}
           </span>
         </span>
@@ -73,7 +74,7 @@
             {% endif %}
             data-desc="{{ v.descripcion_corta|default:'' }}"
             data-stock="{{ v.stock|default:0 }}"
-            data-price="{{ v.precio_final }}"
+            data-price="{{ v.precio_final|floatformat:0|intcomma }}"
           >
             {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
           </option>
@@ -159,7 +160,7 @@
       const d = opt.getAttribute("data-desc") || "";
       if (desc) desc.textContent = d;
 
-      // precio
+      // precio (ya viene formateado desde el template)
       const p = opt.getAttribute("data-price");
       if (priceSpan && p !== null && p !== "") {
         priceSpan.textContent = p;

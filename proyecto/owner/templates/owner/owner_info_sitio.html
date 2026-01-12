@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Información del sitio{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 980px;">
+
+  <style>
+    .siteinfo-block-card {
+      border-radius: 1rem;
+      border: 1px solid #e5e7eb;
+    }
+    .siteinfo-block-card .card-header {
+      border-bottom: 0;
+      border-radius: 1rem 1rem 0 0;
+      background: linear-gradient(90deg, #f8fafc, #eef2ff);
+    }
+    .siteinfo-block-card .card-footer {
+      border-top: 0;
+      border-radius: 0 0 1rem 1rem;
+      background-color: #f9fafb;
+    }
+    .siteinfo-block-card.marked-delete {
+      border-color: #dc3545 !important;
+      box-shadow: 0 0 0 0.15rem rgba(220, 53, 69, 0.12);
+      background-color: #fff5f5;
+      opacity: 0.95;
+    }
+    .siteinfo-block-card .form-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .siteinfo-block-card small.helper-text {
+      font-size: 0.78rem;
+    }
+    .btn-soft {
+      border-radius: 999px;
+      padding-inline: 0.85rem;
+    }
+  </style>
+
+  <div class="mb-3">
+    <h4 class="h4 mb-1 d-flex align-items-center">
+      <i class="fa-regular fa-newspaper me-2"></i>
+      Información del sitio
+    </h4>
+    <p class="text-muted small mb-0">
+      Estos bloques aparecen al final del catálogo como listas desplegables.
+    </p>
+  </div>
+
+  {% if formset.non_form_errors %}
+    <div class="alert alert-danger">
+      {% for err in formset.non_form_errors %}
+        <div>{{ err }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body">
+      {% csrf_token %}
+      {{ formset.management_form }}
+
+      {% for form in formset %}
+        <div class="card mb-3 shadow-sm siteinfo-block-card">
+          <div class="card-header px-3 py-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis px-3">
+                Bloque #{{ forloop.counter }}
+              </span>
+              {% if form.instance.pk %}
+                <span class="text-muted small">ID {{ form.instance.pk }}</span>
+              {% else %}
+                <span class="badge rounded-pill bg-info-subtle text-info-emphasis small">
+                  <i class="fa-solid fa-plus me-1"></i>Nuevo
+                </span>
+              {% endif %}
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+              <span class="small text-muted me-1 status-label">
+                {% if form.instance.pk and form.instance.activo %}
+                  Activo
+                {% else %}
+                  Inactivo
+                {% endif %}
+              </span>
+
+              <button type="button"
+                      class="btn btn-soft btn-sm toggle-activo-btn border">
+                <i class="fa-regular fa-circle-check me-1"></i>
+                <span class="label-text">Activo</span>
+              </button>
+
+              {% if formset.can_delete %}
+                <button type="button"
+                        class="btn btn-soft btn-sm btn-outline-danger mark-delete-btn">
+                  <i class="fa-regular fa-trash-can"></i>
+                </button>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="card-body pt-3 pb-2">
+
+            {# Hidden fields (id, etc.) + checkboxes reales #}
+            <div class="d-none">
+              {% for hidden in form.hidden_fields %}
+                {{ hidden }}
+              {% endfor %}
+              {{ form.activo }}
+              {% if formset.can_delete %}
+                {{ form.DELETE }}
+              {% endif %}
+            </div>
+
+            {% if form.errors %}
+              <div class="alert alert-warning py-2 small mb-3">
+                <strong>Revisá este bloque:</strong>
+                <ul class="mb-0">
+                  {% for field, errors in form.errors.items %}
+                    <li>{{ field|capfirst }}: {{ errors|join:", " }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+
+            <div class="row g-3 align-items-end">
+              <div class="col-md-4">
+                <label class="form-label mb-1">{{ form.clave.label }}:</label>
+                {{ form.clave }}
+                <small class="helper-text text-muted d-block mt-1">
+                  Solo uso interno. Si lo dejás vacío se genera desde el título.
+                </small>
+              </div>
+
+              <div class="col-md-5">
+                <label class="form-label mb-1">{{ form.titulo.label }}:</label>
+                {{ form.titulo }}
+              </div>
+
+              <div class="col-md-2">
+                <label class="form-label mb-1">{{ form.orden.label }}:</label>
+                {{ form.orden }}
+              </div>
+
+              <div class="col-12 mt-2">
+                <label class="form-label mb-1">{{ form.contenido.label }}:</label>
+                {{ form.contenido }}
+                <small class="helper-text text-muted d-block mt-1">
+                  Podés usar saltos de línea. Se muestran como texto normal debajo del título.
+                </small>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="card-footer py-2 px-3 text-end">
+            <small class="text-muted">
+              Último bloque vacío = nuevo item. El botón de <strong>tacho</strong> solo marca
+              para borrar; se aplica al guardar.
+            </small>
+          </div>
+        </div>
+      {% endfor %}
+
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <div class="text-muted small">
+          Usá el último bloque vacío para agregar uno nuevo.
+        </div>
+        <button type="submit" class="btn btn-primary rounded-pill px-4">
+          <i class="fa-solid fa-floppy-disk me-1"></i> Guardar cambios
+        </button>
+      </div>
+
+    </div>
+  </form>
+
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".siteinfo-block-card").forEach(function (card) {
+      const activoInput = card.querySelector('input[type="checkbox"][name$="activo"]');
+      const deleteInput = card.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      const toggleActivoBtn = card.querySelector(".toggle-activo-btn");
+      const markDeleteBtn = card.querySelector(".mark-delete-btn");
+      const statusLabel = card.querySelector(".status-label");
+
+      function refreshEstado() {
+        if (activoInput && toggleActivoBtn) {
+          if (activoInput.checked) {
+            toggleActivoBtn.classList.remove("btn-outline-secondary");
+            toggleActivoBtn.classList.add("btn-success", "text-white");
+            if (statusLabel) statusLabel.textContent = "Activo";
+          } else {
+            toggleActivoBtn.classList.remove("btn-success", "text-white");
+            toggleActivoBtn.classList.add("btn-outline-secondary");
+            if (statusLabel) statusLabel.textContent = "Inactivo";
+          }
+        }
+
+        if (deleteInput && markDeleteBtn) {
+          if (deleteInput.checked) {
+            card.classList.add("marked-delete");
+          } else {
+            card.classList.remove("marked-delete");
+          }
+        }
+      }
+
+      if (toggleActivoBtn && activoInput) {
+        toggleActivoBtn.addEventListener("click", function () {
+          activoInput.checked = !activoInput.checked;
+          refreshEstado();
+        });
+      }
+
+      if (markDeleteBtn && deleteInput) {
+        markDeleteBtn.addEventListener("click", function () {
+          deleteInput.checked = !deleteInput.checked;
+          refreshEstado();
+        });
+      }
+
+      refreshEstado();
+    });
+  });
+</script>
+{% endblock %}

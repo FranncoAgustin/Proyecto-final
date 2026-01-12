@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load humanize %}
 
 {% block title %}Catálogo{% endblock %}
 
@@ -9,92 +10,71 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
       <h2 class="mb-0">Catálogo de productos</h2>
-      
     </div>
 
     <!-- Botón 3 rayitas -->
-    <button
-      class="btn btn-outline-secondary d-flex align-items-center"
-      type="button"
-      data-bs-toggle="offcanvas"
-      data-bs-target="#filtrosOffcanvas"
-      aria-controls="filtrosOffcanvas"
-    >
+    <button class="btn btn-outline-secondary d-flex align-items-center" type="button" data-bs-toggle="offcanvas"
+      data-bs-target="#filtrosOffcanvas" aria-controls="filtrosOffcanvas">
       <i class="fa-solid fa-bars me-2"></i>
       Filtros
     </button>
   </div>
 
   <!-- OFFCANVAS CON EL MENÚ TIPO ÁRBOL -->
-  <div class="offcanvas offcanvas-start" tabindex="-1" id="filtrosOffcanvas"
-       aria-labelledby="filtrosOffcanvasLabel">
+  <div class="offcanvas offcanvas-start" tabindex="-1" id="filtrosOffcanvas" aria-labelledby="filtrosOffcanvasLabel">
     <div class="offcanvas-header">
       <h5 class="offcanvas-title" id="filtrosOffcanvasLabel">
         Filtros
       </h5>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas"
-              aria-label="Cerrar"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
     </div>
     <div class="offcanvas-body">
-
-      {# Acá va TU menú en árbol que ya armamos #}
-      {# Solo reutilizamos el parcial que ya existe #}
       {% include "pdf/partials/filtros_sidebar.html" %}
-
     </div>
   </div>
 
   <!-- GRID DE PRODUCTOS -->
-  <div class="row g-4 mt-1">
+  <div class="row g-4 mt-1 catalog-grid">
 
     {% for item in productos %}
-    <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+    {# 🔹 CAMBIO CLAVE: col-6 para móvil (2 productos por fila) #}
+    <div class="col-6 col-sm-6 col-md-4 col-lg-3">
 
       <div class="card h-100 shadow-sm position-relative">
 
         {# BADGE SIN STOCK #}
         {% if item.sin_stock %}
-          <span class="badge bg-danger position-absolute top-0 start-0 m-2 z-3">
-            Sin stock
-          </span>
+        <span class="badge bg-danger position-absolute top-0 start-0 m-2 z-3">
+          Sin stock
+        </span>
         {% endif %}
 
         {# ❤️ FAVORITOS #}
         {% with favs=request.session.favoritos %}
-          {% if favs and item.producto.id|stringformat:"s" in favs %}
-            <a
-              href="{% url 'eliminar_favorito' item.producto.id %}?next={{ request.path }}"
-              class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm z-3"
-              title="Quitar de favoritos"
-            >
-              <i class="fa-solid fa-heart text-danger"></i>
-            </a>
-          {% else %}
-            <a
-              href="{% url 'agregar_favorito' item.producto.id %}?next={{ request.path }}"
-              class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm z-3"
-              title="Agregar a favoritos"
-            >
-              <i class="fa-regular fa-heart"></i>
-            </a>
-          {% endif %}
+        {% if favs and item.producto.id|stringformat:"s" in favs %}
+        <a href="{% url 'eliminar_favorito' item.producto.id %}?next={{ request.path }}"
+          class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm z-3"
+          title="Quitar de favoritos">
+          <i class="fa-solid fa-heart text-danger"></i>
+        </a>
+        {% else %}
+        <a href="{% url 'agregar_favorito' item.producto.id %}?next={{ request.path }}"
+          class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm z-3"
+          title="Agregar a favoritos">
+          <i class="fa-regular fa-heart"></i>
+        </a>
+        {% endif %}
         {% endwith %}
 
         {# TARJETA CLICKEABLE #}
-        <a href="{% url 'detalle_producto' item.producto.id %}"
-           class="text-decoration-none text-dark">
+        <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none text-dark">
 
           {% if item.producto.imagen %}
-            <img
-              src="{{ item.producto.imagen.url }}"
-              class="card-img-top"
-              style="height:200px; object-fit:contain;"
-            >
+          <img src="{{ item.producto.imagen.url }}" class="card-img-top" style="height:200px; object-fit:contain;">
           {% else %}
-            <div class="d-flex justify-content-center align-items-center bg-light"
-                 style="height:200px;">
-              <span class="text-muted">Sin imagen</span>
-            </div>
+          <div class="d-flex justify-content-center align-items-center bg-light" style="height:200px;">
+            <span class="text-muted">Sin imagen</span>
+          </div>
           {% endif %}
 
           <div class="card-body">
@@ -103,16 +83,16 @@
             </h6>
 
             {% if item.oferta %}
-              <span class="text-muted text-decoration-line-through">
-                ${{ item.precio_original }}
-              </span><br>
-              <span class="fw-bold text-success">
-                ${{ item.precio_final }}
-              </span>
+            <span class="text-muted text-decoration-line-through">
+              ${{ item.precio_original|floatformat:0|intcomma }}
+            </span><br>
+            <span class="fw-bold text-success">
+              ${{ item.precio_final|floatformat:0|intcomma }}
+            </span>
             {% else %}
-              <span class="fw-bold text-success">
-                ${{ item.precio_original }}
-              </span>
+            <span class="fw-bold text-success">
+              ${{ item.precio_original|floatformat:0|intcomma }}
+            </span>
             {% endif %}
           </div>
 
@@ -121,9 +101,9 @@
       </div>
     </div>
     {% empty %}
-      <div class="col-12">
-        <p class="text-muted">No hay productos para mostrar.</p>
-      </div>
+    <div class="col-12">
+      <p class="text-muted">No hay productos para mostrar.</p>
+    </div>
     {% endfor %}
 
   </div>
