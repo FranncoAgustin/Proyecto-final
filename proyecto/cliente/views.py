@@ -1,75 +1,61 @@
 # cliente/views.py
 from decimal import Decimal
-from django.db.models import Q
-from django.conf import settings
+from datetime import timedelta
+from urllib.parse import quote
 
-from django import forms
+from django.conf import settings
+from django.db.models import Sum
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import logout, authenticate, login
+from django.contrib.auth import logout
 from django.views.decorators.http import require_POST, require_GET
-
-from cliente.forms import RegistroForm, ProfileForm
-from .models import Profile
-from pdf.models import ProductoPrecio, ProductoVariante  # tu modelo de productos
 from django.utils import timezone
-from cupones.models import Cupon
-from django.shortcuts import redirect
-from ofertas.utils import get_precio_con_oferta
-from pdf.views import get_stock_disponible
-from datetime import timedelta
-from django.db.models import Sum
-from pdf.views import get_stock_disponible  # tu helper (producto/variante -> stock real)
+from django.urls import reverse
+
+from cliente.forms import ProfileForm
 from .models import StockHold
+from pdf.models import ProductoPrecio, ProductoVariante
+from cupones.models import Cupon
+from ofertas.utils import get_precio_con_oferta
+from pdf.views import get_stock_disponible, registrar_evento  # helper stock + bitácora
 from integraciones.models import Pedido, PedidoItem
+
+
 # =========================
-# Helpers carrito / favoritos
+# Helpers FAVORITOS
 # =========================
 
 def _get_favoritos(request):
     return request.session.get("favoritos", {})
 
+
 def _save_favoritos(request, favs):
     request.session["favoritos"] = favs
     request.session.modified = True
 
-# cliente/views.py
-from decimal import Decimal
-from datetime import timedelta
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from django.utils import timezone
-from django.views.decorators.http import require_POST
-
-from django.db.models import Sum
-
-from cupones.models import Cupon
-from ofertas.utils import get_precio_con_oferta
-from pdf.models import ProductoPrecio, ProductoVariante
-from pdf.views import get_stock_disponible  # tu helper (producto/variante -> stock real)
-
-from .models import StockHold
-
+# =========================
+# Helpers CARRITO / STOCK HOLD
+# =========================
 
 Q2 = Decimal("0.01")
 HOLD_MINUTES = 30
 
 
-# =========================
-# Helpers carrito
-# =========================
 def _get_cart(request):
     return request.session.get("carrito", {})
+
 
 def _save_cart(request, cart):
     request.session["carrito"] = cart
     request.session.modified = True
 
+
 def _make_key(prod_id: int, var_id: int | None):
     var_id = int(var_id or 0)
     return f"{int(prod_id)}:{var_id}"
+
 
 def _parse_key(item_key: str):
     try:
@@ -78,18 +64,22 @@ def _parse_key(item_key: str):
     except Exception:
         return None, 0
 
+
 def _ensure_session(request) -> str:
     if not request.session.session_key:
         request.session.create()
     return request.session.session_key
 
+
 def cleanup_expired_holds():
     StockHold.objects.filter(expires_at__lte=timezone.now()).delete()
+
 
 def _get_variante_or_none(producto: ProductoPrecio, var_id: int):
     if not var_id:
         return None
     return ProductoVariante.objects.filter(pk=var_id, producto=producto, activo=True).first()
+
 
 def get_stock_disponible_efectivo(producto: ProductoPrecio, var_id: int) -> int:
     """
@@ -111,8 +101,9 @@ def get_stock_disponible_efectivo(producto: ProductoPrecio, var_id: int) -> int:
 
 
 # =========================
-# Vistas carrito
+# VISTAS: CARRITO
 # =========================
+
 def ver_carrito(request):
     cleanup_expired_holds()
 
@@ -226,15 +217,55 @@ def aplicar_cupon(request):
         )
         request.session["cupon_id"] = cupon.id
         request.session.pop("error_cupon", None)
+
+        # Bitácora: cupón aplicado
+        registrar_evento(
+            tipo="cupon_aplicado",
+            titulo=f"Cupón aplicado: {cupon.codigo}",
+            detalle=f"Descuento: {cupon.descuento}% - Técnica: {cupon.tecnica}",
+            user=getattr(request, "user", None),
+            extra={
+                "cupon_id": cupon.id,
+                "codigo": cupon.codigo,
+                "descuento": str(cupon.descuento),
+                "tecnica": cupon.tecnica,
+            },
+        )
+
     except Cupon.DoesNotExist:
         request.session.pop("cupon_id", None)
         request.session["error_cupon"] = "Cupón inválido o vencido"
+
+        registrar_evento(
+            tipo="cupon_invalido",
+            titulo="Intento de aplicar cupón inválido",
+            detalle=f"Código ingresado: {codigo}",
+            user=getattr(request, "user", None),
+            extra={"codigo": codigo},
+        )
 
     return redirect("ver_carrito")
 
 
 @require_POST
 def agregar_al_carrito(request, pk):
+    """
+    Ahora obliga a estar logueado.
+    Si no está autenticado, redirige al login con ?next=<página anterior>.
+    """
+    if not request.user.is_authenticated:
+        messages.info(
+            request,
+            "Para agregar productos al carrito necesitás iniciar sesión o registrarte."
+        )
+        login_url = getattr(settings, "LOGIN_URL", "/accounts/login/")
+        next_url = (
+            request.GET.get("next")
+            or request.META.get("HTTP_REFERER")
+            or reverse("detalle_producto", args=[pk])
+        )
+        return redirect(f"{login_url}?next={quote(next_url)}")
+
     cleanup_expired_holds()
 
     producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
@@ -273,6 +304,20 @@ def agregar_al_carrito(request, pk):
 
     if disp_para_mi <= 0:
         messages.error(request, "Sin stock disponible para esa opción.")
+        registrar_evento(
+            tipo="carrito_agregar_sin_stock",
+            titulo="Intento de agregar al carrito sin stock",
+            detalle=f"{producto.nombre_publico} (variante {var_id})",
+            user=getattr(request, "user", None),
+            obj=producto,
+            extra={
+                "producto_id": producto.id,
+                "variante_id": var_id,
+                "cantidad_solicitada": cantidad,
+                "stock_efectivo": int(disp_efectivo),
+                "mi_hold_qty": int(mi_hold_qty),
+            },
+        )
         return redirect(request.GET.get("next") or "detalle_producto", pk=pk)
 
     if cantidad > disp_para_mi:
@@ -306,6 +351,24 @@ def agregar_al_carrito(request, pk):
         hold.user = request.user
     hold.save()
 
+    # Bitácora: producto agregado al carrito
+    registrar_evento(
+        tipo="carrito_agregar",
+        titulo="Producto agregado al carrito",
+        detalle=f"{producto.nombre_publico} x{cantidad} (total item: {nuevo})",
+        user=getattr(request, "user", None),
+        obj=producto,
+        extra={
+            "producto_id": producto.id,
+            "variante_id": var_id,
+            "cantidad_agregada": cantidad,
+            "cantidad_total_item": nuevo,
+            "stock_efectivo": int(disp_efectivo),
+            "mi_hold_qty": int(mi_hold_qty),
+            "session_key": session_key,
+        },
+    )
+
     messages.success(request, f'"{producto.nombre_publico}" se agregó al carrito. (Reservado {HOLD_MINUTES} min)')
     next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or "ver_carrito"
     return redirect(next_url)
@@ -315,11 +378,13 @@ def eliminar_del_carrito(request, item_key):
     cleanup_expired_holds()
 
     cart = _get_cart(request)
+    qty_anterior = cart.get(str(item_key), 0)
     cart.pop(str(item_key), None)
     _save_cart(request, cart)
 
     # borrar hold correspondiente
     prod_id, var_id = _parse_key(item_key)
+    producto = None
     if prod_id is not None:
         producto = ProductoPrecio.objects.filter(pk=prod_id).first()
         if producto:
@@ -330,6 +395,21 @@ def eliminar_del_carrito(request, item_key):
                 producto=producto,
                 variante=variante,
             ).delete()
+
+            # Bitácora: ítem eliminado del carrito
+            registrar_evento(
+                tipo="carrito_eliminar",
+                titulo="Producto eliminado del carrito",
+                detalle=f"{producto.nombre_publico} (key={item_key})",
+                user=getattr(request, "user", None),
+                obj=producto,
+                extra={
+                    "producto_id": producto.id,
+                    "variante_id": var_id,
+                    "cantidad_eliminada": int(qty_anterior),
+                    "session_key": session_key,
+                },
+            )
 
     return redirect("ver_carrito")
 
@@ -358,6 +438,7 @@ def actualizar_cantidad(request, item_key):
 
     cart = _get_cart(request)
     session_key = _ensure_session(request)
+    qty_anterior = int(cart.get(str(item_key), 0))
 
     if qty <= 0:
         cart.pop(str(item_key), None)
@@ -367,6 +448,20 @@ def actualizar_cantidad(request, item_key):
             producto=producto,
             variante=variante,
         ).delete()
+
+        registrar_evento(
+            tipo="carrito_eliminar",
+            titulo="Producto eliminado del carrito (cantidad 0)",
+            detalle=f"{producto.nombre_publico} (key={item_key})",
+            user=getattr(request, "user", None),
+            obj=producto,
+            extra={
+                "producto_id": producto.id,
+                "variante_id": var_id,
+                "cantidad_anterior": qty_anterior,
+                "session_key": session_key,
+            },
+        )
         return redirect("ver_carrito")
 
     # limite = stock efectivo + lo reservado por mí
@@ -387,6 +482,20 @@ def actualizar_cantidad(request, item_key):
         _save_cart(request, cart)
         StockHold.objects.filter(session_key=session_key, producto=producto, variante=variante).delete()
         messages.error(request, "Ese producto quedó sin stock.")
+
+        registrar_evento(
+            tipo="carrito_sin_stock",
+            titulo="Producto quitado del carrito por falta de stock",
+            detalle=f"{producto.nombre_publico} (key={item_key})",
+            user=getattr(request, "user", None),
+            obj=producto,
+            extra={
+                "producto_id": producto.id,
+                "variante_id": var_id,
+                "cantidad_anterior": qty_anterior,
+                "session_key": session_key,
+            },
+        )
         return redirect("ver_carrito")
 
     if qty > max_para_mi:
@@ -413,6 +522,22 @@ def actualizar_cantidad(request, item_key):
         hold.user = request.user
     hold.save()
 
+    registrar_evento(
+        tipo="carrito_actualizar",
+        titulo="Cantidad de producto actualizada en carrito",
+        detalle=f"{producto.nombre_publico}: {qty_anterior} → {qty}",
+        user=getattr(request, "user", None),
+        obj=producto,
+        extra={
+            "producto_id": producto.id,
+            "variante_id": var_id,
+            "cantidad_anterior": qty_anterior,
+            "cantidad_nueva": qty,
+            "max_para_mi": max_para_mi,
+            "session_key": session_key,
+        },
+    )
+
     return redirect("ver_carrito")
 
 
@@ -420,11 +545,23 @@ def vaciar_carrito(request):
     cleanup_expired_holds()
 
     cart = _get_cart(request)
+    tamaño_anterior = len(cart)
     _save_cart(request, {})
 
     # borrar todos los holds de esta sesión
     session_key = _ensure_session(request)
     StockHold.objects.filter(session_key=session_key).delete()
+
+    registrar_evento(
+        tipo="carrito_vaciar",
+        titulo="Carrito vaciado",
+        detalle=f"Items previos: {tamaño_anterior}",
+        user=getattr(request, "user", None),
+        extra={
+            "items_previos": tamaño_anterior,
+            "session_key": session_key,
+        },
+    )
 
     return redirect("ver_carrito")
 
@@ -433,6 +570,7 @@ def vaciar_carrito(request):
 # VISTAS: FAVORITOS
 # =========================
 
+@login_required
 def mis_favoritos(request):
     favs = _get_favoritos(request)
     items = []
@@ -456,6 +594,7 @@ def mis_favoritos(request):
     return render(request, "cliente/favoritos.html", {"items": items})
 
 
+@login_required
 def agregar_favorito(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk)
 
@@ -463,16 +602,37 @@ def agregar_favorito(request, pk):
     favs[str(producto.id)] = True
     _save_favoritos(request, favs)
 
+    registrar_evento(
+        tipo="favorito_agregar",
+        titulo="Producto agregado a favoritos",
+        detalle=producto.nombre_publico,
+        user=getattr(request, "user", None),
+        obj=producto,
+        extra={"producto_id": producto.id},
+    )
+
     messages.success(request, f'"{producto.nombre_publico}" se agregó a favoritos.')
 
     next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or "mis_favoritos"
     return redirect(next_url)
 
 
+@login_required
 def eliminar_favorito(request, pk):
     favs = _get_favoritos(request)
+    estaba = pk in favs or str(pk) in favs
     favs.pop(str(pk), None)
     _save_favoritos(request, favs)
+
+    if estaba:
+        registrar_evento(
+            tipo="favorito_eliminar",
+            titulo="Producto eliminado de favoritos",
+            detalle=f"Producto ID {pk}",
+            user=getattr(request, "user", None),
+            extra={"producto_id": pk},
+        )
+
     next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or "mis_favoritos"
     return redirect(next_url)
 
@@ -490,6 +650,16 @@ def mi_cuenta(request):
         form = ProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
+
+            registrar_evento(
+                tipo="perfil_actualizado",
+                titulo="Perfil de usuario actualizado",
+                detalle=f"Usuario: {user.username} / {user.email}",
+                user=user,
+                obj=profile,
+                extra={"user_id": user.id},
+            )
+
             messages.success(request, "¡Tus datos se guardaron correctamente! 🎉")
             return redirect("catalogo")
     else:
@@ -500,6 +670,7 @@ def mi_cuenta(request):
         "form": form,
     }
     return render(request, "cliente/mi_cuenta.html", contexto)
+
 
 CANCELAR_DESPUES_MIN = 30
 
@@ -514,7 +685,7 @@ def _expire_pedidos_queryset(qs):
     """
     Marca como SIN_FINALIZAR pedidos CREADO/PENDIENTE viejos (sin cron).
     """
-    minutes = int(getattr(settings, "MP_EXPIRE_MINUTES", 60))  # ✅ configurable
+    minutes = int(getattr(settings, "MP_EXPIRE_MINUTES", 60))  # configurable
     cutoff = timezone.now() - timedelta(minutes=minutes)
 
     qs.filter(
@@ -534,7 +705,7 @@ def mis_compras(request):
         .select_related("pago_mp")
     )
 
-    # ✅ Expirar "creados" viejos
+    # Expirar "creados" viejos
     _expire_pedidos_queryset(qs)
 
     return render(request, "cliente/mis_compras.html", {"pedidos": qs})
@@ -545,6 +716,16 @@ def mis_compras(request):
 def mis_compras_detalle(request, pedido_id: int):
     pedido = get_object_or_404(Pedido, id=pedido_id, usuario=request.user)
     items = PedidoItem.objects.filter(pedido=pedido).order_by("id")
+
+    registrar_evento(
+        tipo="pedido_ver_detalle",
+        titulo=f"Vista detalle pedido #{pedido.id}",
+        detalle=f"Estado: {pedido.estado}",
+        user=request.user,
+        obj=pedido,
+        extra={"pedido_id": pedido.id, "estado": pedido.estado},
+    )
+
     return render(request, "cliente/mis_compras_detalle.html", {"pedido": pedido, "items": items})
 
 
@@ -556,12 +737,41 @@ def pedido_continuar_pago(request, pedido_id: int):
     # Solo tiene sentido continuar si no está cerrado
     if pedido.estado in [Pedido.Estado.APROBADO, Pedido.Estado.CANCELADO, Pedido.Estado.RECHAZADO, Pedido.Estado.SIN_FINALIZAR]:
         messages.warning(request, "Este pedido no se puede continuar.")
+
+        registrar_evento(
+            tipo="pedido_continuar_no_permitido",
+            titulo=f"No se puede continuar pago de pedido #{pedido.id}",
+            detalle=f"Estado: {pedido.estado}",
+            user=request.user,
+            obj=pedido,
+            extra={"pedido_id": pedido.id, "estado": pedido.estado},
+        )
+
         return redirect("mis_compras")
 
     pago = getattr(pedido, "pago_mp", None)
     if not pago or not pago.init_point:
         messages.error(request, "No encontramos el link de pago para este pedido.")
+
+        registrar_evento(
+            tipo="pedido_continuar_sin_link",
+            titulo=f"Pedido sin link de pago #{pedido.id}",
+            detalle="Mercado Pago init_point no disponible.",
+            user=request.user,
+            obj=pedido,
+            extra={"pedido_id": pedido.id},
+        )
+
         return redirect("mis_compras")
+
+    registrar_evento(
+        tipo="pedido_continuar_pago",
+        titulo=f"Continuar pago pedido #{pedido.id}",
+        detalle="Redirección a Mercado Pago.",
+        user=request.user,
+        obj=pedido,
+        extra={"pedido_id": pedido.id, "init_point": pago.init_point},
+    )
 
     return redirect(pago.init_point)
 
@@ -574,11 +784,29 @@ def pedido_cancelar(request, pedido_id: int):
     # Cancelable solo si todavía no se aprobó
     if pedido.estado == Pedido.Estado.APROBADO:
         messages.warning(request, "Un pedido aprobado no se puede cancelar desde acá.")
+
+        registrar_evento(
+            tipo="pedido_cancelar_no_permitido",
+            titulo=f"Intento de cancelar pedido aprobado #{pedido.id}",
+            detalle="El pedido ya está aprobado.",
+            user=request.user,
+            obj=pedido,
+            extra={"pedido_id": pedido.id, "estado": pedido.estado},
+        )
+
         return redirect("mis_compras")
 
-    # Si ya estaba cancelado/sin finalizar, no pasa nada
     pedido.estado = Pedido.Estado.CANCELADO
     pedido.save(update_fields=["estado"])
+
+    registrar_evento(
+        tipo="pedido_cancelar",
+        titulo=f"Pedido #{pedido.id} cancelado por el cliente",
+        detalle="Estado cambiado a CANCELADO.",
+        user=request.user,
+        obj=pedido,
+        extra={"pedido_id": pedido.id},
+    )
 
     messages.success(request, f"Pedido #{pedido.id} cancelado.")
     return redirect("mis_compras")
@@ -592,34 +820,65 @@ def pedido_eliminar(request, pedido_id: int):
     # Por seguridad: permitir borrar solo si está CREADO o SIN_FINALIZAR (evita perder historial real)
     if pedido.estado not in [Pedido.Estado.CREADO, Pedido.Estado.SIN_FINALIZAR]:
         messages.warning(request, "Solo podés eliminar pedidos no finalizados.")
+
+        registrar_evento(
+            tipo="pedido_eliminar_no_permitido",
+            titulo=f"Intento de eliminar pedido #{pedido.id} con estado {pedido.estado}",
+            detalle="Solo se permiten pedidos CREADO o SIN_FINALIZAR.",
+            user=request.user,
+            obj=pedido,
+            extra={"pedido_id": pedido.id, "estado": pedido.estado},
+        )
+
         return redirect("mis_compras")
 
+    pedido_id_val = pedido.id
+    estado_prev = pedido.estado
     pedido.delete()
-    messages.success(request, f"Pedido #{pedido_id} eliminado.")
+
+    registrar_evento(
+        tipo="pedido_eliminar",
+        titulo=f"Pedido #{pedido_id_val} eliminado por el cliente",
+        detalle=f"Estado previo: {estado_prev}",
+        user=request.user,
+        extra={"pedido_id": pedido_id_val, "estado_previo": estado_prev},
+    )
+
+    messages.success(request, f"Pedido #{pedido_id_val} eliminado.")
     return redirect("mis_compras")
 
 
 @login_required
 def logout_view(request):
+    usuario = request.user if request.user.is_authenticated else None
+
+    registrar_evento(
+        tipo="logout",
+        titulo="Usuario cerró sesión",
+        detalle=f"Usuario: {usuario.username if usuario else 'anónimo'}",
+        user=usuario,
+        extra={"user_id": getattr(usuario, "id", None)},
+    )
+
     logout(request)
     messages.info(request, "Cerraste sesión correctamente.")
     return redirect("catalogo")
 
 
 # =========================
-# REGISTRO Y LOGIN
+# REGISTRO Y LOGIN (redirección a allauth)
 # =========================
 
 def registro_view(request):
     # Si ya está logueado, lo mandamos a su cuenta
     if request.user.is_authenticated:
         return redirect("mi_cuenta")
-    # Si no, usamos el signup de allauth
+    # signup de allauth
     return redirect("account_signup")
 
 
 def login_view(request):
     if request.user.is_authenticated:
         return redirect("mi_cuenta")
-    # Usamos el login de allauth
+    # login de allauth
     return redirect("account_login")

@@ -2,16 +2,22 @@
 
 from difflib import SequenceMatcher
 from decimal import Decimal, InvalidOperation
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from datetime import datetime, timedelta
+import re
+
+from django import forms
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
-import re
+from django.forms import inlineformset_factory
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_POST
 from django.views.generic import TemplateView
 
 from pdf.models import (
@@ -24,8 +30,7 @@ from pdf.models import (
     SubRubro,
 )
 
-from .models import SiteInfoBlock  # arriba, con el resto de imports
-from django import forms
+from .models import SiteInfoBlock, SiteConfig, BitacoraEvento
 
 from owner.forms import (
     ProductoVarianteForm,
@@ -33,12 +38,18 @@ from owner.forms import (
     ProductoVarianteFormSet,
     RubroForm,
     SubRubroForm,
+    SiteConfigForm,
+    SiteInfoBlockFormSet,
 )
 
 from ofertas.models import Oferta
 from ofertas.forms import OfertaForm
 from cupones.models import Cupon
 from cupones.forms import CuponForm
+from django.core.files.base import ContentFile
+
+
+User = get_user_model()
 
 
 # -------------------------------------------------------------------
@@ -52,6 +63,44 @@ def _check_owner_or_403(user):
     if not _check_owner(user):
         raise PermissionDenied
 
+
+# -------------------------------------------------------------------
+# Helper de bitácora
+# -------------------------------------------------------------------
+def registrar_evento(tipo, titulo, detalle="", user=None, obj=None, extra=None):
+    """
+    Registra un evento en la bitácora global.
+
+    - tipo: uno de BitacoraEvento.TIPO_CHOICES (ej: "producto_creado")
+    - titulo: texto corto que se ve en la lista
+    - detalle: texto más largo y 'humano' (opcional)
+    - user: request.user o None
+    - obj: algún modelo relacionado (ProductoPrecio, Pedido, FacturaProveedor, etc.)
+    - extra: dict con datos técnicos (ids, montos, cambios, etc.)
+    """
+    datos = extra.copy() if extra else {}
+
+    obj_model = ""
+    obj_id = ""
+    if obj is not None:
+        obj_model = obj._meta.label  # "app.Model"
+        obj_id = str(getattr(obj, "pk", ""))
+
+    if user is not None and getattr(user, "is_authenticated", False):
+        usuario = user
+    else:
+        usuario = None
+
+    BitacoraEvento.objects.create(
+        usuario=usuario,
+        tipo=tipo,
+        titulo=titulo,
+        detalle=detalle or "",
+        obj_model=obj_model,
+        obj_id=obj_id,
+        extra=datos,
+        # NO hace falta pasar creado_en: auto_now_add=True lo rellena
+    )
 
 # -------------------------------------------------------------------
 # Panel principal
@@ -70,7 +119,7 @@ class AdminDashboardView(LoginRequiredMixin, TemplateView):
         - activar
         - desactivar
         - eliminar
-        - set_tech  (NUEVO)
+        - set_tech
         """
         if not _check_owner(request.user):
             raise PermissionDenied("No tienes permiso para hacer esto.")
@@ -88,7 +137,7 @@ class AdminDashboardView(LoginRequiredMixin, TemplateView):
             return redirect("home")
 
         # =========================
-        # ✅ NUEVO: asignar técnica
+        # Asignar técnica
         # =========================
         if accion == "set_tech":
             tech = (request.POST.get("bulkTech") or "").strip().upper()
@@ -110,6 +159,19 @@ class AdminDashboardView(LoginRequiredMixin, TemplateView):
                 request,
                 f"Técnica '{label}' asignada a {count} producto(s)."
             )
+
+            registrar_evento(
+                tipo="precio_actualizado",
+                titulo=f"Técnica masiva aplicada: {label}",
+                detalle=f"Se asignó la técnica {label} a {count} producto(s) desde el panel.",
+                user=request.user,
+                extra={
+                    "tech": tech,
+                    "cantidad": count,
+                    "ids": ids,
+                },
+            )
+
             return redirect("home")
 
         # =========================
@@ -119,13 +181,38 @@ class AdminDashboardView(LoginRequiredMixin, TemplateView):
             count = qs.update(activo=True)
             messages.success(request, f"Se dieron de alta {count} producto(s).")
 
+            registrar_evento(
+                tipo="producto_editado",
+                titulo="Activación masiva de productos",
+                detalle=f"Se marcaron como activos {count} producto(s) desde el panel.",
+                user=request.user,
+                extra={"cantidad": count, "ids": ids},
+            )
+
         elif accion == "desactivar":
             count = qs.update(activo=False)
             messages.warning(request, f"Se dieron de baja {count} producto(s).")
 
+            registrar_evento(
+                tipo="producto_editado",
+                titulo="Desactivación masiva de productos",
+                detalle=f"Se marcaron como inactivos {count} producto(s) desde el panel.",
+                user=request.user,
+                extra={"cantidad": count, "ids": ids},
+            )
+
         elif accion == "eliminar":
             count = qs.count()
             nombres = [p.nombre_publico or p.sku for p in qs]
+
+            registrar_evento(
+                tipo="producto_eliminado",
+                titulo=f"Eliminación masiva de {count} producto(s)",
+                detalle=", ".join(nombres[:10]) + (" ..." if len(nombres) > 10 else ""),
+                user=request.user,
+                extra={"cantidad": count, "ids": ids},
+            )
+
             qs.delete()
             messages.success(
                 request,
@@ -208,7 +295,7 @@ def _parse_precio_desde_pdf(raw: str | None) -> Decimal:
     """
     Interpreta la columna de precio del PDF.
 
-    - 'AGOTADO', 'AGOTADA', 'SIN STOCK', 'S/STOCK', '-', vacío, etc. → 0
+    - 'AGOTADO', 'AGOTADA', 'SIN STOCK', 'S/STOCK', 'SIN PRECIO', '-', vacío, etc. → 0
       (y después vos decidís si esos productos los marcás como activo=False o stock=0)
     - cualquier número con puntos y comas → lo parsea a Decimal
     """
@@ -217,94 +304,14 @@ def _parse_precio_desde_pdf(raw: str | None) -> Decimal:
 
     txt = str(raw).strip().upper()
 
-    # Palabras que indican que el proveedor no tiene stock / sin precio
     if txt in {"AGOTADO", "AGOTADA", "SIN STOCK", "S/STOCK", "SIN PRECIO", "-", ""}:
         return Decimal("0")
 
-    # Si llega acá, intentamos parsear como número normal
-    # Ej: "1.234,56" → 1234.56
     s = txt.replace(".", "").replace(",", ".")
     try:
         return Decimal(s)
     except InvalidOperation:
-        # Si igual no se puede leer, devolvemos 0 para no saltear el producto
         return Decimal("0")
-
-
-# -------------------------------------------------------------------
-# Historia de listas / facturas
-# -------------------------------------------------------------------
-class HistoriaIngresosView(LoginRequiredMixin, TemplateView):
-    template_name = "owner/historia_listas.html"
-
-    def dispatch(self, request, *args, **kwargs):
-        if not _check_owner(request.user):
-            raise PermissionDenied("No tienes permiso para ver esta página.")
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["listas_pdf"] = ListaPrecioPDF.objects.all().order_by("-fecha_subida")
-        context["facturas"] = FacturaProveedor.objects.all().order_by("-fecha_subida")
-        context["items_factura"] = ItemFactura.objects.select_related("factura").order_by(
-            "-id"
-        )
-        return context
-
-
-@login_required
-def historia_listas(request):
-    if not _check_owner(request.user):
-        raise PermissionDenied("No tienes permiso para ver esta página.")
-
-    listas = ListaPrecioPDF.objects.all().order_by("-fecha_subida")
-    return render(request, "pdf/historia_listas.html", {"listas": listas})
-
-
-@login_required
-def historia_lista_detalle(request, lista_id):
-    if not _check_owner(request.user):
-        raise PermissionDenied("No tienes permiso para ver esta página.")
-
-    lista = get_object_or_404(ListaPrecioPDF, pk=lista_id)
-    productos = ProductoPrecio.objects.filter(lista_pdf=lista).order_by("nombre_publico", "sku")
-
-    if request.method == "POST":
-        for prod in productos:
-            prefix = f"prod_{prod.id}_"
-
-            sku = request.POST.get(prefix + "sku", "").strip()
-            nombre = request.POST.get(prefix + "nombre", "").strip()
-            precio = request.POST.get(prefix + "precio", "").strip()
-            stock = request.POST.get(prefix + "stock", "").strip()
-
-            if sku:
-                prod.sku = sku
-            if nombre:
-                prod.nombre_publico = nombre
-
-            if precio:
-                try:
-                    prod.precio = Decimal(precio.replace(",", "."))
-                except Exception:
-                    pass
-
-            if stock:
-                try:
-                    prod.stock = int(stock)
-                except Exception:
-                    pass
-
-            prod.save()
-
-        messages.success(request, "Cambios guardados correctamente.")
-        return redirect("historia_lista_detalle", lista_id=lista.id)
-
-    return render(
-        request,
-        "pdf/historia_lista_detalle.html",
-        {"lista": lista, "productos": productos},
-    )
 
 
 # -------------------------------------------------------------------
@@ -325,6 +332,18 @@ def owner_producto_editar(request, pk):
         .order_by("rubro__orden", "orden", "nombre")
     )
 
+    # 📝 Guardamos valores originales para comparar luego
+    original_data = {
+        "sku": producto.sku,
+        "nombre_publico": producto.nombre_publico,
+        "precio": producto.precio,
+        "stock": producto.stock,
+        "tech": producto.tech,
+        "activo": producto.activo,
+        "rubro": producto.rubro,
+        "subrubro": producto.subrubro,
+    }
+
     if request.method == "POST":
         action = request.POST.get("action", "")
 
@@ -336,16 +355,57 @@ def owner_producto_editar(request, pk):
                 producto.imagen.delete(save=False)
                 producto.imagen = None
                 producto.save(update_fields=["imagen"])
+
+                # Evento: imagen eliminada
+                registrar_evento(
+                    tipo="producto_editado",
+                    titulo=f"Imagen eliminada: {producto.nombre_publico or producto.sku}",
+                    detalle="Se eliminó la imagen principal del producto.",
+                    user=request.user,
+                    obj=producto,
+                    extra={
+                        "cambios": {
+                            "imagen": {"antes": "con_imagen", "despues": "sin_imagen"}
+                        }
+                    },
+                )
+
             messages.success(request, "Imagen eliminada.")
             return redirect("owner_producto_editar", pk=producto.pk)
 
         if action == "toggle_active":
-            producto.activo = not bool(producto.activo)
+            old_activo = bool(producto.activo)
+            producto.activo = not old_activo
             producto.save(update_fields=["activo"])
+
+            registrar_evento(
+                tipo="producto_editado",
+                titulo=f"Producto {'activado' if producto.activo else 'desactivado'}: {producto.nombre_publico or producto.sku}",
+                detalle=f"Campo activo: {old_activo} → {producto.activo}",
+                user=request.user,
+                obj=producto,
+                extra={
+                    "cambios": {
+                        "activo": {"antes": old_activo, "despues": bool(producto.activo)}
+                    }
+                },
+            )
+
             messages.success(request, "Estado actualizado.")
             return redirect("owner_producto_editar", pk=producto.pk)
 
         if action == "delete_product":
+            nombre = producto.nombre_publico or producto.sku
+
+            registrar_evento(
+                tipo="producto_eliminado",
+                titulo=f"Producto eliminado: {nombre}",
+                detalle=f"Producto '{nombre}' eliminado desde el panel owner.",
+                user=request.user,
+                obj=producto,
+                extra={"producto_id": producto.pk, "sku": producto.sku},
+            )
+
             producto.delete()
             messages.success(request, "Producto eliminado.")
             return redirect("home")
@@ -353,7 +413,6 @@ def owner_producto_editar(request, pk):
         # ====================
         # Guardar producto + variantes
         # ====================
-        # Inline formset de variantes
         vformset = ProductoVarianteFormSet(
             request.POST,
             request.FILES,
@@ -376,13 +435,13 @@ def owner_producto_editar(request, pk):
         rubro_nombre = (request.POST.get("rubro_nombre") or "").strip()
         subrubro_nombre = (request.POST.get("subrubro_nombre") or "").strip()
 
-        nombre = (producto.nombre_publico or producto.sku or "").strip()
+        nombre_prod = (producto.nombre_publico or producto.sku or "").strip()
         tech = producto.tech or ""
 
         rubro_obj = None
         if not rubro_nombre:
             # Intentar detectarlo automáticamente
-            rubro_obj = _detectar_rubro_auto(nombre, tech)
+            rubro_obj = _detectar_rubro_auto(nombre_prod, tech)
             if rubro_obj:
                 rubro_nombre = rubro_obj.nombre
         else:
@@ -410,6 +469,37 @@ def owner_producto_editar(request, pk):
                     producto.stock = total_stock
                     producto.save(update_fields=["stock"])
 
+            # 🧾 Armar dif de campos básicos
+            cambios = {}
+            for field, old_val in original_data.items():
+                new_val = getattr(producto, field)
+                if new_val != old_val:
+                    cambios[field] = {
+                        "antes": str(old_val),
+                        "despues": str(new_val),
+                    }
+
+            detalle_str = "Producto actualizado."
+            if cambios:
+                partes = []
+                for field, diff in cambios.items():
+                    partes.append(
+                        f"{field}: '{diff['antes']}' → '{diff['despues']}'"
+                    )
+                detalle_str += " Cambios: " + "; ".join(partes)
+
+            registrar_evento(
+                tipo="producto_editado",
+                titulo=f"Producto editado: {producto.nombre_publico or producto.sku}",
+                detalle=detalle_str,
+                user=request.user,
+                obj=producto,
+                extra={
+                    "cambios": cambios,
+                    "variantes_modificadas": vformset.has_changed(),
+                },
+            )
+
             messages.success(request, "Producto actualizado.")
             return redirect("owner_producto_editar", pk=producto.pk)
         else:
@@ -436,7 +526,6 @@ def owner_producto_editar(request, pk):
         },
     )
 
-
 @login_required
 def owner_producto_toggle_activo(request, pk):
     if request.method != "POST":
@@ -448,6 +537,15 @@ def owner_producto_toggle_activo(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk)
     producto.activo = not producto.activo
     producto.save(update_fields=["activo"])
+
+    registrar_evento(
+        tipo="producto_editado",
+        titulo=f"Producto {'activado' if producto.activo else 'desactivado'}: {producto.nombre_publico or producto.sku}",
+        detalle="Cambio de estado desde acción rápida del panel.",
+        user=request.user,
+        obj=producto,
+        extra={"activo": producto.activo},
+    )
 
     if producto.activo:
         messages.success(request, f"{producto.nombre_publico} se marcó como ACTIVO.")
@@ -467,8 +565,17 @@ def owner_producto_eliminar(request, pk):
 
     producto = get_object_or_404(ProductoPrecio, pk=pk)
     nombre = producto.nombre_publico or producto.sku
-    producto.delete()
 
+    registrar_evento(
+        tipo="producto_eliminado",
+        titulo=f"Producto eliminado definitivamente: {nombre}",
+        detalle="El producto fue eliminado desde acción rápida del panel.",
+        user=request.user,
+        obj=producto,
+        extra={"sku": producto.sku},
+    )
+
+    producto.delete()
     messages.success(request, f"Producto '{nombre}' eliminado definitivamente.")
     return redirect("home")
 
@@ -497,12 +604,39 @@ def owner_productos_acciones_masivas(request):
     if accion == "baja":
         count = qs.update(activo=False)
         messages.warning(request, f"{count} producto(s) marcados como INACTIVOS.")
+
+        registrar_evento(
+            tipo="producto_editado",
+            titulo="Desactivación masiva (modo antiguo)",
+            detalle=f"{count} producto(s) marcados como INACTIVOS desde acciones masivas antiguas.",
+            user=request.user,
+            extra={"cantidad": count, "ids": ids},
+        )
+
     elif accion == "alta":
         count = qs.update(activo=True)
         messages.success(request, f"{count} producto(s) marcados como ACTIVOS.")
+
+        registrar_evento(
+            tipo="producto_editado",
+            titulo="Activación masiva (modo antiguo)",
+            detalle=f"{count} producto(s) marcados como ACTIVOS desde acciones masivas antiguas.",
+            user=request.user,
+            extra={"cantidad": count, "ids": ids},
+        )
+
     elif accion == "eliminar":
         count = qs.count()
         nombres = [p.nombre_publico or p.sku for p in qs]
+
+        registrar_evento(
+            tipo="producto_eliminado",
+            titulo=f"Eliminación masiva (modo antiguo) de {count} producto(s)",
+            detalle=", ".join(nombres[:10]) + (" ..." if len(nombres) > 10 else ""),
+            user=request.user,
+            extra={"cantidad": count, "ids": ids},
+        )
+
         qs.delete()
         messages.success(
             request,
@@ -516,7 +650,6 @@ def owner_productos_acciones_masivas(request):
 
 
 # ---------- CUPONES ----------
-
 def owner_cupon_list(request):
     cupones = Cupon.objects.all().order_by("-fecha_inicio")
     return render(request, "owner/cupon_list.html", {"cupones": cupones})
@@ -552,7 +685,6 @@ def owner_cupon_delete(request, cupon_id):
 
 
 # ---------- OFERTAS ----------
-
 def owner_oferta_list(request):
     ofertas = Oferta.objects.all()
     return render(request, "owner/oferta_list.html", {"ofertas": ofertas})
@@ -625,16 +757,26 @@ def _score_rubro_para_producto(tokens_producto: set[str], obj_con_nombre, tech_p
 
     score = 0.0
 
+    STOPWORDS = {"porta", "para", "de", "del", "la", "el", "y", "para", "con"}
+
     for tp in tokens_producto:
+        tp = tp.lower().strip()
+        if tp in STOPWORDS:
+            continue
+
         for tr in tokens_rubro:
+            tr = tr.lower().strip()
+            if tr in STOPWORDS:
+                continue
+
             if tp == tr:
                 score += 1.0
             else:
-                sim = SequenceMatcher(None, tp, tr).ratio()
-                if sim >= 0.8:
-                    score += sim
+                if len(tp) >= 4 and len(tr) >= 4:
+                    sim = SequenceMatcher(None, tp, tr).ratio()
+                    if sim >= 0.9:
+                        score += sim
 
-    # Miramos técnica en Rubro o en Rubro asociado
     tech_obj = ""
     if hasattr(obj_con_nombre, "tech"):
         tech_obj = obj_con_nombre.tech or ""
@@ -695,15 +837,11 @@ def owner_producto_create_ui(request):
         form = ProductoPrecioForm(request.POST, request.FILES)
         vformset = ProductoVarianteFormSet(request.POST, request.FILES, prefix="variants")
 
-        # 💡 IMPORTANTE: validamos primero
         if form.is_valid() and vformset.is_valid():
-            # No guardamos todavía en DB
             producto = form.save(commit=False)
 
-            # Guardamos aparte la imagen para asignarla DESPUÉS del primer save()
             imagen_file = form.cleaned_data.get("imagen")
 
-            # si no ponen nombre_publico, usar sku
             if not (producto.nombre_publico or "").strip():
                 producto.nombre_publico = producto.sku
 
@@ -714,7 +852,6 @@ def owner_producto_create_ui(request):
             subrubro_nombre = (request.POST.get("subrubro_nombre") or "").strip()
 
             rubro_obj = None
-            # 🔹 Si NO eligieron rubro en el select → intentamos adivinarlo
             if not rubro_nombre:
                 rubro_obj = _detectar_rubro_auto(nombre, tech)
                 if rubro_obj:
@@ -725,43 +862,49 @@ def owner_producto_create_ui(request):
                     activo=True
                 ).first()
 
-            # Guardamos siempre rubro y subrubro (subrubro puede quedar vacío)
             producto.rubro = rubro_nombre
             producto.subrubro = subrubro_nombre
 
-            # ⚠️ Primer save SIN imagen (para que ya tenga ID)
-            #    Si tu upload_to usa el ID, esto evita que explote
             producto.imagen = None
             producto.save()
 
-            # 🔁 Ahora sí: asignamos imagen y guardamos SOLO ese campo
             if imagen_file:
                 producto.imagen = imagen_file
                 try:
                     producto.save(update_fields=["imagen"])
                 except Exception as e:
-                    # No tiramos todo por la borda si la imagen falla:
-                    # el producto queda creado y mostramos el error
                     messages.error(
                         request,
                         f"El producto se creó pero hubo un problema guardando la imagen: {e}"
                     )
 
-            # ===== Variantes =====
             vformset.instance = producto
             vformset.save()
 
-            # Si hay variantes activas, recalculamos stock
             variantes_activas = producto.variantes.filter(activo=True)
             if variantes_activas.exists():
                 total = sum(v.stock or 0 for v in variantes_activas)
                 producto.stock = total
                 producto.save(update_fields=["stock"])
 
+            registrar_evento(
+                tipo="producto_creado",
+                titulo=f"Producto creado: {producto.nombre_publico or producto.sku}",
+                detalle="Artículo creado desde el panel.",
+                user=request.user,
+                obj=producto,
+                extra={
+                    "sku": producto.sku,
+                    "precio": str(producto.precio),
+                    "stock": producto.stock,
+                    "rubro": producto.rubro,
+                    "subrubro": producto.subrubro,
+                },
+            )
+
             messages.success(request, "Artículo creado correctamente.")
             return redirect("catalogo")
         else:
-            # Si algo falla, mostramos errores (por si el problema viene por validación)
             messages.error(request, "Hay errores en el formulario o en las variantes. Revisá los campos.")
     else:
         form = ProductoPrecioForm()
@@ -855,72 +998,64 @@ def owner_subrubro_create(request):
         form = SubRubroForm()
     return render(request, "owner/subrubro_form.html", {"form": form})
 
-class SiteInfoBlockForm(forms.ModelForm):
-    class Meta:
-        model = SiteInfoBlock
-        fields = ["clave", "titulo", "contenido", "orden", "activo"]
-        widgets = {
-            "contenido": forms.Textarea(attrs={"rows": 4}),
-        }
-
 
 @login_required
 def owner_siteinfo_list(request):
-    """
-    Pantalla simple para editar los bloques de info que aparecen en el footer.
-    """
     if not _check_owner(request.user):
-        raise PermissionDenied
+        raise PermissionDenied("Solo el dueño puede editar esta sección")
 
-    bloques = SiteInfoBlock.objects.all().order_by("orden", "titulo")
+    site_cfg = SiteConfig.get_solo()
+
+    qs = SiteInfoBlock.objects.filter(site=site_cfg).order_by("orden", "id")
+
+    PREFIX = "info_blocks"
 
     if request.method == "POST":
-        forms_list = []
-        ok = True
-
-        for bloque in bloques:
-            form = SiteInfoBlockForm(
-                request.POST,
-                prefix=f"b{bloque.id}",
-                instance=bloque,
-            )
-            forms_list.append(form)
-            if not form.is_valid():
-                ok = False
-
-        # Permitimos agregar un bloque nuevo (opcional)
-        nuevo_form = SiteInfoBlockForm(
+        formset = SiteInfoBlockFormSet(
             request.POST,
-            prefix="nuevo",
+            queryset=qs,
+            prefix=PREFIX,
         )
-        if nuevo_form.has_changed():
-            if nuevo_form.is_valid():
-                nuevo_form.save()
-            else:
-                ok = False
 
-        if ok:
-            for form in forms_list:
-                form.save()
-            messages.success(request, "Información del sitio actualizada.")
+        if formset.is_valid():
+            instances = formset.save(commit=False)
+
+            for obj in instances:
+                obj.site = site_cfg
+                obj.save()
+
+            for obj in formset.deleted_objects:
+                obj.delete()
+
+            messages.success(request, "Información del sitio actualizada correctamente.")
+
+            registrar_evento(
+                tipo="siteinfo_edit",
+                titulo="Información del sitio actualizada",
+                detalle="Se modificaron los bloques de información del catálogo.",
+                user=request.user,
+                obj=site_cfg,
+            )
+
             return redirect("owner_siteinfo_list")
         else:
-            messages.error(request, "Revisá los errores en los bloques.")
-
+            messages.error(
+                request,
+                "Revisá los errores en los bloques. "
+                "Los que estén en rojo tienen algún problema.",
+            )
     else:
-        forms_list = [
-            SiteInfoBlockForm(prefix=f"b{b.id}", instance=b) for b in bloques
-        ]
-        nuevo_form = SiteInfoBlockForm(prefix="nuevo")
-
-    data = list(zip(bloques, forms_list))
+        formset = SiteInfoBlockFormSet(
+            queryset=qs,
+            prefix=PREFIX,
+        )
 
     return render(
         request,
-        "owner/siteinfo_list.html",
+        "owner/owner_info_sitio.html",
         {
-            "bloques_forms": data,
-            "nuevo_form": nuevo_form,
+            "formset": formset,
+            "site_cfg": site_cfg,
         },
     )
 
@@ -929,10 +1064,6 @@ def owner_siteinfo_list(request):
 def owner_filtros_panel(request):
     """
     Panel para administrar Rubros y Subrubros desde el front owner.
-    - Alta de Rubro (con técnica)
-    - Alta de Subrubro asociado a un Rubro
-    - Edición y eliminación de Rubro y SubRubro
-    - Listado agrupado por técnica con accordion
     """
 
     if not _check_owner(request.user):
@@ -941,26 +1072,18 @@ def owner_filtros_panel(request):
     TECH_CHOICES = [
         ("SUB", "Sublimación"),
         ("LAS", "Grabado láser"),
-        ("3D",  "Impresión 3D"),
+        ("3D", "Impresión 3D"),
         ("OTR", "Otros"),
     ]
 
-    # =====================
-
-
-
-    # POST: acciones
-    # =====================
     if request.method == "POST":
-        # ---- Crear rubro ----
         if "add_rubro" in request.POST:
             nombre = (request.POST.get("nombre_rubro") or "").strip()
-            tech = (request.POST.get("tech") or "").strip()  # SUB / LAS / 3D / OTR
+            tech = (request.POST.get("tech") or "").strip()
 
             if not nombre or not tech:
                 messages.error(request, "Completá el nombre del rubro y la técnica.")
             else:
-                # Evitar duplicados por nombre + técnica
                 existe = Rubro.objects.filter(
                     nombre__iexact=nombre,
                     tech=tech,
@@ -976,7 +1099,6 @@ def owner_filtros_panel(request):
 
             return redirect("owner_filtros_panel")
 
-        # ---- Crear subrubro ----
         if "add_subrubro" in request.POST:
             nombre = (request.POST.get("nombre_subrubro") or "").strip()
             rubro_id = request.POST.get("rubro_id")
@@ -986,7 +1108,6 @@ def owner_filtros_panel(request):
             else:
                 rubro = get_object_or_404(Rubro, pk=rubro_id)
 
-                # Evitar duplicados por rubro + nombre
                 existe = SubRubro.objects.filter(
                     rubro=rubro,
                     nombre__iexact=nombre,
@@ -1005,7 +1126,6 @@ def owner_filtros_panel(request):
 
             return redirect("owner_filtros_panel")
 
-        # ---- Editar rubro ----
         if "edit_rubro" in request.POST:
             rubro_id = request.POST.get("rubro_id")
             rubro = get_object_or_404(Rubro, pk=rubro_id)
@@ -1033,19 +1153,17 @@ def owner_filtros_panel(request):
 
             return redirect("owner_filtros_panel")
 
-        # ---- Eliminar rubro ----
         if "delete_rubro" in request.POST:
             rubro_id = request.POST.get("rubro_id")
             rubro = get_object_or_404(Rubro, pk=rubro_id)
             nombre = rubro.nombre
-            rubro.delete()  # borra también sus subrubros por on_delete=CASCADE
+            rubro.delete()
             messages.success(
                 request,
                 f"Rubro “{nombre}” y sus subfiltros asociados fueron eliminados."
             )
             return redirect("owner_filtros_panel")
 
-        # ---- Editar subrubro ----
         if "edit_subrubro" in request.POST:
             sub_id = request.POST.get("subrubro_id")
             sub = get_object_or_404(SubRubro, pk=sub_id)
@@ -1070,7 +1188,6 @@ def owner_filtros_panel(request):
 
             return redirect("owner_filtros_panel")
 
-        # ---- Eliminar subrubro ----
         if "delete_subrubro" in request.POST:
             sub_id = request.POST.get("subrubro_id")
             sub = get_object_or_404(SubRubro, pk=sub_id)
@@ -1083,16 +1200,12 @@ def owner_filtros_panel(request):
             )
             return redirect("owner_filtros_panel")
 
-    # =====================
-    # GET: listar rubros + subrubros
-    # =====================
     rubros_qs = (
         Rubro.objects
         .prefetch_related("subrubros")
         .order_by("tech", "orden", "nombre")
     )
 
-    # Agrupar rubros por técnica para el accordion
     rubros_por_tech = []
     rubros_list = list(rubros_qs)
     for code, label in TECH_CHOICES:
@@ -1128,7 +1241,6 @@ def owner_api_rubro_create(request):
     if not nombre:
         return JsonResponse({"ok": False, "error": "El nombre del rubro es obligatorio."}, status=400)
 
-    # Opcional: si no mandás tech, lo dejamos vacío
     rubro, created = Rubro.objects.get_or_create(
         nombre=nombre,
         defaults={
@@ -1138,7 +1250,6 @@ def owner_api_rubro_create(request):
         },
     )
 
-    # Si ya existía pero sin técnica y ahora tenemos, podríamos actualizarla
     if not created and tech and not rubro.tech:
         rubro.tech = tech
         rubro.save(update_fields=["tech"])
@@ -1197,17 +1308,7 @@ def owner_api_subrubro_create(request):
 
 def _build_sugerencias_rubros():
     """
-    Devuelve una lista de sugerencias de rubro/subrubro para productos activos:
-
-    [
-      {
-        "producto": <ProductoPrecio>,
-        "rubro": <Rubro>,
-        "subrubro": <SubRubro> | None,
-        "score": 2.7,
-      },
-      ...
-    ]
+    Devuelve una lista de sugerencias de rubro/subrubro para productos activos.
     """
 
     productos = ProductoPrecio.objects.filter(activo=True)
@@ -1229,12 +1330,10 @@ def _build_sugerencias_rubros():
         rubro_actual = (p.rubro or "").strip().lower()
         subrubro_actual = (p.subrubro or "").strip().lower()
 
-        # 1) Intentar matchear SUBRUBROS primero
         best_sub = None
         best_sub_score = 0.0
 
         for s in subrubros:
-            # respetar técnica si ambas están definidas
             if tech_p and s.rubro.tech and s.rubro.tech != tech_p:
                 continue
 
@@ -1248,7 +1347,6 @@ def _build_sugerencias_rubros():
             rubro_sug_nombre = (rubro_sug.nombre or "").strip().lower()
             sub_sug_nombre = (best_sub.nombre or "").strip().lower()
 
-            # Si ya tiene exactamente ese rubro + ese subfiltro, no lo sugerimos
             if rubro_actual == rubro_sug_nombre and subrubro_actual == sub_sug_nombre:
                 continue
 
@@ -1258,9 +1356,8 @@ def _build_sugerencias_rubros():
                 "subrubro": best_sub,
                 "score": round(best_sub_score, 2),
             })
-            continue  # ya tenemos una buena sugerencia por subrubro
+            continue
 
-        # 2) Si no hay buen subrubro, probamos RUBROS
         best_rubro = None
         best_rubro_score = 0.0
 
@@ -1276,7 +1373,6 @@ def _build_sugerencias_rubros():
         if best_rubro and best_rubro_score >= 1.0:
             rubro_sug_nombre = (best_rubro.nombre or "").strip().lower()
 
-            # Si ya tiene ese rubro (aunque subrubro distinto), no sugerimos nada
             if rubro_actual == rubro_sug_nombre:
                 continue
 
@@ -1296,9 +1392,6 @@ def _build_sugerencias_rubros():
 def owner_autorubros(request):
     """
     Pantalla para sugerir rubros a productos basados en el nombre.
-    - Muestra sugerencia de rubro/subrubro
-    - Permite cambiar rubro y elegir subfiltro por cada producto
-    - Aplica solo a los que marcás (checkbox)
     """
 
     if not _check_owner(request.user):
@@ -1327,12 +1420,19 @@ def owner_autorubros(request):
 
         if aplicadas:
             messages.success(request, f"Se actualizaron {aplicadas} producto(s).")
+
+            registrar_evento(
+                tipo="rubros_asignados",
+                titulo="Asignación automática de rubros/subrubros",
+                detalle=f"Se actualizaron {aplicadas} producto(s) desde Autorubros.",
+                user=request.user,
+                extra={"cantidad": aplicadas},
+            )
         else:
             messages.info(request, "No se aplicó ningún cambio (ningún producto marcado).")
 
         return redirect("owner_autorubros")
 
-    # GET
     sugerencias = _build_sugerencias_rubros()
 
     rubros = Rubro.objects.filter(activo=True).order_by("tech", "orden", "nombre")
@@ -1350,5 +1450,98 @@ def owner_autorubros(request):
             "sugerencias": sugerencias,
             "rubros": rubros,
             "subrubros": subrubros,
+        },
+    )
+
+
+@login_required
+def owner_siteconfig_edit(request):
+    if not _check_owner(request.user):
+        raise PermissionDenied
+
+    cfg = SiteConfig.get_solo()
+    if request.method == "POST":
+        form = SiteConfigForm(request.POST, instance=cfg)
+        if form.is_valid():
+            cfg = form.save()
+            messages.success(request, "Configuración guardada ✅")
+
+            registrar_evento(
+                tipo="siteconfig_edit",
+                titulo="Personalización del sitio actualizada",
+                detalle="Se modificaron colores, tipografías o textos globales de la tienda.",
+                user=request.user,
+                obj=cfg,
+            )
+
+            return redirect("owner_siteconfig_edit")
+    else:
+        form = SiteConfigForm(instance=cfg)
+
+    return render(request, "owner/siteconfig_form.html", {"form": form})
+
+
+@login_required
+def owner_historia_global(request):
+    """
+    Bitácora global de la tienda (movimientos principales).
+    """
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para ver la bitácora.")
+
+    tipo = (request.GET.get("tipo") or "").strip()
+    usuario_id = (request.GET.get("usuario") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+    desde = (request.GET.get("desde") or "").strip()
+    hasta = (request.GET.get("hasta") or "").strip()
+
+    eventos = BitacoraEvento.objects.all().select_related("usuario")
+
+    if tipo:
+        eventos = eventos.filter(tipo=tipo)
+
+    if usuario_id:
+        eventos = eventos.filter(usuario_id=usuario_id)
+
+    if q:
+        eventos = eventos.filter(
+            Q(titulo__icontains=q) |
+            Q(detalle__icontains=q) |
+            Q(extra__icontains=q)
+        )
+
+    if desde:
+        try:
+            dt_desde = datetime.strptime(desde, "%Y-%m-%d")
+            dt_desde = timezone.make_aware(dt_desde)
+            eventos = eventos.filter(created_at__gte=dt_desde)
+        except ValueError:
+            pass
+
+    if hasta:
+        try:
+            dt_hasta = datetime.strptime(hasta, "%Y-%m-%d")
+            dt_hasta = timezone.make_aware(dt_hasta + timedelta(days=1))
+            eventos = eventos.filter(created_at__lt=dt_hasta)
+        except ValueError:
+            pass
+
+    eventos = eventos[:500]
+
+    usuarios = User.objects.filter(bitacora_eventos__isnull=False).distinct()
+    tipos = BitacoraEvento.TIPO_CHOICES
+
+    return render(
+        request,
+        "owner/historia_global.html",
+        {
+            "eventos": eventos,
+            "usuarios": usuarios,
+            "tipos": tipos,
+            "f_tipo": tipo,
+            "f_usuario": usuario_id,
+            "f_q": q,
+            "f_desde": desde,
+            "f_hasta": hasta,
         },
     )

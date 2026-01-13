@@ -48,7 +48,8 @@
     <table class="table align-middle mb-0" id="itemsTable">
       <thead class="table-light sticky-top" style="top:0; z-index:1;">
         <tr>
-          <th style="min-width:760px;">Producto</th>
+          <th style="min-width:260px;">Producto</th>
+          <th style="min-width:260px;">Descripción (opcional)</th>
           <th style="width:140px;">Precio</th>
           <th style="width:140px;">Cantidad</th>
           <th style="width:140px;">Subtotal</th>
@@ -164,15 +165,29 @@ function wireAutocomplete(tr){
   });
 }
 
-function addRow(nombre="", precio="", cantidad=1){
+function addRow(nombre="", descripcion="", precio="", cantidad=1){
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td style="position:relative;">
-      <input class="form-control form-control-sm item-nombre" name="item_nombre[]" value="${nombre}" autocomplete="off" required>
+      <input class="form-control form-control-sm item-nombre"
+             name="item_nombre[]" value="${nombre}" autocomplete="off" required>
       <div class="list-group position-absolute w-100 shadow-sm d-none suggestions" style="z-index:20;"></div>
     </td>
-    <td><input class="form-control form-control-sm" name="item_precio[]" value="${precio}" inputmode="decimal" placeholder="0.00" required></td>
-    <td><input class="form-control form-control-sm" name="item_cantidad[]" value="${cantidad}" type="number" min="1" required></td>
+    <td>
+      <input class="form-control form-control-sm item-descripcion"
+             name="item_descripcion[]" value="${descripcion}"
+             placeholder="Ej: taza blanca que diga 'Te quiero'">
+    </td>
+    <td>
+      <input class="form-control form-control-sm"
+             name="item_precio[]" value="${precio}"
+             inputmode="decimal" placeholder="0.00" required>
+    </td>
+    <td>
+      <input class="form-control form-control-sm"
+             name="item_cantidad[]" value="${cantidad}"
+             type="number" min="1" required>
+    </td>
     <td class="subtotal">0.00</td>
     <td class="text-end">
       <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)">X</button>
@@ -186,6 +201,7 @@ function addRow(nombre="", precio="", cantidad=1){
   recalc();
 }
 
+// fila inicial
 addRow();
 </script>
 {% endblock %}

@@ -17,8 +17,7 @@ from django.db.models import F
 from .models import Pedido, PedidoItem, PagoMP
 from .utils import build_cart_summary
 
-from cliente.models import ProductoPrecio
-from pdf.models import ProductoVariante
+from pdf.models import ProductoPrecio, ProductoVariante  # 👈 corregido: vienen de pdf.models
 
 MP_API = "https://api.mercadopago.com"
 
@@ -55,6 +54,22 @@ def _map_estado_from_mp_return(request, fallback=None):
     return fallback
 
 
+def _redirect_post_mp(pedido_id: str | None):
+    """
+    Después de que MP nos devuelve (success/pending/failure),
+    mandamos al usuario a la vista de detalle del pedido, si tenemos id.
+    Si no, caemos a la lista de 'mis_compras'.
+    """
+    if pedido_id:
+        try:
+            pid = int(pedido_id)
+        except ValueError:
+            return redirect("mis_compras")
+        return redirect("mis_compras_detalle", pedido_id=pid)
+
+    return redirect("mis_compras")
+
+
 @require_POST
 def mp_crear_preferencia(request):
     items, total, cupon, descuento_cupon = build_cart_summary(request)
@@ -67,12 +82,25 @@ def mp_crear_preferencia(request):
         messages.error(request, "Falta MP_ACCESS_TOKEN en el entorno.")
         return redirect("ver_carrito")
 
-    # Volvemos a endpoints MP que redirigen a "mis compras"
+    # ==========================
+    # URLs absolutas en Render
+    # ==========================
     success_url = _abs_from_site(reverse("mp_success"))
     pending_url = _abs_from_site(reverse("mp_pending"))
     failure_url = _abs_from_site(reverse("mp_failure"))
     notification_url = _abs_from_site(reverse("mp_webhook"))
 
+    # DEBUG: ver qué se manda a MP (miralo en logs de Render)
+    print("MP back_urls:", {
+        "success": success_url,
+        "pending": pending_url,
+        "failure": failure_url,
+        "notification": notification_url,
+    })
+
+    # ==========================
+    # Crear pedido interno
+    # ==========================
     pedido = Pedido.objects.create(
         total=total,
         moneda="ARS",
@@ -102,6 +130,9 @@ def mp_crear_preferencia(request):
             subtotal=it["subtotal_final"],
         )
 
+    # ==========================
+    # Payload para Mercado Pago
+    # ==========================
     preference_payload = {
         "items": [
             {
@@ -123,6 +154,7 @@ def mp_crear_preferencia(request):
             "failure": failure_url,
         },
         "notification_url": notification_url,
+        # 👇 En Render usamos siempre auto_return
         "auto_return": "approved",
     }
 
@@ -140,6 +172,8 @@ def mp_crear_preferencia(request):
             err = r.json()
         except Exception:
             err = {"raw": r.text}
+
+        print("MP ERROR:", err)
         messages.error(request, f"Mercado Pago respondió {r.status_code}: {err}")
         return redirect("ver_carrito")
 
@@ -165,7 +199,7 @@ def mp_crear_preferencia(request):
 
 
 # ===========================
-# MP returns -> redirigir a Mis compras
+# MP returns -> redirigir a Mis compras / Detalle
 # ===========================
 
 @require_GET
@@ -182,9 +216,11 @@ def mp_success(request):
 @require_GET
 def mp_pending(request):
     pedido_id = _get_pedido_id_from_mp_return(request)
+
     if pedido_id:
         Pedido.objects.filter(id=pedido_id).update(estado=Pedido.Estado.PENDIENTE)
-    return redirect(f"{reverse('mis_compras')}?pedido={pedido_id or ''}")
+
+    return _redirect_post_mp(pedido_id)
 
 
 @require_GET
@@ -195,7 +231,7 @@ def mp_failure(request):
     if pedido_id:
         Pedido.objects.filter(id=pedido_id).update(estado=estado)
 
-    return redirect(f"{reverse('mis_compras')}?pedido={pedido_id or ''}")
+    return _redirect_post_mp(pedido_id)
 
 
 def _is_valid_signature(request, data_id: str | None) -> bool:

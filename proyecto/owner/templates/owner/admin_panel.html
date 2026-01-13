@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load humanize %}
 
 {% block title %}Panel de administración{% endblock %}
 
@@ -108,7 +109,7 @@
       <div class="card-body d-flex flex-wrap gap-2">
         <a class="btn btn-mp primary" href="{% url 'importar_pdf' %}">📥 Importar PDF</a>
         <a class="btn btn-mp primary" href="{% url 'procesar_factura' %}">🧾 Procesar factura</a>
-        <a class="btn btn-mp neutral" href="{% url 'historia_listas' %}">📚 Historia</a>
+        <a class="btn btn-mp primary" href="{% url 'owner_historia_global' %}">📜 Historia global</a>
         <a class="btn btn-mp warning" href="{% url 'owner_cupon_list' %}">🎟️ Cupones</a>
         <a class="btn btn-mp success" href="{% url 'owner_oferta_list' %}">💸 Ofertas</a>
         <a class="btn btn-mp primary" href="{% url 'owner_producto_create_ui' %}">➕ Nuevo artículo</a>
@@ -117,6 +118,8 @@
         <a class="btn btn-mp primary" href="{% url 'owner_autorubros' %}">🧾 Auto-Rubros</a>
         <a class="btn btn-mp neutral" href="{% url 'owner_filtros_panel' %}">🧩 Filtros de catálogo</a>
         <a class="btn btn-mp primary" href="{% url 'owner_siteinfo_list' %}">📝 Información del sitio</a>
+        <a class="btn btn-mp primary" href="{% url 'owner_siteconfig_edit' %}">🎨 Personalizar sitio</a>
+
       </div>
     </div>
 
@@ -259,7 +262,7 @@
                     </span>
                   </td>
                   <td class="text-center">{{ p.stock }}</td>
-                  <td class="text-end fw-bold">$ {{ p.precio|floatformat:2 }}</td>
+                  <td class="text-end fw-bold">$ {{ p.precio|floatformat:0|intcomma }}</td>
                   <td class="text-end">
                     <a class="btn btn-sm btn-mp primary" href="{% url 'owner_producto_editar' p.id %}">
                       Editar
@@ -312,6 +315,20 @@
   const gotoBtn = document.getElementById("gotoEditBtn");
   const gotoTA = document.getElementById("gotoEditTypeahead");
 
+  // Formateo de precio (sin decimales + separador de miles)
+  function formatARSNoDecimals(value) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "number") {
+      return Math.round(value).toLocaleString("es-AR");
+    }
+    const s = String(value).trim();
+    const num = Number(s.replace(/\./g, "").replace(",", "."));
+    if (!Number.isFinite(num)) {
+      return s.replace(/([.,]\d{1,2})$/, "");
+    }
+    return Math.round(num).toLocaleString("es-AR");
+  }
+
   if (gotoQ && gotoBtn && gotoTA) {
     let gotoTimer = null;
     let gotoIndex = -1;
@@ -335,7 +352,7 @@
           btn.type = "button";
           btn.className = "dropdown-item";
           btn.innerHTML = `<strong>${p.sku}</strong> — ${p.nombre_publico}
-                           <span class="badge rounded-pill badge-soft ms-2">$ ${p.precio}</span>`;
+                           <span class="badge rounded-pill badge-soft ms-2">$ ${formatARSNoDecimals(p.precio)}</span>`;
           btn.addEventListener("click", () => {
             window.location.href = `{% url 'owner_producto_editar' 0 %}`.replace("/0/", `/${p.id}/`);
           });
@@ -389,7 +406,7 @@
       else if (e.key === "Escape") { gotoHide(); }
     });
 
-    gotoQ.addEventListener("blur", () => setTimeout(gotoHide, 150));
+    gotoQ.addEventListener("blur", () => setTimeout(gotoHide(), 150));
 
     gotoBtn.addEventListener("click", () => {
       const term = gotoQ.value.trim();

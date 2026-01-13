@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}Mundo Personalizado{% endblock %}</title>
+  <title>{% block title %}{{ site_cfg.texts.site_title|default:"Mundo Personalizado" }}{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Bootstrap CSS -->
@@ -12,13 +12,50 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 
+  {# === THEME (desde SiteConfig) === #}
+  {% if site_cfg.google_fonts_url %}
+  <link rel="stylesheet" href="{{ site_cfg.google_fonts_url }}">
+  {% endif %}
+
+  <style id="mp-theme-vars">
+    :root {
+      --mp-primary: {{ site_cfg.primary_color|default:"#0d6efd" }};
+      --mp-secondary: {{ site_cfg.secondary_color|default:"#6c757d" }};
+      --mp-success: {{ site_cfg.success_color|default:"#198754" }};
+      --mp-danger: {{ site_cfg.danger_color|default:"#dc3545" }};
+      --mp-muted: {{ site_cfg.muted_color|default:"#6c757d" }};
+      --mp-bg: {{ site_cfg.background|default:"#f8f9fa" }};
+      --mp-surface: {{ site_cfg.surface|default:"#ffffff" }};
+      --mp-text: {{ site_cfg.text_color|default:"#111111" }};
+      --mp-primary-rgb: {{ site_cfg.primary_rgb|default:"13,110,253" }};
+      --mp-font-base: {{ site_cfg.font_base|default:"system-ui, -apple-system, Segoe UI, Roboto, Arial" }};
+      --mp-font-headings: {{ site_cfg.font_headings|default:"system-ui, -apple-system, Segoe UI, Roboto, Arial" }};
+
+      /* Bootstrap mapping */
+      --bs-primary: var(--mp-primary);
+      --bs-secondary: var(--mp-secondary);
+      --bs-success: var(--mp-success);
+      --bs-danger: var(--mp-danger);
+      --bs-body-bg: var(--mp-bg);
+      --bs-body-color: var(--mp-text);
+      --bs-font-sans-serif: var(--mp-font-base);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      font-family: var(--mp-font-headings);
+    }
+  </style>
+
   <style>
     :root {
       --mp-border: rgba(0, 0, 0, .10);
       --mp-shadow: 0 10px 28px rgba(0, 0, 0, .08);
       --mp-shadow-soft: 0 6px 16px rgba(0, 0, 0, .06);
-      --mp-text: #111;
-      --mp-muted: #6c757d;
 
       /* ✅ Más cuadrado */
       --mp-radius: 10px;
@@ -30,8 +67,17 @@
     body {
       color: var(--mp-text);
       background:
-        radial-gradient(1100px 360px at 50% 0%, rgba(13, 110, 253, .07), transparent 60%),
-        #f8f9fa;
+        radial-gradient(1100px 360px at 50% 0%, rgba(var(--mp-primary-rgb), .07), transparent 60%),
+        var(--mp-bg);
+      font-family: var(--mp-font-base);
+    }
+
+    /* Superficies principales: tarjetas, navbar, footer, dropdowns */
+    .card,
+    .mp-navbar,
+    .mp-footer,
+    .dropdown-menu {
+      background-color: var(--mp-surface) !important;
     }
 
     main.container {
@@ -59,7 +105,7 @@
     .btn-mp {
       border-radius: var(--mp-radius-sm) !important;
       border: 1px solid rgba(0, 0, 0, .12) !important;
-      background: rgba(255, 255, 255, .92) !important;
+      background: var(--mp-surface) !important;
       color: #111 !important;
       font-weight: 650;
       box-shadow: 0 4px 12px rgba(0, 0, 0, .06);
@@ -69,7 +115,7 @@
     .btn-mp:hover {
       transform: translateY(-1px);
       box-shadow: 0 12px 22px rgba(0, 0, 0, .10);
-      background: #fff !important;
+      background: var(--mp-surface) !important;
     }
 
     .btn-mp:active {
@@ -115,7 +161,6 @@
       position: sticky;
       top: 0;
       z-index: 1030;
-      background: rgba(255, 255, 255, .86);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--mp-border);
@@ -132,12 +177,24 @@
       color: rgba(0, 0, 0, .95);
     }
 
+    /* === Fondo sólido para el panel de filtros (offcanvas) === */
+    .offcanvas {
+      background-color: var(--mp-surface) !important;  /* panel con color sólido */
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    .offcanvas-header,
+    .offcanvas-body {
+      background-color: var(--mp-surface) !important;  /* interior también sólido */
+    }
+
     /* ✅ Mantengo tus estilos de producto */
     .product-thumb {
       position: relative;
       width: 100%;
       padding-top: 100%;
-      background: #f7f7f7;
+      background: var(--mp-surface);
       border-radius: var(--mp-radius);
       overflow: hidden;
       border: 1px solid rgba(0, 0, 0, .06);
@@ -201,7 +258,6 @@
 
     /* Footer */
     .mp-footer {
-      background: rgba(255, 255, 255, .92);
       border-top: 1px solid var(--mp-border);
     }
 
@@ -211,6 +267,71 @@
       text-transform: uppercase;
       letter-spacing: .08em;
       color: var(--mp-muted);
+    }
+
+    /* En celulares, que el numerito del carrito/favoritos vaya en línea, no flotando afuera */
+    @media (max-width: 575.98px) {
+      .nav-icon .badge {
+        position: static !important;
+        transform: none !important;
+        top: auto !important;
+        left: auto !important;
+        right: auto !important;
+        margin-left: .25rem;
+      }
+    }
+
+    /* ===== Versión compacta de tarjetas SOLO en móviles ===== */
+    @media (max-width: 575.98px) {
+
+      /* columnas un poco más juntas */
+      .catalog-grid>[class*="col-"] {
+        margin-bottom: .75rem;
+      }
+
+      .product-card {
+        font-size: .8rem;
+      }
+
+      .product-card .card-body {
+        padding: .45rem .55rem .6rem;
+      }
+
+      /* La imagen deja de ser 1:1 y se hace más baja */
+      .product-card .product-thumb {
+        padding-top: 70%;
+      }
+
+      .product-card .card-title {
+        font-size: .9rem;
+        margin-bottom: .25rem;
+      }
+
+      .product-card .card-text {
+        font-size: .8rem;
+        line-height: 1.25;
+      }
+
+      .product-card .price,
+      .product-card .price span {
+        font-size: .9rem;
+      }
+
+      .product-card .badge {
+        transform: scale(.9);
+      }
+
+    }
+
+    /* ===== Limitar títulos de producto a 4 renglones (catálogo) ===== */
+    .catalog-grid .card-title {
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+      min-height: calc(1.2em * 4);
     }
   </style>
 
@@ -229,7 +350,7 @@
           style="width:34px;height:34px;border-radius:12px;background:rgba(13,110,253,.10);border:1px solid rgba(13,110,253,.18);">
           <i class="fa-solid fa-wand-magic-sparkles"></i>
         </span>
-        Mundo Personalizado
+        {{ site_cfg.texts.brand_name|default:"Mundo Personalizado" }}
       </a>
 
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
@@ -239,13 +360,13 @@
 
       <div id="mainNav" class="collapse navbar-collapse">
 
-
         <!-- Buscador -->
         <form id="navSearchForm" class="d-flex ms-auto my-2 my-lg-0 gap-2 flex-grow-1" role="search" method="get"
           action="{% url 'catalogo' %}">
           <div class="position-relative flex-grow-1">
-            <input class="form-control" name="q" id="navSearchInput" type="search" placeholder="Buscar productos…"
-              autocomplete="off" value="{{ request.GET.q|default:'' }}">
+            <input class="form-control" name="q" id="navSearchInput" type="search"
+              placeholder="{{ site_cfg.texts.search_placeholder|default:'Buscar productos…' }}" autocomplete="off"
+              value="{{ request.GET.q|default:'' }}">
             <!-- Dropdown resultados -->
             <div id="navSearchResults" class="dropdown-menu w-100 p-0 shadow"
               style="max-height: 380px; overflow:auto; display:none;">
@@ -262,7 +383,7 @@
           <li class="nav-item">
             <a class="nav-link d-flex align-items-center" href="{% url 'home' %}">
               <i class="fa-solid fa-gauge-high me-1"></i>
-              <span class="d-none d-lg-inline">Admin panel</span>
+              <span>Admin panel</span>
             </a>
           </li>
           {% endif %}
@@ -272,9 +393,7 @@
             <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button"
               data-bs-toggle="dropdown" aria-expanded="false">
               <i class="fa-regular fa-user me-1"></i>
-              <span class="d-none d-lg-inline">
-                {{ request.user.first_name|default:"Mi cuenta" }}
-              </span>
+              <span>{{ request.user.first_name|default:"Mi cuenta" }}</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><a class="dropdown-item" href="{% url 'mi_cuenta' %}">Mi cuenta</a></li>
@@ -289,21 +408,22 @@
           <li class="nav-item">
             <a class="nav-link d-flex align-items-center" href="{% url 'login' %}">
               <i class="fa-regular fa-user me-1"></i>
-              <span class="d-none d-lg-inline">Ingresar</span>
+              <span>Ingresar</span>
             </a>
           </li>
           {% endif %}
 
           <!-- Carrito -->
           <li class="nav-item dropdown">
-            <a class="nav-link position-relative nav-icon" href="#" role="button" data-bs-toggle="dropdown"
-              aria-expanded="false" aria-label="Carrito">
+            <a class="nav-link position-relative nav-icon d-flex align-items-center" href="#" role="button"
+              data-bs-toggle="dropdown" aria-expanded="false" aria-label="Carrito">
               <i class="fa-solid fa-bag-shopping"></i>
               {% if cart_total_qty %}
               <span class="badge bg-primary position-absolute top-0 start-100 translate-middle">
                 {{ cart_total_qty }}
               </span>
               {% endif %}
+              <span class="ms-1 d-lg-none">Carrito</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 280px;">
               {% if cart_items %}
@@ -340,14 +460,15 @@
 
           <!-- Favoritos -->
           <li class="nav-item dropdown">
-            <a class="nav-link position-relative nav-icon" href="#" role="button" data-bs-toggle="dropdown"
-              aria-expanded="false" aria-label="Favoritos">
+            <a class="nav-link position-relative nav-icon d-flex align-items-center" href="#" role="button"
+              data-bs-toggle="dropdown" aria-expanded="false" aria-label="Favoritos">
               <i class="fa-solid fa-heart"></i>
               {% if favorites_count %}
               <span class="badge bg-danger position-absolute top-0 start-100 translate-middle">
                 {{ favorites_count }}
               </span>
               {% endif %}
+              <span class="ms-1 d-lg-none">Favoritos</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 280px;">
               {% if favorites_items %}
@@ -396,7 +517,7 @@
   <section class="mt-2 mb-4">
     <div class="container">
       <p class="siteinfo-section-title mb-2 text-center text-md-start">
-        Más sobre Mundo Personalizado
+        {{ site_cfg.texts.siteinfo_section_title|default:"Más sobre Mundo Personalizado" }}
       </p>
 
       <div class="accordion" id="siteInfoAccordion">
@@ -426,25 +547,32 @@
   <footer class="mp-footer py-4 mt-auto">
     <div class="container">
       <div class="d-flex flex-column flex-md-row gap-3 justify-content-center">
-        <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-mp success">
-          <i class="fab fa-whatsapp me-1"></i> ¿Tenés dudas? ¡Escribinos!
+        <a href="{{ site_cfg.texts.whatsapp_url|default:'https://wa.me/message/NSO7K5POCXLKE1' }}" target="_blank"
+          class="btn btn-mp success">
+          <i class="fab fa-whatsapp me-1"></i>
+          {{ site_cfg.texts.whatsapp_cta|default:"¿Tenés dudas? ¡Escribinos!" }}
         </a>
-        <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-mp danger">
-          <i class="fab fa-instagram me-1"></i> Nuestro Instagram
+        <a href="{{ site_cfg.texts.instagram_url|default:'https://www.instagram.com/_mundo_personalizado/?next=%2F' }}"
+          target="_blank" class="btn btn-mp danger">
+          <i class="fab fa-instagram me-1"></i>
+          {{ site_cfg.texts.instagram_cta|default:"Nuestro Instagram" }}
         </a>
       </div>
       <p class="text-center text-muted small mt-3 mb-0">
-        © {{ now|date:"Y" }} Mundo Personalizado · Hecho con amor y detalle ✨
+        © {{ now|date:"Y" }} {{ site_cfg.texts.brand_name|default:"Mundo Personalizado" }} ·
+        {{ site_cfg.texts.footer_tagline|default:"Hecho con amor y detalle ✨" }}
       </p>
     </div>
   </footer>
 
   <!-- BOTONES FLOTANTES -->
   <div class="floating-btn">
-    <a href="https://wa.me/message/NSO7K5POCXLKE1" target="_blank" class="btn btn-success">
+    <a href="{{ site_cfg.texts.whatsapp_url|default:'https://wa.me/message/NSO7K5POCXLKE1' }}" target="_blank"
+      class="btn btn-success">
       <i class="fab fa-whatsapp"></i>
     </a>
-    <a href="https://www.instagram.com/_mundo_personalizado/?next=%2F" target="_blank" class="btn btn-danger">
+    <a href="{{ site_cfg.texts.instagram_url|default:'https://www.instagram.com/_mundo_personalizado/?next=%2F' }}"
+      target="_blank" class="btn btn-danger">
       <i class="fab fa-instagram"></i>
     </a>
   </div>
@@ -498,12 +626,13 @@
     }
     const csrftoken = getCookie('csrftoken');
   </script>
-    <script>
+
+  <script>
     // ===== Autocomplete buscador catálogo =====
     document.addEventListener('DOMContentLoaded', function () {
-      const input   = document.getElementById('navSearchInput');
-      const menu    = document.getElementById('navSearchResults');
-      const form    = document.getElementById('navSearchForm');
+      const input = document.getElementById('navSearchInput');
+      const menu = document.getElementById('navSearchResults');
+      const form = document.getElementById('navSearchForm');
       const suggestUrl = "{% url 'catalogo_api_suggest' %}";
 
       if (!input || !menu) return;
@@ -539,7 +668,7 @@
 
         items.forEach((p, i) => {
           const a = document.createElement('a');
-          a.href = p.url || ('/producto/' + p.id + '/'); // fallback si no mandás url
+          a.href = p.url || ('/producto/' + p.id + '/'); // fallback
           a.className = 'dropdown-item py-2 small d-flex align-items-center';
 
           a.innerHTML = `
@@ -576,7 +705,7 @@
         if (menu.style.display !== 'block') return;
         const newIndex = (currentIndex === -1 ? 0 : currentIndex + delta);
         setActiveIndex(newIndex);
-        items[currentIndex].scrollIntoView({ block: 'nearest' });
+        items[currentIndex].scrollIntoView({ block: "nearest" });
       }
 
       function pickSelection() {
@@ -634,13 +763,11 @@
         setTimeout(hideMenu, 180);
       });
 
-      // Si el usuario envía el form, se comporta como búsqueda normal
       if (form) {
         form.addEventListener('submit', () => hideMenu());
       }
     });
   </script>
-
 
   {% block scripts %}{% endblock %}
 </body>

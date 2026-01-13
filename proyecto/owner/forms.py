@@ -3,7 +3,129 @@ from django import forms
 from django.forms import inlineformset_factory
 
 from pdf.models import ProductoVariante, ProductoPrecio, Rubro, SubRubro
+from django.forms import modelformset_factory
+from .models import SiteInfoBlock 
+from .models import SiteConfig
 
+class SiteConfigForm(forms.ModelForm):
+    class Meta:
+        model = SiteConfig
+        fields = [
+            "primary_color", "secondary_color", "success_color", "danger_color",
+            "muted_color",  # si lo tenés en el modelo
+            "background", "surface", "text_color",
+            "primary_rgb",  # si lo tenés en el modelo
+            "font_base", "font_headings", "google_fonts_url",
+            "texts",
+        ]
+        widgets = {
+            # Colores como pickers, pero con clase para que se vean mejor
+            "primary_color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+            "secondary_color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+            "success_color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+            "danger_color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+            "muted_color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+            "background": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+            "surface": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+            "text_color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
+
+            "primary_rgb": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "13,110,253",
+                }
+            ),
+            "font_base": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "Ej: 'Poppins', system-ui, sans-serif",
+                }
+            ),
+            "font_headings": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "Ej: 'Poppins', system-ui, sans-serif",
+                }
+            ),
+            "google_fonts_url": forms.URLInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "https://fonts.googleapis.com/…",
+                }
+            ),
+            "texts": forms.Textarea(
+                attrs={
+                    "rows": 10,
+                    "class": "form-control form-control-sm",
+                }
+            ),
+        }
+
+
+class SiteInfoBlockForm(forms.ModelForm):
+    class Meta:
+        model = SiteInfoBlock
+        fields = ("clave", "titulo", "contenido", "orden", "activo")
+        widgets = {
+            "clave": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "p.ej. acerca-de",
+                }
+            ),
+            "titulo": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "Título que ve el usuario",
+                }
+            ),
+            "contenido": forms.Textarea(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "rows": 4,
+                    "placeholder": "Texto que se muestra al desplegar el bloque…",
+                }
+            ),
+            "orden": forms.NumberInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "min": "1",
+                    "style": "max-width: 90px;",
+                }
+            ),
+            # 'activo' lo ocultamos en el template (lo manejan los botones)
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+
+        # Si está marcado para borrar, no validamos nada más
+        if self.cleaned_data.get("DELETE"):
+            return cleaned
+
+        titulo = (cleaned.get("titulo") or "").strip()
+        contenido = (cleaned.get("contenido") or "").strip()
+        orden = cleaned.get("orden")
+
+        if not titulo:
+            self.add_error("titulo", "Poné un título para el bloque.")
+        if not contenido:
+            self.add_error("contenido", "El contenido no puede estar vacío.")
+        if orden is None:
+            self.add_error("orden", "Indicá un número de orden (1, 2, 3…).")
+        elif orden < 1:
+            self.add_error("orden", "El orden debe ser 1 o mayor.")
+
+        return cleaned
+
+
+
+SiteInfoBlockFormSet = modelformset_factory(
+    SiteInfoBlock,
+    form=SiteInfoBlockForm,
+    extra=1,
+    can_delete=True
+)
 
 # =========================
 # Rubros / Subrubros

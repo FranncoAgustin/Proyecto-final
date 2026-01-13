@@ -34,8 +34,49 @@ from .utils import extraer_precios_de_pdf, get_similarity
 from .utils_ocr import extraer_datos_factura
 from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
 from ofertas.utils import get_precio_con_oferta
+from owner.models import BitacoraEvento
+from django.core.files.base import ContentFile
+
+
 
 Q2 = Decimal("0.01")
+
+
+# ===================== Helper bitácora =====================
+
+def registrar_evento(tipo, titulo, detalle="", user=None, obj=None, extra=None):
+    """
+    Registra un evento en la bitácora global.
+    - tipo: uno de BitacoraEvento.TIPO_CHOICES (ej: "producto_creado")
+    - titulo: texto corto que se ve en la lista
+    - detalle: texto más largo (opcional)
+    - user: request.user o None
+    - obj: algún modelo relacionado (ProductoPrecio, Pedido, etc.)
+    - extra: dict con datos (ids, montos, etc.)
+    """
+    datos = extra.copy() if extra else {}
+
+    obj_model = ""
+    obj_id = ""
+    if obj is not None:
+        obj_model = obj._meta.label  # "app.Model"
+        obj_id = str(getattr(obj, "pk", ""))
+
+    if user is not None and getattr(user, "is_authenticated", False):
+        usuario = user
+    else:
+        usuario = None
+
+    BitacoraEvento.objects.create(
+        usuario=usuario,
+        tipo=tipo,
+        titulo=titulo,
+        detalle=detalle or "",
+        obj_model=obj_model,
+        obj_id=obj_id,
+        extra=datos,
+    )
+
 
 # ===================== STOCK =====================
 
@@ -320,7 +361,7 @@ def mostrar_precios(request):
         "filtros_menu": _build_filtros_menu(),
         "q": q,
         "tech_actual": tech_filter,
-            "rubro_actual": rubro_filter,
+        "rubro_actual": rubro_filter,
         "subrubro_actual": subrubro_filter,
     }
 
@@ -393,6 +434,7 @@ def detalle_producto(request, pk):
         },
     )
 
+
 # ===================== API (OPCIONAL) PARA CAMBIO DE VARIANTE =====================
 
 @require_GET
@@ -462,6 +504,21 @@ def agregar_al_carrito(request, pk):
 
     cart[key] = min(stock_disp, cart.get(key, 0) + cantidad)
     _save_cart(request, cart)
+
+    # 🔹 Bitácora: producto agregado al carrito
+    registrar_evento(
+        tipo="carrito_agregar",
+        titulo="Producto agregado al carrito",
+        detalle=f"{producto.nombre_publico or producto.sku} x{cantidad} (variante {variante_id})",
+        user=getattr(request, "user", None),
+        obj=producto,
+        extra={
+            "producto_id": producto.id,
+            "variante_id": variante_id,
+            "cantidad": cantidad,
+            "en_carrito": cart[key],
+        },
+    )
 
     messages.success(request, "Producto agregado al carrito.")
     return redirect("detalle_producto", pk=pk)
@@ -707,6 +764,24 @@ def importar_pdf(request):
             f"activos no vistos {len(report['not_seen_active'])}."
         )
 
+        # 🔹 Bitácora: lista de precios procesada
+        registrar_evento(
+            tipo="lista_precio_importada",
+            titulo=f"Lista de precios procesada: {lista_pdf.nombre}",
+            detalle=msg,
+            user=getattr(request, "user", None),
+            obj=lista_pdf,
+            extra={
+                "lista_id": lista_pdf.id,
+                "imported": report["imported"],
+                "updated": report["updated"],
+                "skipped": report["skipped"],
+                "not_found": len(report["not_found"]),
+                "not_seen_active": len(report["not_seen_active"]),
+                "usd_to_review": len(report["usd_to_review"]),
+            },
+        )
+
         return render(
             request,
             'pdf/importar_pdf.html',
@@ -727,6 +802,20 @@ def importar_pdf(request):
             archivo_pdf=archivo_pdf,
         )
         pdf_path = os.path.join(settings.MEDIA_ROOT, lista_pdf.archivo_pdf.name)
+
+        # 🔹 Bitácora: lista de precios subida
+        registrar_evento(
+            tipo="lista_precio_subida",
+            titulo=f"Lista de precios subida: {lista_pdf.nombre}",
+            detalle=f"Archivo: {lista_pdf.archivo_pdf.name}",
+            user=getattr(request, "user", None),
+            obj=lista_pdf,
+            extra={
+                "lista_id": lista_pdf.id,
+                "archivo": lista_pdf.archivo_pdf.name,
+                "update_only": update_only,
+            },
+        )
 
         # Nueva versión: items + errores de parseo
         productos_extraidos, parse_errors = extraer_precios_de_pdf(pdf_path)
@@ -849,6 +938,11 @@ def procesar_factura(request):
             except Exception:
                 pass
 
+        items_creados = 0
+        productos_creados = 0
+        productos_stock_actualizado = 0
+        productos_precio_actualizado = 0
+
         with transaction.atomic():
 
             for index, item in enumerate(items_sesion):
@@ -880,6 +974,7 @@ def procesar_factura(request):
                     precio_unitario=precio,
                     subtotal=subtotal,
                 )
+                items_creados += 1
 
                 # -------------------------
                 # Vinculación con catálogo
@@ -915,6 +1010,7 @@ def procesar_factura(request):
                         stock=0,
                         activo=True,
                     )
+                    productos_creados += 1
 
                 if not producto:
                     continue
@@ -924,15 +1020,37 @@ def procesar_factura(request):
                     ProductoPrecio.objects.filter(pk=producto.pk).update(
                         stock=F("stock") + int(cantidad)
                     )
+                    productos_stock_actualizado += 1
 
                 # Actualizar costo (precio)
                 if upd_precio:
                     producto.precio = precio
                     producto.save(update_fields=["precio"])
+                    productos_precio_actualizado += 1
 
         # limpiar sesión UNA SOLA VEZ
         request.session.pop("factura_id", None)
         request.session.pop("items_factura", None)
+
+        # 🔹 Bitácora: factura de proveedor confirmada
+        registrar_evento(
+            tipo="factura_proveedor_confirmada",
+            titulo=f"Factura de proveedor procesada (ID {factura.pk})",
+            detalle=(
+                f"Items: {items_creados}, productos creados: {productos_creados}, "
+                f"stock actualizado: {productos_stock_actualizado}, "
+                f"precio actualizado: {productos_precio_actualizado}."
+            ),
+            user=getattr(request, "user", None),
+            obj=factura,
+            extra={
+                "factura_id": factura.pk,
+                "items_creados": items_creados,
+                "productos_creados": productos_creados,
+                "productos_stock_actualizado": productos_stock_actualizado,
+                "productos_precio_actualizado": productos_precio_actualizado,
+            },
+        )
 
         messages.success(
             request,
@@ -949,6 +1067,19 @@ def procesar_factura(request):
         if form.is_valid():
             factura = form.save()
             path = os.path.join(settings.MEDIA_ROOT, factura.archivo.name)
+
+            # 🔹 Bitácora: factura de proveedor cargada
+            registrar_evento(
+                tipo="factura_proveedor_subida",
+                titulo=f"Factura de proveedor subida (ID {factura.pk})",
+                detalle="Factura de proveedor cargada para análisis automático.",
+                user=getattr(request, "user", None),
+                obj=factura,
+                extra={
+                    "factura_id": factura.pk,
+                    "archivo": factura.archivo.name,
+                },
+            )
 
             texto_manual = request.POST.get("texto_manual", "").strip()
             if texto_manual:
@@ -1246,6 +1377,24 @@ def lista_precios_opciones(request):
                 onFirstPage=draw_header_and_watermark,
                 onLaterPages=draw_header_and_watermark,
             )
+
+            # 🔹 Bitácora: lista de precios PDF generada
+            registrar_evento(
+                tipo="lista_precios_pdf_generada",
+                titulo="Lista de precios PDF generada",
+                detalle=(
+                    f"Técnica: {tecnica}, incluir SKU: {incluir_sku}, "
+                    f"descuento mayorista: {descuento}"
+                ),
+                user=getattr(request, "user", None),
+                extra={
+                    "tecnica": tecnica,
+                    "incluir_sku": incluir_sku,
+                    "descuento_mayorista": str(descuento),
+                    "cantidad_productos": qs.count(),
+                },
+            )
+
             return resp
 
     else:
@@ -1270,14 +1419,16 @@ def factura_crear(request):
             nombres = request.POST.getlist("item_nombre[]")
             precios = request.POST.getlist("item_precio[]")
             cantidades = request.POST.getlist("item_cantidad[]")
+            descripciones = request.POST.getlist("item_descripcion[]")
 
             items = []
             total = Decimal("0.00")
 
-            for nom, pre, cant in zip(nombres, precios, cantidades):
+            for nom, pre, cant, desc in zip(nombres, precios, cantidades, descripciones):
                 nom = (nom or "").strip()
                 if not nom:
                     continue
+
                 precio = _to_decimal(pre, "0").quantize(Q2)
                 try:
                     qty = int(cant)
@@ -1291,13 +1442,14 @@ def factura_crear(request):
 
                 items.append({
                     "nombre": nom,
+                    "descripcion": (desc or "").strip(),
                     "precio": precio,
                     "cantidad": qty,
                     "subtotal": subtotal,
                 })
 
-            # ====== generar PDF ======
-            return _factura_pdf_response(form.cleaned_data, items, total)
+            # ====== generar PDF + registrar en bitácora (con adjunto) ======
+            return _factura_pdf_response(request, form.cleaned_data, items, total)
 
     else:
         form = FacturaForm(initial=initial)
@@ -1305,7 +1457,234 @@ def factura_crear(request):
     return render(request, "pdf/factura_form.html", {"form": form})
 
 
-def _factura_pdf_response(data, items, total):
+def _factura_pdf_response(request, data, items, total):
+    filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
+
+    # Buffer en memoria para crear el PDF
+    buffer = BytesIO()
+
+    styles = getSampleStyleSheet()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=2.0 * cm,
+        rightMargin=2.0 * cm,
+        topMargin=1.8 * cm,
+        bottomMargin=1.8 * cm,
+    )
+
+    story = []
+
+    # Helper para texto seguro en Paragraph (evitar problemas con <, >, &)
+    def _rl_safe(text):
+        return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # Logo
+    logo_path = os.path.join(settings.MEDIA_ROOT, "branding", "logo.png")
+
+    left = []
+    if os.path.exists(logo_path):
+        left.append(Image(logo_path, width=2.8 * cm, height=2.8 * cm))
+    else:
+        left.append(Paragraph("<b>Mundo Personalizado</b>", styles["Title"]))
+
+    titulo = Paragraph(
+        "<para align='center'>"
+        "<b>FACTURA SIN VALOR FISCAL</b><br/>"
+        f"<font size=9>Fecha: {timezone.localtime().strftime('%d/%m/%Y %H:%M')}</font><br/>"
+        f"<font size=9>Validez: {int(data.get('validez_dias') or 7)} días</font>"
+        "</para>",
+        styles["Normal"],
+    )
+
+    vendedor = Paragraph(
+        "<para align='right'>"
+        f"<b>{_rl_safe(data['vendedor_nombre'])}</b><br/>"
+        f"WhatsApp: {_rl_safe(data['vendedor_whatsapp'])}<br/>"
+        f"Horario: {_rl_safe(data['vendedor_horario'])}<br/>"
+        f"{_rl_safe(data['vendedor_direccion'])}"
+        "</para>",
+        styles["Normal"],
+    )
+
+    header = Table([[left, titulo, vendedor]], colWidths=[3.2 * cm, 7.0 * cm, 6.0 * cm])
+    header.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.75, colors.lightgrey),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 10),
+            ]
+        )
+    )
+    story.append(header)
+    story.append(Spacer(1, 0.5 * cm))
+
+    # Cliente (cajita)
+    cliente = Table(
+        [
+            [
+                Paragraph(
+                    f"<b>Cliente</b><br/>"
+                    f"Nombre: {_rl_safe(data['cliente_nombre'])}<br/>"
+                    f"Tel: {_rl_safe(data.get('cliente_telefono') or '—')}<br/>"
+                    f"DNI/CUIL: {_rl_safe(data.get('cliente_doc') or '—')}<br/>"
+                    f"Dirección: {_rl_safe(data.get('cliente_direccion') or '—')}",
+                    styles["Normal"],
+                )
+            ]
+        ],
+        colWidths=[16.2 * cm],
+    )
+
+    cliente.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.6, colors.lightgrey),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    story.append(cliente)
+    story.append(Spacer(1, 0.5 * cm))
+
+    # Items (nombre + descripción debajo)
+    table_data = [["Producto", "Cant.", "Unitario", "Subtotal"]]
+
+    for it in items:
+        nombre_safe = _rl_safe(it["nombre"])
+        desc_safe = _rl_safe(it.get("descripcion") or "")
+
+        if desc_safe:
+            prod_text = (
+                f"<b>{nombre_safe}</b><br/>"
+                f"<font size='8' color='#777777'>{desc_safe}</font>"
+            )
+        else:
+            prod_text = f"<b>{nombre_safe}</b>"
+
+        prod_paragraph = Paragraph(prod_text, styles["Normal"])
+
+        table_data.append(
+            [
+                prod_paragraph,
+                str(it["cantidad"]),
+                f"$ {it['precio']:.2f}",
+                f"$ {it['subtotal']:.2f}",
+            ]
+        )
+
+    tabla = Table(
+        table_data,
+        colWidths=[9.5 * cm, 1.5 * cm, 2.6 * cm, 2.6 * cm],
+        repeatRows=1,
+    )
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.append(tabla)
+    story.append(Spacer(1, 0.5 * cm))
+
+    sena = _to_decimal(data.get("sena") or "0", "0").quantize(Q2)
+    saldo = (total - sena).quantize(Q2)
+
+    resumen = Table(
+        [
+            ["Seña:", f"$ {sena:.2f}"],
+            ["Total:", f"$ {total.quantize(Q2):.2f}"],
+            ["Falta abonar:", f"$ {saldo:.2f}"],
+        ],
+        colWidths=[12.0 * cm, 4.2 * cm],
+    )
+
+    resumen.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 11),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    story.append(resumen)
+
+    story.append(Spacer(1, 0.4 * cm))
+    story.append(
+        Paragraph(
+            "<para align='center'><font size=8 color='#666666'>"
+            "Presupuesto / Factura sin valor fiscal. Validez 7 días salvo indicación contraria."
+            "</font></para>",
+            styles["Normal"],
+        )
+    )
+
+    # Construimos el PDF en el buffer
+    doc.build(story)
+
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    # ====== Registrar evento con adjunto ======
+    usuario = request.user if request.user.is_authenticated else None
+
+    items_resumen = [
+        {
+            "nombre": it["nombre"],
+            "descripcion": it.get("descripcion") or "",
+            "cantidad": it["cantidad"],
+            "precio": str(it["precio"]),
+            "subtotal": str(it["subtotal"]),
+        }
+        for it in items
+    ]
+
+    extra = {
+        "cliente_nombre": data.get("cliente_nombre"),
+        "cliente_telefono": data.get("cliente_telefono"),
+        "cliente_doc": data.get("cliente_doc"),
+        "cliente_direccion": data.get("cliente_direccion"),
+        "total": str(total.quantize(Q2)),
+        "sena": str(sena),
+        "saldo": str(saldo),
+        "items": items_resumen,
+    }
+
+    evento = BitacoraEvento.objects.create(
+        usuario=usuario,
+        tipo="factura_pdf_generada",
+        titulo=f"Factura PDF generada para {data.get('cliente_nombre') or 'cliente sin nombre'}",
+        detalle=f"Total $ {total.quantize(Q2):.2f} - Items: {len(items)}",
+        obj_model="",
+        obj_id="",
+        extra=extra,
+    )
+
+    # Guardamos el PDF como archivo adjunto del evento
+    evento.archivo.save(filename, ContentFile(pdf_bytes))
+    # (archivo.save ya persiste el evento)
+
+    # ====== Respuesta HTTP con el PDF ======
+    resp = HttpResponse(content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    resp.write(pdf_bytes)
+    return resp
+
     filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
     resp = HttpResponse(content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
@@ -1318,6 +1697,10 @@ def _factura_pdf_response(data, items, total):
     )
 
     story = []
+
+    # Helper para texto seguro en Paragraph (evitar problemas con <, >, &)
+    def _rl_safe(text):
+        return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     # Logo
     logo_path = os.path.join(settings.MEDIA_ROOT, "branding", "logo.png")
@@ -1339,10 +1722,10 @@ def _factura_pdf_response(data, items, total):
 
     vendedor = Paragraph(
         "<para align='right'>"
-        f"<b>{data['vendedor_nombre']}</b><br/>"
-        f"WhatsApp: {data['vendedor_whatsapp']}<br/>"
-        f"Horario: {data['vendedor_horario']}<br/>"
-        f"{data['vendedor_direccion']}"
+        f"<b>{_rl_safe(data['vendedor_nombre'])}</b><br/>"
+        f"WhatsApp: {_rl_safe(data['vendedor_whatsapp'])}<br/>"
+        f"Horario: {_rl_safe(data['vendedor_horario'])}<br/>"
+        f"{_rl_safe(data['vendedor_direccion'])}"
         "</para>",
         styles["Normal"]
     )
@@ -1356,14 +1739,14 @@ def _factura_pdf_response(data, items, total):
     story.append(header)
     story.append(Spacer(1, 0.5*cm))
 
-    # Cliente (más “cajita”)
+    # Cliente (cajita)
     cliente = Table([[
         Paragraph(
             f"<b>Cliente</b><br/>"
-            f"Nombre: {data['cliente_nombre']}<br/>"
-            f"Tel: {data.get('cliente_telefono') or '—'}<br/>"
-            f"DNI/CUIL: {data.get('cliente_doc') or '—'}<br/>"
-            f"Dirección: {data.get('cliente_direccion') or '—'}",
+            f"Nombre: {_rl_safe(data['cliente_nombre'])}<br/>"
+            f"Tel: {_rl_safe(data.get('cliente_telefono') or '—')}<br/>"
+            f"DNI/CUIL: {_rl_safe(data.get('cliente_doc') or '—')}<br/>"
+            f"Dirección: {_rl_safe(data.get('cliente_direccion') or '—')}",
             styles["Normal"]
         )
     ]], colWidths=[16.2*cm])
@@ -1379,11 +1762,25 @@ def _factura_pdf_response(data, items, total):
     story.append(cliente)
     story.append(Spacer(1, 0.5*cm))
 
-    # Items
+    # Items (nombre + descripción debajo)
     table_data = [["Producto", "Cant.", "Unitario", "Subtotal"]]
+
     for it in items:
+        nombre_safe = _rl_safe(it["nombre"])
+        desc_safe = _rl_safe(it.get("descripcion") or "")
+
+        if desc_safe:
+            prod_text = (
+                f"<b>{nombre_safe}</b><br/>"
+                f"<font size='8' color='#777777'>{desc_safe}</font>"
+            )
+        else:
+            prod_text = f"<b>{nombre_safe}</b>"
+
+        prod_paragraph = Paragraph(prod_text, styles["Normal"])
+
         table_data.append([
-            Paragraph(f"<b>{it['nombre']}</b>", styles["Normal"]),
+            prod_paragraph,
             str(it["cantidad"]),
             f"$ {it['precio']:.2f}",
             f"$ {it['subtotal']:.2f}",
@@ -1394,7 +1791,7 @@ def _factura_pdf_response(data, items, total):
         ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
         ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
         ("ALIGN", (1,1), (-1,-1), "RIGHT"),
         ("TOPPADDING", (0,0), (-1,-1), 6),
         ("BOTTOMPADDING", (0,0), (-1,-1), 6),

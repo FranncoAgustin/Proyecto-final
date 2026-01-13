@@ -2,11 +2,10 @@
 
 from django.urls import path
 
+import owner.views_theme
+
 from .views import (
     AdminDashboardView,
-    HistoriaIngresosView,
-    historia_listas,
-    historia_lista_detalle,
     owner_producto_editar,
     owner_producto_eliminar,
     owner_producto_toggle_activo,
@@ -30,6 +29,8 @@ from .views import (
     owner_api_subrubro_create,
     owner_autorubros,
     owner_siteinfo_list,
+    owner_siteconfig_edit,
+    owner_historia_global,
 
 )
 
@@ -41,10 +42,6 @@ urlpatterns = [
 
     path("api/product-suggest/", owner_api_product_suggest, name="owner_api_product_suggest"),
     path("api/product-detail/<int:pk>/", owner_api_product_detail, name="owner_api_product_detail"),
-
-    path("historia/", HistoriaIngresosView.as_view(), name="historia_ingresos"),
-    path("historia/listas/", historia_listas, name="historia_listas"),
-    path("historia/listas/<int:lista_id>/", historia_lista_detalle, name="historia_lista_detalle"),
 
     path("producto/<int:pk>/editar/", owner_producto_editar, name="owner_producto_editar"),
     path("producto/<int:pk>/toggle-activo/", owner_producto_toggle_activo, name="owner_producto_toggle_activo"),
@@ -76,4 +73,8 @@ urlpatterns = [
 
     path("filtros/auto-asignar/", owner_autorubros, name="owner_autorubros"),
     path("owner/info-sitio/", owner_siteinfo_list, name="owner_siteinfo_list"),
+
+    path("theme.css", owner.views_theme.theme_css, name="theme_css"),
+    path("owner/site-config/", owner_siteconfig_edit, name="owner_siteconfig_edit"),
+     path("historia/", owner_historia_global, name="owner_historia_global"),
 ]
