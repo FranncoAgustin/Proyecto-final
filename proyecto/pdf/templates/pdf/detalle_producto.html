@@ -15,12 +15,15 @@
     <div class="col-md-6 text-center">
       <div class="border rounded p-3 bg-white shadow-sm">
         {% if producto.imagen %}
-        <img id="product-image" src="{{ producto.imagen.url }}" class="img-fluid rounded"
-          alt="{{ producto.nombre_publico }}" style="max-height: 420px; object-fit: contain;">
+          <img id="product-image"
+               src="{{ producto.imagen.url }}"
+               class="img-fluid rounded"
+               alt="{{ producto.nombre_publico }}"
+               style="max-height: 420px; object-fit: contain;">
         {% else %}
-        <div class="bg-light p-5 border rounded text-muted">
-          Sin imagen
-        </div>
+          <div class="bg-light p-5 border rounded text-muted">
+            Sin imagen
+          </div>
         {% endif %}
       </div>
     </div>
@@ -50,79 +53,104 @@
               class="badge {% if stock_inicial|default:0 <= 0 %}bg-danger{% else %}bg-success{% endif %}">
           {% if stock_inicial|default:0 <= 0 %}Sin stock{% else %}En stock{% endif %}
         </span>
-        <small class="text-muted ms-2">
+        <!-- <small class="text-muted ms-2">
           Disponibles: <span id="stock-num">{{ stock_inicial|default:0 }}</span>
-        </small>
+        </small> -->
+        <!-- Badge extra: última unidad / pocas unidades -->
+        <span id="stock-extra" class="badge ms-2 small d-none"></span>
       </div>
 
       <!-- ===================== -->
-      <!-- VARIANTES -->
+      <!-- CARD DE COMPRA -->
       <!-- ===================== -->
-      {% if variantes_ui %}
-      <div class="mb-3">
-        <label class="form-label fw-semibold">
-          Variante
-        </label>
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
 
-        <select id="variant-select" class="form-select">
-          {% for v in variantes_ui %}
-          <option value="{{ v.id }}"
-            {% if v.imagen %}
-              data-image="{{ v.imagen.url }}"
-            {% elif producto.imagen %}
-              data-image="{{ producto.imagen.url }}"
-            {% endif %}
-            data-desc="{{ v.descripcion_corta|default:'' }}"
-            data-stock="{{ v.stock|default:0 }}"
-            data-price="{{ v.precio_final|floatformat:0|intcomma }}"
-          >
-            {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
-          </option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <!-- DESCRIPCIÓN VARIANTE -->
-      <div id="variant-desc" class="alert alert-light border small">
-        {{ variantes_ui.0.descripcion_corta }}
-      </div>
-      {% endif %}
-
-      <!-- ===================== -->
-      <!-- ACCIONES -->
-      <!-- ===================== -->
-      <div class="d-grid gap-2 mt-4">
-        <form method="post" action="{% url 'agregar_al_carrito' producto.id %}">
-          {% csrf_token %}
-
+          <!-- ===================== -->
+          <!-- VARIANTES -->
+          <!-- ===================== -->
           {% if variantes_ui %}
-          <input type="hidden" name="variante_id" id="variante_id_input" value="{{ variantes_ui.0.id }}">
-          {% else %}
-          <input type="hidden" name="variante_id" value="0">
+            <div class="mb-3">
+              <label class="form-label fw-semibold mb-1">Variante</label>
+
+              <select id="variant-select" class="form-select">
+                {% for v in variantes_ui %}
+                  <option value="{{ v.id }}"
+                    {% if v.imagen %}
+                      data-image="{{ v.imagen.url }}"
+                    {% elif producto.imagen %}
+                      data-image="{{ producto.imagen.url }}"
+                    {% endif %}
+                    data-principal="{% if v.es_principal %}1{% else %}0{% endif %}"
+                    data-desc="{{ v.descripcion_corta|default:'' }}"
+                    data-stock="{{ v.stock|default:0 }}"
+                    data-price="{{ v.precio_final|floatformat:0|intcomma }}"
+                  >
+                    {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
           {% endif %}
 
-          <div class="mb-2">
-            <label class="form-label fw-semibold">Cantidad</label>
-            <input
-              type="number"
-              class="form-control"
-              name="cantidad"
-              id="qty-input"
-              value="1"
-              min="1"
-              max="{{ stock_inicial|default:0 }}"
-              {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}
-            >
-            <div class="form-text">
-              Se limita automáticamente al stock disponible de la variante.
+          <!-- ===================== -->
+          <!-- DESCRIPCIÓN ÚNICA (PRODUCTO / VARIANTE) -->
+          <!-- ===================== -->
+          <div class="mb-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="form-label fw-semibold mb-1">Descripción</span>
+            </div>
+
+            <div id="variant-desc"
+                 class="p-3 bg-light border rounded small"
+                 style="white-space: pre-line; min-height: 52px;">
+              {# valor inicial; luego JS lo pisa con la lógica correcta #}
+              {% if variantes_ui %}
+                {{ variantes_ui.0.descripcion_corta|default:producto.descripcion|default:"" }}
+              {% else %}
+                {{ producto.descripcion|default:"" }}
+              {% endif %}
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-lg" id="add-cart-btn"
-                  {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}>
-            🛒 Agregar al carrito
-          </button>
-        </form>
+          <!-- ===================== -->
+          <!-- ACCIONES -->
+          <!-- ===================== -->
+          <form method="post" action="{% url 'agregar_al_carrito' producto.id %}">
+            {% csrf_token %}
+
+            {% if variantes_ui %}
+              <input type="hidden" name="variante_id" id="variante_id_input" value="{{ variantes_ui.0.id }}">
+            {% else %}
+              <input type="hidden" name="variante_id" value="0">
+            {% endif %}
+
+            <div class="mb-2">
+              <label class="form-label fw-semibold">Cantidad</label>
+              <input
+                type="number"
+                class="form-control"
+                name="cantidad"
+                id="qty-input"
+                value="1"
+                min="1"
+                max="{{ stock_inicial|default:0 }}"
+                {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}
+              >
+              <div class="form-text">
+                Se limita automáticamente al stock disponible de la variante.
+              </div>
+            </div>
+
+            <button type="submit"
+                    class="btn btn-primary btn-lg w-100"
+                    id="add-cart-btn"
+                    {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}>
+              🛒 Agregar al carrito
+            </button>
+          </form>
+
+        </div>
       </div>
 
     </div>
@@ -140,12 +168,48 @@
 
     const badge = document.getElementById("stock-badge");
     const stockNum = document.getElementById("stock-num");
+    const extra = document.getElementById("stock-extra");
     const qtyInput = document.getElementById("qty-input");
     const addBtn = document.getElementById("add-cart-btn");
     const priceSpan = document.getElementById("price-amount");
 
+    // Descripción principal del producto (fallback)
+    const productDesc = "{{ producto.descripcion|default:''|escapejs }}";
+
+    function updateStockExtra(qty) {
+      if (!extra) return;
+
+      extra.className = "badge ms-2 small";
+
+      if (qty <= 0) {
+        extra.classList.add("d-none");
+        extra.textContent = "";
+      } else if (qty === 1) {
+        extra.classList.remove("d-none");
+        extra.classList.add("bg-danger", "text-light", "opacity-75");
+        extra.textContent = "Última unidad";
+      } else if (qty > 1 && qty < 5) {
+        extra.classList.remove("d-none");
+        extra.classList.add("bg-warning", "text-dark", "opacity-75");
+        extra.textContent = "Quedan pocas unidades";
+      } else {
+        extra.classList.add("d-none");
+        extra.textContent = "";
+      }
+    }
+
     function applyVariant() {
-      if (!sel) return;
+      // Sin variantes: usar sólo la descripción del producto y stock actual
+      if (!sel) {
+        if (desc) desc.textContent = productDesc;
+        let s = 0;
+        if (stockNum) {
+          s = parseInt((stockNum.textContent || stockNum.innerText || "0"), 10) || 0;
+        }
+        updateStockExtra(s);
+        return;
+      }
+
       const opt = sel.options[sel.selectedIndex];
       if (!opt) return;
 
@@ -156,9 +220,18 @@
       const imgUrl = opt.getAttribute("data-image");
       if (img && imgUrl) img.src = imgUrl;
 
-      // descripción
-      const d = opt.getAttribute("data-desc") || "";
-      if (desc) desc.textContent = d;
+      // descripción:
+      //  - si es principal => SIEMPRE la del producto
+      //  - si no es principal => descripcion_corta o fallback al producto
+      const isPrincipal = opt.getAttribute("data-principal") === "1";
+      if (desc) {
+        if (isPrincipal) {
+          desc.textContent = productDesc;
+        } else {
+          const d = (opt.getAttribute("data-desc") || "").trim();
+          desc.textContent = d !== "" ? d : productDesc;
+        }
+      }
 
       // precio (ya viene formateado desde el template)
       const p = opt.getAttribute("data-price");
@@ -181,6 +254,7 @@
       if (qtyInput) {
         qtyInput.max = String(s);
         qtyInput.disabled = !inStock;
+
         if (!inStock) {
           qtyInput.value = "1";
         } else {
@@ -192,14 +266,19 @@
       }
 
       if (addBtn) addBtn.disabled = !inStock;
+
+      // badge extra de stock
+      updateStockExtra(s);
     }
 
     if (sel) {
       sel.addEventListener("change", applyVariant);
-      applyVariant(); // inicial
+      applyVariant();  // inicial con la variante principal
+    } else {
+      applyVariant();  // caso sin variantes
     }
 
-    // cuando el usuario cambia cantidad, forzamos límite
+    // límite de cantidad
     if (qtyInput) {
       qtyInput.addEventListener("input", function () {
         const max = parseInt(qtyInput.max || "1", 10) || 1;

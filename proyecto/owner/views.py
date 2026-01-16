@@ -336,6 +336,7 @@ def owner_producto_editar(request, pk):
     original_data = {
         "sku": producto.sku,
         "nombre_publico": producto.nombre_publico,
+        "descripcion": getattr(producto, "descripcion", ""),  # 👈 NUEVO
         "precio": producto.precio,
         "stock": producto.stock,
         "tech": producto.tech,
@@ -423,6 +424,10 @@ def owner_producto_editar(request, pk):
         # --- Actualizamos el producto igual que antes ---
         producto.sku = (request.POST.get("sku") or producto.sku).strip()
         producto.nombre_publico = (request.POST.get("nombre_publico") or producto.nombre_publico).strip()
+
+        # 👇 NUEVO: descripción del producto desde el textarea
+        producto.descripcion = (request.POST.get("descripcion") or "").strip()
+
         producto.precio = _parse_decimal(request.POST.get("precio"), fallback=str(producto.precio))
         producto.stock = int(request.POST.get("stock") or producto.stock or 0)
         producto.tech = request.POST.get("tech", "") or ""

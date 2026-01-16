@@ -44,6 +44,17 @@
             <input type="text" name="nombre_publico" class="form-control" value="{{ producto.nombre_publico }}">
           </div>
 
+          <!-- ✅ NUEVO: DESCRIPCIÓN -->
+          <div class="col-md-12">
+            <label class="form-label">Descripción</label>
+            <textarea name="descripcion" class="form-control" rows="4"
+              placeholder="Escribí una descripción del producto...">{{ producto.descripcion|default:"" }}</textarea>
+            <div class="form-text">
+              Se muestra en la ficha del producto. Podés usar saltos de línea.
+            </div>
+          </div>
+          <!-- ✅ FIN NUEVO -->
+
           <div class="col-md-4">
             <label class="form-label">Precio</label>
             <div class="input-group">
@@ -263,7 +274,7 @@
         </div>
 
         <div class="d-flex justify-content-end gap-2 mt-4">
-          <button  type="submit" class="btn btn-primary" href="{% url 'home' %}">Guardar cambios</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
           <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancelar</a>
         </div>
       </form>
