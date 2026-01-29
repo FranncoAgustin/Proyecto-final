@@ -46,6 +46,20 @@ class ListaPreciosPDFForm(forms.Form):
         help_text="Ej: 20 = 20% de descuento"
     )
 
+    # ✅ NUEVO: elegir si el PDF muestra lista mayorista (1 solo precio)
+    lista_mayorista = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Lista mayorista (mostrar precio mayorista)"
+    )
+
+    # ✅ NUEVO: marca de agua fija (solo se reemplaza si tildás esto)
+    reemplazar_marca_agua = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Reemplazar marca de agua guardada"
+    )
+
     marca_agua = forms.ImageField(required=False, help_text="Opcional (PNG/JPG)")
 
     instagram_url = forms.URLField(
@@ -58,7 +72,7 @@ class ListaPreciosPDFForm(forms.Form):
         initial="https://wa.me/message/NSO7K5POCXLKE1",
         label="WhatsApp (URL)"
     )
-
+    
 class FacturaForm(forms.Form):
     # Cliente
     cliente_nombre = forms.CharField(label="Nombre del cliente", max_length=140)
