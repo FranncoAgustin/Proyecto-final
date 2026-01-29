@@ -246,3 +246,10 @@ class SubRubro(models.Model):
 
     def __str__(self):
         return f"{self.rubro.nombre} → {self.nombre}"
+
+class PDFBranding(models.Model):
+    # Singleton: vas a usar siempre el registro id=1
+    watermark = models.ImageField(upload_to="branding/", blank=True, null=True)
+
+    def __str__(self):
+        return "PDFBranding"

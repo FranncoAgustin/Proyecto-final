@@ -5,15 +5,15 @@
 {% block content %}
 <h1 class="h4 mb-4">Mi carrito</h1>
 
-{# ✅ Mostrar mensajes (errores MP / warnings stock / etc) #}
+{# ✅ Mostrar mensajes (errores, warnings stock, etc.) #}
 {% if messages %}
-  <div class="mb-3">
-    {% for message in messages %}
-      <div class="alert alert-{{ message.tags }} mb-2" role="alert">
-        {{ message }}
-      </div>
-    {% endfor %}
+<div class="mb-3">
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }} mb-2" role="alert">
+    {{ message }}
   </div>
+  {% endfor %}
+</div>
 {% endif %}
 
 {% if items %}
@@ -35,19 +35,13 @@
       <tr>
         <td>
           {% if item.imagen_url %}
-            <img
-              src="{{ item.imagen_url }}"
-              alt="{{ item.producto.nombre_publico }}"
-              class="rounded border"
-              style="width:60px; height:60px; object-fit:contain; background:#fff;"
-            >
+          <img src="{{ item.imagen_url }}" alt="{{ item.producto.nombre_publico }}" class="rounded border"
+            style="width:60px; height:60px; object-fit:contain; background:#fff;">
           {% else %}
-            <div
-              class="rounded border bg-light d-flex align-items-center justify-content-center"
-              style="width:60px; height:60px;"
-            >
-              <span class="text-muted small">—</span>
-            </div>
+          <div class="rounded border bg-light d-flex align-items-center justify-content-center"
+            style="width:60px; height:60px;">
+            <span class="text-muted small">—</span>
+          </div>
           {% endif %}
         </td>
 
@@ -57,29 +51,17 @@
           </a>
 
           {% if item.variante %}
-            <div class="text-muted small">
-              Variante: <strong>{{ item.variante.nombre }}</strong>
-            </div>
-          {% endif %}
-
-          {% if item.stock_efectivo is not None %}
-            <div class="text-muted small">
-              Stock disponible ahora: {{ item.stock_efectivo }}
-            </div>
+          <div class="text-muted small">
+            Variante: <strong>{{ item.variante.nombre }}</strong>
+          </div>
           {% endif %}
         </td>
 
         <td class="text-center" style="max-width:160px;">
           <form action="{% url 'actualizar_cantidad' item.key %}" method="post" class="d-inline-flex">
             {% csrf_token %}
-            <input
-              type="number"
-              name="cantidad"
-              min="0"
-              class="form-control form-control-sm me-2"
-              value="{{ item.cantidad }}"
-              style="max-width:90px;"
-            >
+            <input type="number" name="cantidad" min="0" class="form-control form-control-sm me-2"
+              value="{{ item.cantidad }}" style="max-width:90px;">
             <button class="btn btn-sm btn-outline-primary" type="submit">
               Actualizar
             </button>
@@ -88,16 +70,16 @@
 
         <td class="text-end">
           {% if item.oferta %}
-            <del class="text-muted">${{ item.precio_original }}</del><br>
-            <strong>${{ item.precio_final }}</strong>
-            <span class="badge bg-success ms-1">-{{ item.oferta.descuento }}%</span>
+          <del class="text-muted">${{ item.precio_original|floatformat:0 }}</del><br>
+          <strong>${{ item.precio_final|floatformat:0 }}</strong>
+          <span class="badge bg-success ms-1">-{{ item.oferta.descuento }}%</span>
           {% else %}
-            ${{ item.precio_original }}
+          ${{ item.precio_original|floatformat:0 }}
           {% endif %}
         </td>
 
         <td class="text-end">
-          ${{ item.subtotal }}
+          ${{ item.subtotal|floatformat:0 }}
         </td>
 
         <td class="text-end">
@@ -124,15 +106,15 @@
 </form>
 
 {% if cupon %}
-  <div class="text-success mb-2">
-    Cupón aplicado: <strong>{{ cupon.codigo }}</strong> (-{{ cupon.descuento }}%)
-  </div>
+<div class="text-success mb-2">
+  Cupón aplicado: <strong>{{ cupon.codigo }}</strong> (-{{ cupon.descuento }}%)
+</div>
 {% endif %}
 
 {% if error_cupon %}
-  <div class="text-danger mb-2">
-    {{ error_cupon }}
-  </div>
+<div class="text-danger mb-2">
+  {{ error_cupon }}
+</div>
 {% endif %}
 
 <div class="d-flex justify-content-between align-items-start mt-3">
@@ -142,14 +124,14 @@
 
   <div class="text-end">
     {% if cupon %}
-      <div class="text-success small mb-1">
-        Cupón aplicado: <strong>{{ cupon.codigo }}</strong><br>
-        Descuento: -${{ descuento_cupon|floatformat:2 }}
-      </div>
+    <div class="text-success small mb-1">
+      Cupón aplicado: <strong>{{ cupon.codigo }}</strong><br>
+      Descuento: -${{ descuento_cupon|floatformat:0 }}
+    </div>
     {% endif %}
 
     <div class="fw-semibold fs-5">
-      Total: ${{ total|floatformat:2 }}
+      Total: ${{ total|floatformat:0 }}
     </div>
 
     <div class="mt-2 d-flex gap-2 justify-content-end">
@@ -157,36 +139,20 @@
         Vaciar carrito
       </a>
 
-      {# ✅ MP: form limpio, sin código python dentro #}
-      <form method="post" action="{% url 'mp_crear_preferencia' %}" id="mp-form">
-        {% csrf_token %}
-        <button class="btn btn-primary btn-sm" type="submit" id="mp-btn">
-          Finalizar compra con Mercado Pago
-        </button>
-      </form>
+      {# ✅ Nuevo flujo: finalizar compra por WhatsApp #}
+      <a href="{% url 'carrito_whatsapp' %}" class="btn btn-success btn-sm">
+        <i class="fa-brands fa-whatsapp me-1"></i>
+        Finalizar compra por WhatsApp
+      </a>
     </div>
 
     {% if hold_minutes %}
-      <div class="text-muted small mt-2">
-        Reservas de stock: {{ hold_minutes }} min
-      </div>
+    <div class="text-muted small mt-2">
+      Reservas de stock: {{ hold_minutes }} min
+    </div>
     {% endif %}
   </div>
 </div>
-
-<script>
-  // Evita doble click y muestra feedback
-  (function () {
-    const form = document.getElementById("mp-form");
-    const btn = document.getElementById("mp-btn");
-    if (!form || !btn) return;
-
-    form.addEventListener("submit", function () {
-      btn.disabled = true;
-      btn.textContent = "Redirigiendo a Mercado Pago…";
-    });
-  })();
-</script>
 
 {% else %}
 <div class="alert alert-info">

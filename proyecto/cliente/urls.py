@@ -21,8 +21,8 @@ urlpatterns = [
     path("mis-compras/", views.mis_compras, name="mis_compras"),
     path("mis-compras/<int:pedido_id>/", views.mis_compras_detalle, name="mis_compras_detalle"),
 
-    path("mis-compras/<int:pedido_id>/continuar/", views.pedido_continuar_pago, name="pedido_continuar_pago"),
     path("mis-compras/<int:pedido_id>/cancelar/", views.pedido_cancelar, name="pedido_cancelar"),
     path("mis-compras/<int:pedido_id>/eliminar/", views.pedido_eliminar, name="pedido_eliminar"),
     path("logout/", views.logout_view, name="logout"),
+    path("carrito/whatsapp/", views.carrito_whatsapp, name="carrito_whatsapp"),
 ]

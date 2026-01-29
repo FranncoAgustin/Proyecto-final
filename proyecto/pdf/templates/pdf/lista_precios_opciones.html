@@ -4,70 +4,187 @@
 {% block content %}
 <div class="container py-4">
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h5 mb-0">📄 Generar lista de precios (PDF)</h1>
-        <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">← Volver</a>
+  <!-- Encabezado -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h5 mb-1">📄 Generar lista de precios (PDF)</h1>
+      <p class="text-muted small mb-0">
+        Elegí la técnica, configurá el descuento mayorista y personalizá la marca de agua y enlaces.
+      </p>
     </div>
+    <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">
+      ← Volver
+    </a>
+  </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
+  <!-- Card principal -->
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
 
-            <form method="post" enctype="multipart/form-data" class="row g-3">
-                {% csrf_token %}
+      <!-- Errores generales del form -->
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
 
-                <div class="col-md-4">
-                    <label class="form-label">Qué querés descargar</label>
-                    {{ form.tecnica }}
-                    <div class="form-text">Podés bajar toda la base o una técnica puntual.</div>
+      <form method="post" enctype="multipart/form-data" class="row g-3">
+        {% csrf_token %}
+
+        <!-- Columna 1: técnica + descuento + switches -->
+        <div class="col-lg-6">
+          <div class="border rounded-3 p-3 h-100 bg-light-subtle">
+
+            <!-- Técnica -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Qué querés descargar</label>
+              {{ form.tecnica }}
+              {% if form.tecnica.errors %}
+                <div class="text-danger small">
+                  {{ form.tecnica.errors|striptags }}
                 </div>
+              {% endif %}
+              <div class="form-text">
+                Podés bajar toda la base o solo una técnica puntual (sublimación, láser, 3D, etc.).
+              </div>
+            </div>
 
-                <div class="col-md-4">
-                    <label class="form-label">% descuento mayorista</label>
-                    {{ form.descuento_mayorista }}
-                    <div class="form-text">Ej: 20 = 20% OFF.</div>
+            <!-- Descuento mayorista -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">% descuento mayorista</label>
+              <div class="input-group">
+                {{ form.descuento_mayorista }}
+                <span class="input-group-text">%</span>
+              </div>
+              {% if form.descuento_mayorista.errors %}
+                <div class="text-danger small">
+                  {{ form.descuento_mayorista.errors|striptags }}
                 </div>
+              {% endif %}
+              <div class="form-text">
+                Ejemplo: 20 = 20% OFF sobre el precio base.
+              </div>
+            </div>
 
-                <div class="col-md-4 d-flex align-items-end">
-                    <div class="form-check">
-                        {{ form.incluir_sku }}
-                        <label class="form-check-label">Incluir SKU en el PDF</label>
-                    </div>
-                </div>
+            <!-- Switches: SKU + lista mayorista -->
+            <div class="border rounded-3 p-3 bg-white">
+              <div class="form-check mb-2">
+                {{ form.incluir_sku }}
+                <label class="form-check-label">
+                  Incluir SKU debajo del nombre del producto
+                </label>
+              </div>
 
-                <div class="col-md-12">
-                    <label class="form-label">Marca de agua (opcional)</label>
-                    {{ form.marca_agua }}
-                    <div class="form-text">
-                        Subí una imagen (PNG/JPG). Se pone de fondo con transparencia.
-                    </div>
+              {% if form.lista_mayorista %}
+              <div class="form-check mb-1">
+                {{ form.lista_mayorista }}
+                <label class="form-check-label">
+                  Generar lista mayorista (usar precio con descuento)
+                </label>
+              </div>
+              <small class="text-muted d-block mt-1">
+                Si activás la lista mayorista, la columna de precios mostrará el valor con el % de descuento aplicado.
+              </small>
+              {% endif %}
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Columna 2: marca de agua + redes -->
+        <div class="col-lg-6">
+          <div class="row g-3">
+
+            <!-- Marca de agua -->
+            <div class="col-12">
+              <div class="border rounded-3 p-3 h-100 bg-light">
+                <h6 class="text-uppercase small text-muted mb-2">Marca de agua</h6>
+
+                {% if form.reemplazar_marca_agua %}
+                <div class="form-check form-switch mb-2">
+                  {{ form.reemplazar_marca_agua }}
+                  <label class="form-check-label">
+                    Reemplazar la marca de agua actual por esta imagen
+                  </label>
                 </div>
+                {% endif %}
+
+                <label class="form-label mb-1">
+                  {{ form.marca_agua.label }}
+                </label>
+                {{ form.marca_agua }}
+                {% if form.marca_agua.errors %}
+                  <div class="text-danger small">
+                    {{ form.marca_agua.errors|striptags }}
+                  </div>
+                {% endif %}
+                <div class="form-text">
+                  PNG/JPG recomendado. Se usará de fondo con transparencia en todas las páginas.
+                </div>
+              </div>
+            </div>
+
+            <!-- Enlaces Instagram / WhatsApp -->
+            <div class="col-12">
+              <div class="border rounded-3 p-3 h-100">
+                <h6 class="text-uppercase small text-muted mb-3">Botones de contacto en el PDF</h6>
 
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">{{ form.instagram_url.label }}</label>
-                        {{ form.instagram_url }}
-                        <div class="form-text">Ej: https://www.instagram.com/_mundo_personalizado/</div>
+                  <div class="col-md-6">
+                    <label class="form-label">{{ form.instagram_url.label }}</label>
+                    {{ form.instagram_url }}
+                    {% if form.instagram_url.errors %}
+                      <div class="text-danger small">
+                        {{ form.instagram_url.errors|striptags }}
+                      </div>
+                    {% endif %}
+                    <div class="form-text">
+                      Ejemplo: https://www.instagram.com/_mundo_personalizado/
                     </div>
+                  </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label">{{ form.whatsapp_url.label }}</label>
-                        {{ form.whatsapp_url }}
-                        <div class="form-text">Ej: https://wa.me/message/NSO7K5POCXLKE1</div>
+                  <div class="col-md-6">
+                    <label class="form-label">{{ form.whatsapp_url.label }}</label>
+                    {{ form.whatsapp_url }}
+                    {% if form.whatsapp_url.errors %}
+                      <div class="text-danger small">
+                        {{ form.whatsapp_url.errors|striptags }}
+                      </div>
+                    {% endif %}
+                    <div class="form-text">
+                      Ejemplo: https://wa.me/message/NSO7K5POCXLKE1
                     </div>
+                  </div>
                 </div>
 
-                <div class="col-12 d-flex justify-content-end gap-2 mt-2">
-                    <button type="submit" class="btn btn-primary">
-                        Generar PDF
-                    </button>
-                    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
-                        Cancelar
-                    </a>
-                </div>
-            </form>
+                <small class="text-muted d-block mt-2">
+                  Estos enlaces aparecen como botones en el pie de cada página (WhatsApp e Instagram).
+                </small>
+              </div>
+            </div>
 
+          </div>
         </div>
+
+        <!-- Botones -->
+        <div class="col-12 d-flex justify-content-between align-items-center mt-2">
+          <small class="text-muted">
+            El PDF se arma agrupando por técnica y ordenado por nombre de producto.
+          </small>
+          <div class="d-flex gap-2">
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+              Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+              💾 Generar PDF
+            </button>
+          </div>
+        </div>
+
+      </form>
+
     </div>
+  </div>
 
 </div>
 {% endblock %}
