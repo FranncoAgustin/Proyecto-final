@@ -100,13 +100,11 @@ def get_stock_disponible_efectivo(producto: ProductoPrecio, var_id: int) -> int:
     return max(0, stock_real - int(reservas))
 
 
-# =========================
-# VISTAS: CARRITO
-# =========================
-
-def ver_carrito(request):
-    cleanup_expired_holds()
-
+def _build_cart_context(request):
+    """
+    Arma la misma estructura que usa el carrito (items + total + cupón),
+    para reutilizar en ver_carrito y en carrito_whatsapp.
+    """
     cart = _get_cart(request)
     items = []
     total = Decimal("0.00")
@@ -124,10 +122,11 @@ def ver_carrito(request):
         if var_id != 0 and not variante:
             # variante inválida -> lo tratamos como principal
             var_id = 0
+            variante = None
 
         qty = max(0, int(qty))
 
-        # precio
+        # precio con oferta
         precio_data = get_precio_con_oferta(producto)
         precio_unitario = precio_data["precio_final"]
         oferta = precio_data["oferta"]
@@ -175,20 +174,33 @@ def ver_carrito(request):
             )
 
             if cupon.tecnica == "TODAS":
-                descuento_cupon = (total * Decimal(cupon.descuento) / Decimal("100")).quantize(Q2)
+                base_descuento = total
             else:
                 subtotal_filtrado = sum(
                     it["subtotal"]
                     for it in items
                     if it["producto"].tech == cupon.tecnica
                 )
-                descuento_cupon = (subtotal_filtrado * Decimal(cupon.descuento) / Decimal("100")).quantize(Q2)
+                base_descuento = subtotal_filtrado
 
+            descuento_cupon = (base_descuento * Decimal(cupon.descuento) / Decimal("100")).quantize(Q2)
             total = (total - descuento_cupon).quantize(Q2)
 
         except Cupon.DoesNotExist:
             request.session.pop("cupon_id", None)
             request.session["error_cupon"] = "Cupón inválido o vencido"
+
+    return items, total, cupon, descuento_cupon
+
+
+# =========================
+# VISTAS: CARRITO
+# =========================
+
+def ver_carrito(request):
+    cleanup_expired_holds()
+
+    items, total, cupon, descuento_cupon = _build_cart_context(request)
 
     return render(
         request,
@@ -203,6 +215,87 @@ def ver_carrito(request):
         }
     )
 
+
+@require_GET
+def carrito_whatsapp(request):
+    """
+    Toma el contenido del carrito y redirige a WhatsApp con un mensaje prearmado.
+    Reemplaza el flujo de "pagar" con Mercado Pago.
+    """
+    cleanup_expired_holds()
+
+    items, total, cupon, descuento_cupon = _build_cart_context(request)
+
+    if not items:
+        messages.error(request, "Tu carrito está vacío.")
+        return redirect("ver_carrito")
+
+    lineas = []
+    for it in items:
+        producto = it["producto"]
+        variante = it["variante"]
+        cantidad = it["cantidad"]
+        precio_unitario = it["precio_final"]
+
+        nombre = getattr(producto, "nombre_publico", str(producto))
+        var_txt = ""
+
+        # Texto para la variante (si existe)
+        if variante:
+            nombre_var = getattr(variante, "nombre", None) or getattr(variante, "descripcion", None)
+            if nombre_var:
+                var_txt = f" - Variante: {nombre_var}"
+
+        # 🔢 precio sin decimales
+        precio_str = f"{precio_unitario:.0f}"
+
+        # ❌ Sin subtotal, solo cantidad y precio c/u
+        lineas.append(
+            f"- {nombre}{var_txt} x{cantidad} - ${precio_str} c/u"
+        )
+
+    texto = "Hola, estoy interesado en realizar la siguiente compra desde la web:\n\n"
+    texto += "\n".join(lineas)
+
+    # Descuento por cupón (si lo hay), sin decimales
+    if descuento_cupon > 0:
+        texto += f"\n\nDescuento por cupón: -${descuento_cupon:.0f}"
+
+    # Total sin decimales
+    texto += f"\n\nTotal a pagar: ${total:.0f}"
+
+    telefono = getattr(settings, "WHATSAPP_PHONE", "")
+    if not telefono:
+        messages.error(request, "No está configurado el número de WhatsApp. Avisale al administrador de la tienda.")
+        return redirect("ver_carrito")
+
+    # Bitácora
+    try:
+        registrar_evento(
+            tipo="carrito_whatsapp",
+            titulo="Redirección de carrito a WhatsApp",
+            detalle=f"Total: {total}",
+            user=getattr(request, "user", None),
+            extra={
+                "total": str(total),
+                "descuento_cupon": str(descuento_cupon),
+                "items": [
+                    {
+                        "producto_id": it["producto"].id,
+                        "variante_id": getattr(it["variante"], "id", None),
+                        "cantidad": it["cantidad"],
+                        "precio_final": str(it["precio_final"]),
+                    }
+                    for it in items
+                ],
+            },
+        )
+    except Exception:
+        # Si falla la bitácora, no rompemos el flujo de compra.
+        pass
+
+    url = f"https://wa.me/{telefono}?text={quote(texto)}"
+    return redirect(url)
 
 @require_POST
 def aplicar_cupon(request):
@@ -672,15 +765,6 @@ def mi_cuenta(request):
     return render(request, "cliente/mi_cuenta.html", contexto)
 
 
-CANCELAR_DESPUES_MIN = 30
-
-
-def _ensure_session_key(request):
-    if not request.session.session_key:
-        request.session.save()
-    return request.session.session_key
-
-
 def _expire_pedidos_queryset(qs):
     """
     Marca como SIN_FINALIZAR pedidos CREADO/PENDIENTE viejos (sin cron).
@@ -702,7 +786,6 @@ def mis_compras(request):
         .filter(usuario=request.user)
         .order_by("-creado_en")
         .prefetch_related("items")
-        .select_related("pago_mp")
     )
 
     # Expirar "creados" viejos
@@ -727,53 +810,6 @@ def mis_compras_detalle(request, pedido_id: int):
     )
 
     return render(request, "cliente/mis_compras_detalle.html", {"pedido": pedido, "items": items})
-
-
-@login_required
-@require_POST
-def pedido_continuar_pago(request, pedido_id: int):
-    pedido = get_object_or_404(Pedido, id=pedido_id, usuario=request.user)
-
-    # Solo tiene sentido continuar si no está cerrado
-    if pedido.estado in [Pedido.Estado.APROBADO, Pedido.Estado.CANCELADO, Pedido.Estado.RECHAZADO, Pedido.Estado.SIN_FINALIZAR]:
-        messages.warning(request, "Este pedido no se puede continuar.")
-
-        registrar_evento(
-            tipo="pedido_continuar_no_permitido",
-            titulo=f"No se puede continuar pago de pedido #{pedido.id}",
-            detalle=f"Estado: {pedido.estado}",
-            user=request.user,
-            obj=pedido,
-            extra={"pedido_id": pedido.id, "estado": pedido.estado},
-        )
-
-        return redirect("mis_compras")
-
-    pago = getattr(pedido, "pago_mp", None)
-    if not pago or not pago.init_point:
-        messages.error(request, "No encontramos el link de pago para este pedido.")
-
-        registrar_evento(
-            tipo="pedido_continuar_sin_link",
-            titulo=f"Pedido sin link de pago #{pedido.id}",
-            detalle="Mercado Pago init_point no disponible.",
-            user=request.user,
-            obj=pedido,
-            extra={"pedido_id": pedido.id},
-        )
-
-        return redirect("mis_compras")
-
-    registrar_evento(
-        tipo="pedido_continuar_pago",
-        titulo=f"Continuar pago pedido #{pedido.id}",
-        detalle="Redirección a Mercado Pago.",
-        user=request.user,
-        obj=pedido,
-        extra={"pedido_id": pedido.id, "init_point": pago.init_point},
-    )
-
-    return redirect(pago.init_point)
 
 
 @login_required

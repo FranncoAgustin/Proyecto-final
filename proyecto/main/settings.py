@@ -149,6 +149,7 @@ TEMPLATES = [
                 "cliente.context_processors.carrito_y_favoritos",
                 "owner.context_processors.siteinfo_blocks",
                 "owner.context_processors.site_cfg",
+                "integraciones.context_processors.instagram_feed",
             ],
         },
     },
@@ -202,7 +203,7 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # ==============================
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-
+WHATSAPP_PHONE = "5491156637260" 
 # ==============================
 # SECURITY EXTRA
 # ==============================
@@ -221,3 +222,12 @@ ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 
 # (recomendado con proxies)
 USE_X_FORWARDED_HOST = True
+
+# ==============================
+# INSTAGRAM CARRUSEL
+# ==============================
+
+INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
+INSTAGRAM_MEDIA_LIMIT = int(os.environ.get("INSTAGRAM_MEDIA_LIMIT", 8))
+INSTAGRAM_CACHE_SECONDS = int(os.environ.get("INSTAGRAM_CACHE_SECONDS", 1800))  # 30 min
+
