@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}Cambios de precios desde listas{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Cambios de precios desde listas</h1>
+      <p class="text-muted mb-0">
+        Revisá los artículos cuyo precio de compra cambió en la fuente
+        <strong>{{ source.nombre }}</strong> y elegí cuáles querés actualizar manteniendo el mismo margen.
+      </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary" href="{% url 'home' %}">
+        ⬅ Volver al panel
+      </a>
+
+      <a class="btn btn-outline-dark" href="{% url 'price_sources_list' %}">
+        ⚙️ Gestionar listas
+      </a>
+
+      <!-- BOTON NUEVO -->
+      <a class="btn btn-outline-warning" href="{% url 'diagnostico_match_lista_source' source.id %}">
+        🔎 Diagnóstico de matching
+      </a>
+
+      {% if source.url %}
+      <a class="btn btn-outline-primary" href="{{ source.url }}" target="_blank" rel="noopener">
+        📄 Abrir fuente
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Mensajes -->
+  {% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+  {% endfor %}
+  {% endif %}
+
+  <div class="row g-3">
+
+    <!-- Resumen / fuentes -->
+    <div class="col-md-4">
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">Resumen</div>
+        <div class="card-body">
+          <p class="mb-1">
+            <span class="text-muted">Fuente actual:</span><br>
+            <strong>{{ source.nombre }}</strong>
+          </p>
+
+          <p class="mb-1">
+            <span class="text-muted">Tipo:</span><br>
+            {{ source.get_tipo_display }}
+          </p>
+
+          <p class="mb-1">
+            <span class="text-muted">Estado:</span><br>
+            {% if source.activo %}
+            <span class="badge bg-success">Activa</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactiva</span>
+            {% endif %}
+          </p>
+
+          <p class="mb-1">
+            <span class="text-muted">URL origen:</span><br>
+            {% if source.url %}
+            <small class="text-break">{{ source.url }}</small>
+            {% else %}
+            <span class="text-muted">Sin URL</span>
+            {% endif %}
+          </p>
+
+          <hr>
+
+          <p class="mb-1">
+            <span class="text-muted">Cambios pendientes:</span><br>
+            <span class="fs-5 fw-semibold">{{ candidatos|length }}</span>
+          </p>
+
+          <p class="mb-1">
+            <span class="text-muted">Última revisión:</span><br>
+            {% if source.ultima_revision %}
+            {{ source.ultima_revision }}
+            {% else %}
+            <span class="text-muted">Todavía no sincronizada</span>
+            {% endif %}
+          </p>
+
+          {% if source.ultimo_estado %}
+          <p class="mb-1">
+            <span class="text-muted">Último estado:</span><br>
+            {% if source.ultimo_estado == "ok" %}
+            <span class="badge bg-success">OK</span>
+            {% elif source.ultimo_estado == "error" %}
+            <span class="badge bg-danger">Error</span>
+            {% else %}
+            <span class="badge bg-secondary">{{ source.ultimo_estado }}</span>
+            {% endif %}
+          </p>
+          {% endif %}
+
+          {% if source.ultimo_error %}
+          <div class="alert alert-danger py-2 small mt-3 mb-0">
+            <strong>Error:</strong><br>
+            {{ source.ultimo_error }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>Fuentes disponibles</span>
+          <a href="{% url 'price_source_create' %}" class="btn btn-sm btn-primary">+ Nueva</a>
+        </div>
+        <div class="card-body p-0">
+          {% if sources %}
+          <div class="list-group list-group-flush">
+            {% for s in sources %}
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                  <div class="fw-semibold">{{ s.nombre }}</div>
+                  <div class="small text-muted">
+                    {{ s.get_tipo_display }}
+                    {% if s.es_principal %} · Principal{% endif %}
+                  </div>
+                  <div class="mt-1">
+                    {% if s.activo %}
+                    <span class="badge bg-success">Activa</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Inactiva</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="d-flex flex-column gap-1">
+                  <a href="{% url 'gestionar_cambios_doc_precios_source' s.id %}"
+                    class="btn btn-sm {% if s.id == source.id %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                    Ver
+                  </a>
+                  <form method="post" action="{% url 'price_source_sync' s.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-success w-100">
+                      Sync
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="p-3 text-muted small">
+            No hay fuentes cargadas todavía.
+          </div>
+          {% endif %}
+        </div>
+        <div class="card-footer bg-white">
+          <form method="post" action="{% url 'price_sources_sync_all' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-success w-100">
+              🔄 Sincronizar todas las activas
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Cómo funciona</div>
+        <div class="card-body small">
+          <ul class="mb-2">
+            <li>El sistema compara la lista nueva con la anterior de esa fuente.</li>
+            <li>Si el precio de compra cambió, genera un candidato.</li>
+            <li>Si encuentra el SKU en tu catálogo, calcula el nuevo precio de venta manteniendo el mismo margen.</li>
+          </ul>
+          <p class="mb-0">
+            Marcá en la tabla los artículos que quieras actualizar y hacé clic en
+            <strong>"Aplicar cambios seleccionados"</strong>.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Tabla de cambios -->
+    <div class="col-md-8">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span>Cambios detectados en {{ source.nombre }}</span>
+          <form method="post" action="{% url 'price_source_sync' source.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-success">
+              🔄 Sincronizar esta fuente
+            </button>
+          </form>
+        </div>
+
+        <div class="card-body">
+
+          <!-- Buscador -->
+          <div class="mb-3">
+            <label class="form-label mb-1">Buscar artículo</label>
+            <input type="text" id="buscarCambiosDoc" class="form-control form-control-sm"
+              placeholder="Filtrá por ART, SKU o nombre de producto...">
+            <div class="form-text">
+              El filtro se aplica sobre el ART del documento, el SKU encontrado y el nombre del producto en tu catálogo.
+            </div>
+          </div>
+
+          {% if candidatos %}
+          <form method="post">
+            {% csrf_token %}
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tablaCambiosDoc">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 35px;">
+                      <input type="checkbox" id="checkAllDoc">
+                    </th>
+                    <th>ART / Doc</th>
+                    <th>Compra (Doc)</th>
+                    <th>SKU / Producto</th>
+                    <th>Venta actual → sugerida</th>
+                    <th class="text-end">% aumento</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for c in candidatos %}
+                  <tr class="cambio-row {% if not c.producto %}table-warning{% endif %}">
+                    <td>
+                      {% if c.producto and c.venta_sugerida %}
+                      <input type="checkbox" name="candidato_id" value="{{ c.id }}" class="check-candidato">
+                      {% else %}
+                      <span class="text-muted small">–</span>
+                      {% endif %}
+                    </td>
+
+                    <td class="small text-break">
+                      <div><strong>{{ c.art }}</strong></div>
+                      {% if c.producto_doc %}
+                      <div class="text-muted">{{ c.producto_doc }}</div>
+                      {% endif %}
+                      {% if c.descripcion_doc %}
+                      <div class="text-muted">{{ c.descripcion_doc|truncatechars:80 }}</div>
+                      {% endif %}
+                    </td>
+
+                    <td class="small">
+                      <div class="text-muted">Antes:</div>
+                      <div>$ {{ c.old_compra }}</div>
+                      <div class="text-muted mt-1">Ahora:</div>
+                      <div class="fw-semibold text-danger">$ {{ c.new_compra }}</div>
+                    </td>
+
+                    <td class="small text-break">
+                      {% if c.producto %}
+                      <div>
+                        <span class="badge bg-success-subtle border border-success text-success">
+                          SKU: {{ c.sku_match|default:c.producto.sku }}
+                        </span>
+                      </div>
+                      <div>{{ c.producto.nombre_publico }}</div>
+                      {% if c.match_score %}
+                      <div class="text-muted">Match: {{ c.match_score }}%</div>
+                      {% endif %}
+                      {% else %}
+                      <div class="text-danger small">
+                        Sin producto asociado
+                      </div>
+                      {% if c.sku_match %}
+                      <div class="text-muted">
+                        Intento de SKU: {{ c.sku_match }}
+                      </div>
+                      {% endif %}
+                      {% endif %}
+                    </td>
+
+                    <td class="small">
+                      {% if c.venta_actual and c.venta_sugerida %}
+                      <div class="text-muted">Actual:</div>
+                      <div>$ {{ c.venta_actual }}</div>
+                      <div class="text-muted mt-1">Sugerido:</div>
+                      <div class="fw-semibold text-primary">$ {{ c.venta_sugerida }}</div>
+                      {% else %}
+                      <span class="text-muted">–</span>
+                      {% endif %}
+                    </td>
+
+                    <td class="text-end small">
+                      {% if c.pct_aumento_venta %}
+                      <span class="badge bg-primary-subtle text-primary">
+                        {{ c.pct_aumento_venta }}%
+                      </span>
+                      {% else %}
+                      <span class="text-muted">–</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+              <div class="text-muted small">
+                Los renglones en <span class="badge bg-warning-subtle text-dark">amarillo</span> no tienen
+                producto asociado en el catálogo y no se pueden actualizar automáticamente.
+              </div>
+              <button type="submit" class="btn btn-primary">
+                💾 Aplicar cambios seleccionados
+              </button>
+            </div>
+
+          </form>
+          {% else %}
+          <p class="text-muted mb-0">
+            No hay cambios pendientes detectados en esta fuente.
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const inputBuscar = document.getElementById("buscarCambiosDoc");
+    const tabla = document.getElementById("tablaCambiosDoc");
+    const checkAll = document.getElementById("checkAllDoc");
+
+    if (inputBuscar && tabla) {
+      inputBuscar.addEventListener("input", function () {
+        const term = (inputBuscar.value || "").trim().toLowerCase();
+        const rows = tabla.querySelectorAll("tbody tr.cambio-row");
+
+        rows.forEach(row => {
+          const texto = (row.textContent || "").toLowerCase();
+          row.style.display = texto.includes(term) ? "" : "none";
+        });
+      });
+    }
+
+    if (checkAll && tabla) {
+      checkAll.addEventListener("change", function () {
+        const rows = tabla.querySelectorAll("tbody tr.cambio-row");
+        rows.forEach(row => {
+          if (row.style.display === "none") return;
+          const cb = row.querySelector(".check-candidato");
+          if (cb) cb.checked = checkAll.checked;
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}
