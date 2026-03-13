@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">{{ titulo }}</h1>
+      <p class="text-muted mb-0">
+        Configurá una fuente de lista de precios para detectar cambios automáticamente.
+      </p>
+    </div>
+
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'price_sources_list' %}">
+        ⬅ Volver a listas
+      </a>
+    </div>
+  </div>
+
+  <!-- Mensajes -->
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+
+      <div class="card shadow-sm">
+
+        <div class="card-header fw-semibold">
+          Datos de la lista de precios
+        </div>
+
+        <div class="card-body">
+
+          <form method="post">
+            {% csrf_token %}
+
+            <!-- Nombre -->
+            <div class="mb-3">
+              <label class="form-label">Nombre</label>
+              {{ form.nombre }}
+              <div class="form-text">
+                Ejemplo: Lista proveedor sublimación
+              </div>
+              {% if form.nombre.errors %}
+                <div class="text-danger small">{{ form.nombre.errors }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Tipo -->
+            <div class="mb-3">
+              <label class="form-label">Tipo de documento</label>
+              {{ form.tipo }}
+              {% if form.tipo.errors %}
+                <div class="text-danger small">{{ form.tipo.errors }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Doc ID -->
+            <div class="mb-3">
+              <label class="form-label">Doc ID</label>
+              {{ form.doc_id }}
+
+              <div class="form-text">
+                Es el ID del archivo en Google Docs / Google Drive.
+                <br>
+                Ejemplo:
+                <br>
+                <code>https://docs.google.com/document/d/ABC123XYZ/edit</code>
+                <br>
+                El doc_id sería:
+                <code>ABC123XYZ</code>
+              </div>
+
+              {% if form.doc_id.errors %}
+                <div class="text-danger small">{{ form.doc_id.errors }}</div>
+              {% endif %}
+            </div>
+
+            <!-- URL -->
+            <div class="mb-3">
+              <label class="form-label">URL (opcional)</label>
+              {{ form.url }}
+
+              <div class="form-text">
+                Si la dejás vacía, el sistema la genera automáticamente usando el doc_id.
+              </div>
+
+              {% if form.url.errors %}
+                <div class="text-danger small">{{ form.url.errors }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Orden -->
+            <div class="mb-3">
+              <label class="form-label">Orden</label>
+              {{ form.orden }}
+
+              <div class="form-text">
+                Permite ordenar las listas cuando hay varias.
+              </div>
+
+              {% if form.orden.errors %}
+                <div class="text-danger small">{{ form.orden.errors }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Checkboxes -->
+            <div class="row">
+
+              <div class="col-md-6">
+                <div class="form-check mb-3">
+                  {{ form.activo }}
+                  <label class="form-check-label">
+                    Fuente activa
+                  </label>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="form-check mb-3">
+                  {{ form.es_principal }}
+                  <label class="form-check-label">
+                    Fuente principal
+                  </label>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Botones -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+
+              <a class="btn btn-outline-secondary" href="{% url 'price_sources_list' %}">
+                Cancelar
+              </a>
+
+              <button type="submit" class="btn btn-primary">
+                💾 Guardar fuente
+              </button>
+
+            </div>
+
+          </form>
+
+        </div>
+      </div>
+
+      <!-- Ayuda -->
+      <div class="card shadow-sm mt-3">
+        <div class="card-header fw-semibold">
+          Cómo obtener el doc_id
+        </div>
+        <div class="card-body small">
+
+          <p class="mb-2">
+            Abrí tu documento en Google Docs.
+          </p>
+
+          <p class="mb-2">
+            La URL se ve así:
+          </p>
+
+          <pre class="bg-light p-2 small">
+            https://docs.google.com/document/d/1ABCDEF123456789/edit
+          </pre>
+
+          <p class="mb-0">
+            El <strong>doc_id</strong> es la parte entre <code>/d/</code> y <code>/edit</code>.
+          </p>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

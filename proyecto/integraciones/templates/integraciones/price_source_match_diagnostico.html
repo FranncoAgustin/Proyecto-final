@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Diagnóstico de matching de lista{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+  <!-- HEADER -->
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Diagnóstico de matching de lista</h1>
+      <p class="text-muted mb-0">
+        Comparación entre los artículos detectados en la lista
+        <strong>{{ source.nombre }}</strong>
+        y los productos cargados en tu base de datos.
+      </p>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary" href="{% url 'price_sources_list' %}">
+        ⬅ Volver a fuentes
+      </a>
+
+      <a class="btn btn-outline-dark" href="{% url 'gestionar_cambios_doc_precios_source' source.id %}">
+        💲 Ver cambios de precio
+      </a>
+
+      {% if source.url %}
+      <a class="btn btn-outline-primary" href="{{ source.url }}" target="_blank" rel="noopener">
+        📄 Abrir documento
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- SELECTOR DE FUENTE -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Fuente</label>
+          <select class="form-select" onchange="location = this.value;">
+            {% for s in sources %}
+              <option value="{% url 'diagnostico_match_lista_source' s.id %}" {% if s.id == source.id %}selected{% endif %}>
+                {{ s.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <div class="small text-muted">Último snapshot</div>
+          <div>
+            {% if snapshot %}
+              {{ snapshot.creado_en }}
+            {% else %}
+              <span class="text-muted">sin datos todavía</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="small text-muted">Tipo de fuente</div>
+          <div>{{ source.get_tipo_display }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESUMEN -->
+  <div class="row g-3 mb-3">
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted small">Items en lista</div>
+          <div class="fs-4 fw-bold">{{ resumen.total_items }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm border-success h-100">
+        <div class="card-body">
+          <div class="text-muted small">Match exacto</div>
+          <div class="fs-4 fw-bold text-success">{{ resumen.exactos }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm border-warning h-100">
+        <div class="card-body">
+          <div class="text-muted small">Match fuzzy</div>
+          <div class="fs-4 fw-bold text-warning">{{ resumen.fuzzy }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm border-danger h-100">
+        <div class="card-body">
+          <div class="text-muted small">Sin match</div>
+          <div class="fs-4 fw-bold text-danger">{{ resumen.sin_match }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUSCADOR / FILTROS -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-lg-6">
+          <label class="form-label mb-1">Buscar</label>
+          <input
+            id="buscarMatch"
+            type="text"
+            class="form-control form-control-sm"
+            placeholder="Buscar por ART, producto lista, SKU o producto base..."
+          >
+        </div>
+
+        <div class="col-lg-6">
+          <label class="form-label mb-1">Filtrar por estado</label>
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-sm btn-outline-secondary filtro-estado active" data-estado="all">
+              Todos
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success filtro-estado" data-estado="exacto">
+              Exacto
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-warning filtro-estado" data-estado="fuzzy">
+              Fuzzy
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger filtro-estado" data-estado="sin_match">
+              Sin match
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLA -->
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+
+      {% if rows %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle table-hover mb-0" id="tablaMatch">
+          <thead class="table-light">
+            <tr>
+              <th style="min-width: 120px;">ART (lista)</th>
+              <th style="min-width: 260px;">Producto lista</th>
+              <th style="min-width: 110px;">Compra</th>
+              <th style="min-width: 160px;">SKU encontrado</th>
+              <th style="min-width: 260px;">Producto en base</th>
+              <th style="min-width: 90px;">Score</th>
+              <th style="min-width: 120px;">Estado</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for r in rows %}
+            <tr class="match-row" data-estado="{{ r.estado_match }}">
+
+              <td class="small">
+                <div class="fw-semibold text-break">{{ r.item.art }}</div>
+              </td>
+
+              <td class="small">
+                <div class="text-break">{{ r.item.producto|default:"—" }}</div>
+                {% if r.item.descripcion %}
+                <div class="text-muted small mt-1 text-break">
+                  {{ r.item.descripcion|truncatechars:120 }}
+                </div>
+                {% endif %}
+              </td>
+
+              <td class="small text-nowrap">
+                $ {{ r.item.compra }}
+              </td>
+
+              <td class="small">
+                {% if r.sku_match %}
+                  <div class="text-break">{{ r.sku_match }}</div>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+
+              <td class="small">
+                {% if r.producto_db %}
+                  <div class="fw-medium text-break">{{ r.producto_db.nombre_publico }}</div>
+                  {% if r.producto_db.sku %}
+                  <div class="text-muted small mt-1 text-break">
+                    SKU BD: {{ r.producto_db.sku }}
+                  </div>
+                  {% endif %}
+                {% else %}
+                  <span class="text-danger">Sin match</span>
+                {% endif %}
+              </td>
+
+              <td class="small text-nowrap">
+                {% if r.match_score %}
+                  {{ r.match_score }}%
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+
+              <td class="small">
+                {% if r.estado_match == "exacto" %}
+                  <button type="button"
+                          class="btn btn-sm btn-success filtro-estado-rapido"
+                          data-estado="exacto">
+                    Exacto
+                  </button>
+                {% elif r.estado_match == "fuzzy" %}
+                  <button type="button"
+                          class="btn btn-sm btn-warning text-dark filtro-estado-rapido"
+                          data-estado="fuzzy">
+                    Fuzzy
+                  </button>
+                {% else %}
+                  <button type="button"
+                          class="btn btn-sm btn-danger filtro-estado-rapido"
+                          data-estado="sin_match">
+                    Sin match
+                  </button>
+                {% endif %}
+              </td>
+
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="p-3 border-top bg-light small text-muted">
+        Los botones de estado también funcionan como filtro rápido.
+      </div>
+
+      {% else %}
+      <div class="p-4 text-muted">
+        No hay items en el snapshot.
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const inputBuscar = document.getElementById("buscarMatch");
+  const rows = Array.from(document.querySelectorAll(".match-row"));
+  const botonesFiltro = Array.from(document.querySelectorAll(".filtro-estado"));
+  const botonesRapidos = Array.from(document.querySelectorAll(".filtro-estado-rapido"));
+
+  let estadoActivo = "all";
+
+  function aplicarFiltros() {
+    const termino = ((inputBuscar?.value) || "").trim().toLowerCase();
+
+    rows.forEach(row => {
+      const texto = (row.textContent || "").toLowerCase();
+      const estadoRow = row.dataset.estado || "";
+
+      const cumpleTexto = !termino || texto.includes(termino);
+      const cumpleEstado = estadoActivo === "all" || estadoRow === estadoActivo;
+
+      row.style.display = (cumpleTexto && cumpleEstado) ? "" : "none";
+    });
+  }
+
+  function setEstadoActivo(nuevoEstado) {
+    estadoActivo = nuevoEstado;
+
+    botonesFiltro.forEach(btn => {
+      btn.classList.remove("active");
+      if (btn.dataset.estado === nuevoEstado) {
+        btn.classList.add("active");
+      }
+    });
+
+    aplicarFiltros();
+  }
+
+  if (inputBuscar) {
+    inputBuscar.addEventListener("input", aplicarFiltros);
+  }
+
+  botonesFiltro.forEach(btn => {
+    btn.addEventListener("click", function () {
+      setEstadoActivo(this.dataset.estado || "all");
+    });
+  });
+
+  botonesRapidos.forEach(btn => {
+    btn.addEventListener("click", function () {
+      setEstadoActivo(this.dataset.estado || "all");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  aplicarFiltros();
+});
+</script>
+
+{% endblock %}
