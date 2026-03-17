@@ -3,119 +3,388 @@
 
 {% block title %}Catálogo{% endblock %}
 
+{% block top_extra %}
+<section class="border-bottom" style="background:#ffffff;">
+  <div class="container py-2">
+    <div class="elfsight-app-dc526a6a-1884-4661-9cc1-fd96cf6dc2d4" data-elfsight-app-lazy></div>
+  </div>
+</section>
+{% endblock %}
+
 {% block content %}
+<style>
+  .catalog-wrap {
+    background:
+      radial-gradient(circle at top right, rgba(var(--mp-primary-rgb), .07), transparent 18%),
+      linear-gradient(180deg, rgba(var(--mp-primary-rgb), .04), transparent 55%);
+    border-radius: 18px;
+    padding: 1rem;
+  }
 
-  {# INSTAGRAM FEED - SOLO EN CATÁLOGO, DEBAJO DE LA NAVBAR Y ANTES DE LOS PRODUCTOS #}
-  <section class="border-bottom mb-3" style="background:#ffffff;">
-    <div class="py-2">
-      <!-- Elfsight Instagram Feed | Untitled Instagram Feed -->
-      <script src="https://elfsightcdn.com/platform.js" async></script>
-      <div class="elfsight-app-dc526a6a-1884-4661-9cc1-fd96cf6dc2d4" data-elfsight-app-lazy></div>
-    </div>
-  </section>
+  .catalog-hero {
+    background: linear-gradient(135deg, rgba(var(--mp-primary-rgb), .10), rgba(var(--mp-primary-rgb), .03));
+    border: 1px solid rgba(var(--mp-primary-rgb), .10);
+    border-radius: 18px;
+    padding: 1.15rem 1.15rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+  }
 
-  <div class="container py-4">
+  .catalog-title {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--mp-text);
+  }
 
-    <!-- HEADER + BOTÓN HAMBURGUESA -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
+  .catalog-subtitle {
+    margin: .35rem 0 0 0;
+    color: var(--mp-muted);
+    font-size: .95rem;
+  }
+
+  .catalog-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .9rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .catalog-meta {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    flex-wrap: wrap;
+  }
+
+  .catalog-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    background: rgba(var(--mp-primary-rgb), .08);
+    color: var(--mp-primary);
+    border: 1px solid rgba(var(--mp-primary-rgb), .15);
+    border-radius: 999px;
+    padding: .45rem .75rem;
+    font-weight: 700;
+    font-size: .9rem;
+  }
+
+  .catalog-filter-btn {
+    border-radius: 12px;
+    padding: .7rem 1rem;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
+  }
+
+  .catalog-grid {
+    margin-top: 1.1rem;
+  }
+
+  .product-card {
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .05);
+    transition: transform .16s ease, box-shadow .18s ease, border-color .18s ease;
+    background: var(--mp-surface);
+  }
+
+  .product-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, .09);
+    border-color: rgba(var(--mp-primary-rgb), .18);
+  }
+
+  .product-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+
+  .product-image-wrap {
+    position: relative;
+    background: linear-gradient(180deg, rgba(0, 0, 0, .015), rgba(0, 0, 0, .03));
+    border-bottom: 1px solid rgba(0, 0, 0, .05);
+  }
+
+  .product-img {
+    width: 100%;
+    height: 220px;
+    object-fit: contain;
+    display: block;
+    padding: .65rem;
+  }
+
+  .product-placeholder {
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mp-muted);
+    background: rgba(0, 0, 0, .02);
+    font-weight: 600;
+  }
+
+  .stock-badge {
+    border-radius: 999px !important;
+    padding: .5rem .7rem;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
+  }
+
+  .favorite-btn {
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .10);
+    border: 1px solid rgba(0, 0, 0, .08);
+  }
+
+  .product-card .card-body {
+    padding: .85rem .9rem 1rem;
+  }
+
+  .product-card .card-title {
+    font-size: .98rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1f2937;
+    margin-bottom: .5rem;
+  }
+
+  .price-wrap {
+    min-height: 48px;
+  }
+
+  .price-old {
+    color: #6b7280;
+    text-decoration: line-through;
+    font-size: .92rem;
+  }
+
+  .price-current {
+    color: #198754;
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.15;
+  }
+
+  .empty-state {
+    background: #fff;
+    border: 1px dashed rgba(0, 0, 0, .14);
+    border-radius: 16px;
+    padding: 2.2rem 1rem;
+    text-align: center;
+    color: var(--mp-muted);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .04);
+  }
+
+  .empty-state i {
+    font-size: 2rem;
+    margin-bottom: .75rem;
+    color: rgba(var(--mp-primary-rgb), .55);
+  }
+
+  .offcanvas .offcanvas-title {
+    font-weight: 800;
+  }
+
+  @media (max-width: 575.98px) {
+    .catalog-wrap {
+      padding: .75rem;
+      border-radius: 14px;
+    }
+
+    .catalog-hero {
+      padding: 1rem;
+      border-radius: 14px;
+    }
+
+    .catalog-title {
+      font-size: 1.28rem;
+    }
+
+    .catalog-subtitle {
+      font-size: .9rem;
+    }
+
+    .catalog-filter-btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .product-img,
+    .product-placeholder {
+      height: 165px;
+    }
+
+    .product-card .card-body {
+      padding: .65rem .7rem .8rem;
+    }
+
+    .product-card .card-title {
+      font-size: .9rem;
+      margin-bottom: .4rem;
+    }
+
+    .price-old {
+      font-size: .82rem;
+    }
+
+    .price-current {
+      font-size: .95rem;
+    }
+
+    .favorite-btn {
+      width: 36px;
+      height: 36px;
+    }
+
+    .stock-badge {
+      padding: .38rem .55rem;
+      font-size: .72rem;
+    }
+  }
+</style>
+
+<div class="catalog-wrap">
+
+  <div class="catalog-hero mb-3">
+    <div class="catalog-toolbar">
       <div>
-        <h2 class="mb-0">Catálogo de productos</h2>
+        <h1 class="catalog-title">Catálogo de productos</h1>
+        <p class="catalog-subtitle">
+          Descubrí productos personalizados pensados para regalar, emprender y crear momentos únicos.
+        </p>
       </div>
 
-      <!-- Botón 3 rayitas -->
-      <button class="btn btn-outline-secondary d-flex align-items-center" type="button" data-bs-toggle="offcanvas"
-        data-bs-target="#filtrosOffcanvas" aria-controls="filtrosOffcanvas">
-        <i class="fa-solid fa-bars me-2"></i>
+      <button
+        class="btn btn-mp neutral catalog-filter-btn d-inline-flex align-items-center"
+        type="button"
+        data-bs-toggle="offcanvas"
+        data-bs-target="#filtrosOffcanvas"
+        aria-controls="filtrosOffcanvas"
+      >
+        <i class="fa-solid fa-sliders me-2"></i>
         Filtros
       </button>
     </div>
 
-    <!-- OFFCANVAS CON EL MENÚ TIPO ÁRBOL -->
-    <div class="offcanvas offcanvas-start" tabindex="-1" id="filtrosOffcanvas" aria-labelledby="filtrosOffcanvasLabel">
-      <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="filtrosOffcanvasLabel">
-          Filtros
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
-      </div>
-      <div class="offcanvas-body">
-        {% include "pdf/partials/filtros_sidebar.html" %}
-      </div>
+    <div class="catalog-meta mt-3">
+      <span class="catalog-badge">
+        <i class="fa-solid fa-box-open"></i>
+        {{ productos|length }} producto{{ productos|length|pluralize }}
+      </span>
     </div>
+  </div>
 
-    <!-- GRID DE PRODUCTOS -->
-    <div class="row g-4 mt-1 catalog-grid">
+  <!-- OFFCANVAS FILTROS -->
+  <div class="offcanvas offcanvas-start" tabindex="-1" id="filtrosOffcanvas" aria-labelledby="filtrosOffcanvasLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="filtrosOffcanvasLabel">
+        Filtros del catálogo
+      </h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body">
+      {% include "pdf/partials/filtros_sidebar.html" %}
+    </div>
+  </div>
 
-      {% for item in productos %}
-      {# 🔹 col-6 para móvil (2 productos por fila) #}
-      <div class="col-6 col-sm-6 col-md-4 col-lg-3">
+  <!-- GRID DE PRODUCTOS -->
+  <div class="row g-4 catalog-grid">
+    {% for item in productos %}
+    <div class="col-6 col-sm-6 col-md-4 col-lg-3">
+      <div class="card h-100 product-card position-relative">
 
-        <div class="card h-100 shadow-sm position-relative">
+        {% if item.sin_stock %}
+        <span class="badge bg-danger position-absolute top-0 start-0 m-2 z-3 stock-badge">
+          Sin stock
+        </span>
+        {% endif %}
 
-          {# BADGE SIN STOCK #}
-          {% if item.sin_stock %}
-          <span class="badge bg-danger position-absolute top-0 start-0 m-2 z-3">
-            Sin stock
-          </span>
-          {% endif %}
-
-          {# ❤️ FAVORITOS #}
-          {% with favs=request.session.favoritos %}
+        {% with favs=request.session.favoritos %}
           {% if favs and item.producto.id|stringformat:"s" in favs %}
-          <a href="{% url 'eliminar_favorito' item.producto.id %}?next={{ request.path }}"
-            class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm z-3"
-            title="Quitar de favoritos">
+          <a
+            href="{% url 'eliminar_favorito' item.producto.id %}?next={{ request.get_full_path|urlencode }}"
+            class="btn btn-light position-absolute top-0 end-0 m-2 favorite-btn z-3"
+            title="Quitar de favoritos"
+            aria-label="Quitar de favoritos"
+          >
             <i class="fa-solid fa-heart text-danger"></i>
           </a>
           {% else %}
-          <a href="{% url 'agregar_favorito' item.producto.id %}?next={{ request.path }}"
-            class="btn btn-light position-absolute top-0 end-0 m-2 rounded-circle shadow-sm z-3"
-            title="Agregar a favoritos">
+          <a
+            href="{% url 'agregar_favorito' item.producto.id %}?next={{ request.get_full_path|urlencode }}"
+            class="btn btn-light position-absolute top-0 end-0 m-2 favorite-btn z-3"
+            title="Agregar a favoritos"
+            aria-label="Agregar a favoritos"
+          >
             <i class="fa-regular fa-heart"></i>
           </a>
           {% endif %}
-          {% endwith %}
+        {% endwith %}
 
-          {# TARJETA CLICKEABLE #}
-          <a href="{% url 'detalle_producto' item.producto.id %}" class="text-decoration-none text-dark">
-
+        <a href="{% url 'detalle_producto' item.producto.id %}" class="product-link">
+          <div class="product-image-wrap">
             {% if item.producto.imagen %}
-            <img src="{{ item.producto.imagen.url }}" class="card-img-top" style="height:200px; object-fit:contain;">
+            <img
+              src="{{ item.producto.imagen.url }}"
+              alt="{{ item.producto.nombre_publico }}"
+              class="product-img"
+              loading="lazy"
+            >
             {% else %}
-            <div class="d-flex justify-content-center align-items-center bg-light" style="height:200px;">
-              <span class="text-muted">Sin imagen</span>
+            <div class="product-placeholder">
+              <span>Sin imagen</span>
             </div>
             {% endif %}
+          </div>
 
-            <div class="card-body">
-              <h6 class="card-title">
-                {{ item.producto.nombre_publico }}
-              </h6>
+          <div class="card-body">
+            <h6 class="card-title">
+              {{ item.producto.nombre_publico }}
+            </h6>
 
+            <div class="price-wrap">
               {% if item.oferta %}
-              <span class="text-muted text-decoration-line-through">
-                ${{ item.precio_original|floatformat:0|intcomma }}
-              </span><br>
-              <span class="fw-bold text-success">
-                ${{ item.precio_final|floatformat:0|intcomma }}
-              </span>
+                <div class="price-old">
+                  ${{ item.precio_original|floatformat:0|intcomma }}
+                </div>
+                <div class="price-current">
+                  ${{ item.precio_final|floatformat:0|intcomma }}
+                </div>
               {% else %}
-              <span class="fw-bold text-success">
-                ${{ item.precio_original|floatformat:0|intcomma }}
-              </span>
+                <div class="price-current">
+                  ${{ item.precio_original|floatformat:0|intcomma }}
+                </div>
               {% endif %}
             </div>
+          </div>
+        </a>
 
-          </a>
-
-        </div>
       </div>
-      {% empty %}
-      <div class="col-12">
-        <p class="text-muted">No hay productos para mostrar.</p>
-      </div>
-      {% endfor %}
-
     </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="empty-state">
+        <i class="fa-solid fa-box-open"></i>
+        <div class="fw-semibold mb-1">No hay productos para mostrar</div>
+        <div class="small">Probá ajustando los filtros o volvé más tarde.</div>
+      </div>
+    </div>
+    {% endfor %}
   </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script src="https://elfsightcdn.com/platform.js" async></script>
 {% endblock %}

@@ -5,117 +5,292 @@
 {% block title %}{{ producto.nombre_publico }}{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<style>
+  .detail-wrap {
+    background:
+      radial-gradient(circle at top right, rgba(var(--mp-primary-rgb), .07), transparent 18%),
+      linear-gradient(180deg, rgba(var(--mp-primary-rgb), .04), transparent 55%);
+    border-radius: 18px;
+    padding: 1rem;
+  }
 
-  <div class="row g-4 align-items-start">
+  .detail-hero {
+    background: linear-gradient(135deg, rgba(var(--mp-primary-rgb), .10), rgba(var(--mp-primary-rgb), .03));
+    border: 1px solid rgba(var(--mp-primary-rgb), .10);
+    border-radius: 18px;
+    padding: 1.15rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+    margin-bottom: 1rem;
+  }
 
-    <!-- ===================== -->
-    <!-- IMAGEN DEL PRODUCTO -->
-    <!-- ===================== -->
-    <div class="col-md-6 text-center">
-      <div class="border rounded p-3 bg-white shadow-sm">
-        {% if producto.imagen %}
-          <img id="product-image"
-               src="{{ producto.imagen.url }}"
-               class="img-fluid rounded"
-               alt="{{ producto.nombre_publico }}"
-               style="max-height: 420px; object-fit: contain;">
-        {% else %}
-          <div class="bg-light p-5 border rounded text-muted">
-            Sin imagen
-          </div>
-        {% endif %}
+  .detail-breadcrumb {
+    font-size: .9rem;
+    color: var(--mp-muted);
+    margin-bottom: .35rem;
+  }
+
+  .detail-breadcrumb a {
+    color: var(--mp-muted);
+    text-decoration: none;
+  }
+
+  .detail-breadcrumb a:hover {
+    color: var(--mp-primary);
+  }
+
+  .detail-title {
+    margin: 0;
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--mp-text);
+    line-height: 1.15;
+  }
+
+  .detail-grid {
+    align-items: start;
+  }
+
+  .detail-media-card,
+  .detail-info-card,
+  .detail-buy-card {
+    background: var(--mp-surface);
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 18px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .05);
+  }
+
+  .detail-media-card {
+    padding: 1rem;
+  }
+
+  .detail-image-wrap {
+    min-height: 460px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, rgba(0,0,0,.015), rgba(0,0,0,.03));
+    border: 1px solid rgba(0, 0, 0, .05);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .detail-image {
+    max-height: 420px;
+    width: 100%;
+    object-fit: contain;
+  }
+
+  .detail-placeholder {
+    min-height: 420px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mp-muted);
+    background: rgba(0, 0, 0, .02);
+    font-weight: 600;
+    border-radius: 14px;
+  }
+
+  .detail-info-card {
+    padding: 1.1rem;
+    margin-bottom: 1rem;
+  }
+
+  .price-block {
+    margin-bottom: 1rem;
+  }
+
+  .price-label {
+    font-size: .86rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--mp-muted);
+    margin-bottom: .15rem;
+    font-weight: 700;
+  }
+
+  .price-main {
+    font-size: 2rem;
+    line-height: 1;
+    font-weight: 800;
+    color: var(--mp-success);
+  }
+
+  .stock-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .55rem;
+    margin-bottom: .4rem;
+  }
+
+  .stock-badge-main {
+    border-radius: 999px !important;
+    padding: .5rem .78rem;
+    font-weight: 700;
+  }
+
+  .stock-extra-badge {
+    border-radius: 999px !important;
+    padding: .42rem .7rem;
+    font-weight: 700;
+  }
+
+  .detail-buy-card {
+    padding: 1rem;
+  }
+
+  .section-label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: .45rem;
+    color: #1f2937;
+  }
+
+  .variant-select {
+    border-radius: 12px;
+    min-height: 46px;
+  }
+
+  .variant-desc-box {
+    background: rgba(0, 0, 0, .03);
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 14px;
+    padding: .9rem 1rem;
+    min-height: 80px;
+    white-space: pre-line;
+    color: #374151;
+    line-height: 1.45;
+  }
+
+  .qty-input {
+    max-width: 140px;
+    border-radius: 12px;
+    min-height: 46px;
+  }
+
+  .buy-helper {
+    color: var(--mp-muted);
+    font-size: .88rem;
+  }
+
+  .buy-btn {
+    border-radius: 14px;
+    min-height: 52px;
+    font-weight: 800;
+    font-size: 1rem;
+    box-shadow: 0 8px 18px rgba(13, 110, 253, .16);
+  }
+
+  .detail-side-stack {
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (max-width: 767.98px) {
+    .detail-wrap {
+      padding: .75rem;
+      border-radius: 14px;
+    }
+
+    .detail-hero,
+    .detail-media-card,
+    .detail-info-card,
+    .detail-buy-card {
+      border-radius: 14px;
+    }
+
+    .detail-title {
+      font-size: 1.35rem;
+    }
+
+    .detail-image-wrap {
+      min-height: 300px;
+    }
+
+    .detail-image {
+      max-height: 280px;
+    }
+
+    .detail-placeholder {
+      min-height: 280px;
+    }
+
+    .price-main {
+      font-size: 1.6rem;
+    }
+
+    .qty-input {
+      max-width: 100%;
+    }
+  }
+</style>
+
+<div class="detail-wrap">
+
+  <div class="detail-hero">
+    <div class="detail-breadcrumb">
+      <a href="{% url 'catalogo' %}">Catálogo</a>
+      <span class="mx-1">/</span>
+      <span>{{ producto.nombre_publico }}</span>
+    </div>
+    <h1 class="detail-title">{{ producto.nombre_publico }}</h1>
+  </div>
+
+  <div class="row g-4 detail-grid">
+
+    <!-- IMAGEN -->
+    <div class="col-lg-6">
+      <div class="detail-media-card">
+        <div class="detail-image-wrap">
+          {% if producto.imagen %}
+            <img
+              id="product-image"
+              src="{{ producto.imagen.url }}"
+              class="img-fluid detail-image"
+              alt="{{ producto.nombre_publico }}"
+            >
+          {% else %}
+            <div class="detail-placeholder">
+              Sin imagen
+            </div>
+          {% endif %}
+        </div>
       </div>
     </div>
 
-    <!-- ===================== -->
-    <!-- INFO DEL PRODUCTO -->
-    <!-- ===================== -->
-    <div class="col-md-6">
+    <!-- INFO + COMPRA -->
+    <div class="col-lg-6">
+      <div class="detail-side-stack">
 
-      <h2 class="mb-1">{{ producto.nombre_publico }}</h2>
-
-      <div class="mb-3">
-        <span class="h3 text-success fw-bold">
-          $<span id="price-amount">
-            {% if variantes_ui %}
-              {{ precio_inicial|floatformat:0|intcomma }}
-            {% else %}
-              {{ producto.precio|floatformat:0|intcomma }}
-            {% endif %}
-          </span>
-        </span>
-      </div>
-
-      {# BADGE STOCK (dinámico) #}
-      <div class="mb-3">
-        <span id="stock-badge"
-              class="badge {% if stock_inicial|default:0 <= 0 %}bg-danger{% else %}bg-success{% endif %}">
-          {% if stock_inicial|default:0 <= 0 %}Sin stock{% else %}En stock{% endif %}
-        </span>
-        <!-- <small class="text-muted ms-2">
-          Disponibles: <span id="stock-num">{{ stock_inicial|default:0 }}</span>
-        </small> -->
-        <!-- Badge extra: última unidad / pocas unidades -->
-        <span id="stock-extra" class="badge ms-2 small d-none"></span>
-      </div>
-
-      <!-- ===================== -->
-      <!-- CARD DE COMPRA -->
-      <!-- ===================== -->
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-
-          <!-- ===================== -->
-          <!-- VARIANTES -->
-          <!-- ===================== -->
-          {% if variantes_ui %}
-            <div class="mb-3">
-              <label class="form-label fw-semibold mb-1">Variante</label>
-
-              <select id="variant-select" class="form-select">
-                {% for v in variantes_ui %}
-                  <option value="{{ v.id }}"
-                    {% if v.imagen %}
-                      data-image="{{ v.imagen.url }}"
-                    {% elif producto.imagen %}
-                      data-image="{{ producto.imagen.url }}"
-                    {% endif %}
-                    data-principal="{% if v.es_principal %}1{% else %}0{% endif %}"
-                    data-desc="{{ v.descripcion_corta|default:'' }}"
-                    data-stock="{{ v.stock|default:0 }}"
-                    data-price="{{ v.precio_final|floatformat:0|intcomma }}"
-                  >
-                    {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-          {% endif %}
-
-          <!-- ===================== -->
-          <!-- DESCRIPCIÓN ÚNICA (PRODUCTO / VARIANTE) -->
-          <!-- ===================== -->
-          <div class="mb-3">
-            <div class="d-flex align-items-center justify-content-between">
-              <span class="form-label fw-semibold mb-1">Descripción</span>
-            </div>
-
-            <div id="variant-desc"
-                 class="p-3 bg-light border rounded small"
-                 style="white-space: pre-line; min-height: 52px;">
-              {# valor inicial; luego JS lo pisa con la lógica correcta #}
-              {% if variantes_ui %}
-                {{ variantes_ui.0.descripcion_corta|default:producto.descripcion|default:"" }}
-              {% else %}
-                {{ producto.descripcion|default:"" }}
-              {% endif %}
+        <div class="detail-info-card">
+          <div class="price-block">
+            <div class="price-label">Precio</div>
+            <div class="price-main">
+              $<span id="price-amount">
+                {% if variantes_ui %}
+                  {{ precio_inicial|floatformat:0|intcomma }}
+                {% else %}
+                  {{ producto.precio|floatformat:0|intcomma }}
+                {% endif %}
+              </span>
             </div>
           </div>
 
-          <!-- ===================== -->
-          <!-- ACCIONES -->
-          <!-- ===================== -->
+          <div class="stock-row">
+            <span
+              id="stock-badge"
+              class="badge stock-badge-main {% if stock_inicial|default:0 <= 0 %}bg-danger{% else %}bg-success{% endif %}"
+            >
+              {% if stock_inicial|default:0 <= 0 %}Sin stock{% else %}En stock{% endif %}
+            </span>
+
+            <span id="stock-extra" class="badge stock-extra-badge d-none"></span>
+          </div>
+        </div>
+
+        <div class="detail-buy-card">
           <form method="post" action="{% url 'agregar_al_carrito' producto.id %}">
             {% csrf_token %}
 
@@ -125,11 +300,45 @@
               <input type="hidden" name="variante_id" value="0">
             {% endif %}
 
+            {% if variantes_ui %}
+              <div class="mb-3">
+                <label class="section-label" for="variant-select">Variante</label>
+                <select id="variant-select" class="form-select variant-select">
+                  {% for v in variantes_ui %}
+                    <option value="{{ v.id }}"
+                      {% if v.imagen %}
+                        data-image="{{ v.imagen.url }}"
+                      {% elif producto.imagen %}
+                        data-image="{{ producto.imagen.url }}"
+                      {% endif %}
+                      data-principal="{% if v.es_principal %}1{% else %}0{% endif %}"
+                      data-desc="{{ v.descripcion_corta|default:'' }}"
+                      data-stock="{{ v.stock|default:0 }}"
+                      data-price="{{ v.precio_final|floatformat:0|intcomma }}"
+                    >
+                      {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            {% endif %}
+
+            <div class="mb-3">
+              <label class="section-label">Descripción</label>
+              <div id="variant-desc" class="variant-desc-box">
+                {% if variantes_ui %}
+                  {{ variantes_ui.0.descripcion_corta|default:producto.descripcion|default:"" }}
+                {% else %}
+                  {{ producto.descripcion|default:"" }}
+                {% endif %}
+              </div>
+            </div>
+
             <div class="mb-2">
-              <label class="form-label fw-semibold">Cantidad</label>
+              <label class="section-label" for="qty-input">Cantidad</label>
               <input
                 type="number"
-                class="form-control"
+                class="form-control qty-input"
                 name="cantidad"
                 id="qty-input"
                 value="1"
@@ -137,157 +346,170 @@
                 max="{{ stock_inicial|default:0 }}"
                 {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}
               >
-              <div class="form-text">
+              <div class="form-text buy-helper">
                 Se limita automáticamente al stock disponible de la variante.
               </div>
             </div>
 
-            <button type="submit"
-                    class="btn btn-primary btn-lg w-100"
-                    id="add-cart-btn"
-                    {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}>
-              🛒 Agregar al carrito
+            <button
+              type="submit"
+              class="btn btn-primary buy-btn w-100 mt-2"
+              id="add-cart-btn"
+              {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}
+            >
+              <i class="fa-solid fa-cart-shopping me-2"></i>
+              Agregar al carrito
             </button>
           </form>
-
         </div>
-      </div>
 
+      </div>
     </div>
   </div>
-
 </div>
+{% endblock %}
 
-<!-- JS VARIANTES -->
-<script>
-  (function () {
-    const sel = document.getElementById("variant-select");
-    const img = document.getElementById("product-image");
-    const desc = document.getElementById("variant-desc");
-    const hiddenVar = document.getElementById("variante_id_input");
+{% block scripts %}
+  {{ block.super }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const sel = document.getElementById("variant-select");
+      const img = document.getElementById("product-image");
+      const desc = document.getElementById("variant-desc");
+      const hiddenVar = document.getElementById("variante_id_input");
 
-    const badge = document.getElementById("stock-badge");
-    const stockNum = document.getElementById("stock-num");
-    const extra = document.getElementById("stock-extra");
-    const qtyInput = document.getElementById("qty-input");
-    const addBtn = document.getElementById("add-cart-btn");
-    const priceSpan = document.getElementById("price-amount");
+      const badge = document.getElementById("stock-badge");
+      const extra = document.getElementById("stock-extra");
+      const qtyInput = document.getElementById("qty-input");
+      const addBtn = document.getElementById("add-cart-btn");
+      const priceSpan = document.getElementById("price-amount");
 
-    // Descripción principal del producto (fallback)
-    const productDesc = "{{ producto.descripcion|default:''|escapejs }}";
+      const productDesc = "{{ producto.descripcion|default:''|escapejs }}";
+      const initialStock = parseInt("{{ stock_inicial|default:'0'|escapejs }}", 10) || 0;
 
-    function updateStockExtra(qty) {
-      if (!extra) return;
-
-      extra.className = "badge ms-2 small";
-
-      if (qty <= 0) {
-        extra.classList.add("d-none");
-        extra.textContent = "";
-      } else if (qty === 1) {
-        extra.classList.remove("d-none");
-        extra.classList.add("bg-danger", "text-light", "opacity-75");
-        extra.textContent = "Última unidad";
-      } else if (qty > 1 && qty < 5) {
-        extra.classList.remove("d-none");
-        extra.classList.add("bg-warning", "text-dark", "opacity-75");
-        extra.textContent = "Quedan pocas unidades";
-      } else {
-        extra.classList.add("d-none");
+      function resetExtraBadge() {
+        if (!extra) return;
+        extra.className = "badge stock-extra-badge d-none";
         extra.textContent = "";
       }
-    }
 
-    function applyVariant() {
-      // Sin variantes: usar sólo la descripción del producto y stock actual
-      if (!sel) {
-        if (desc) desc.textContent = productDesc;
-        let s = 0;
-        if (stockNum) {
-          s = parseInt((stockNum.textContent || stockNum.innerText || "0"), 10) || 0;
+      function updateStockExtra(qty) {
+        if (!extra) return;
+
+        resetExtraBadge();
+
+        if (qty === 1) {
+          extra.classList.remove("d-none");
+          extra.classList.add("bg-danger", "text-light", "opacity-75");
+          extra.textContent = "Última unidad";
+        } else if (qty > 1 && qty < 5) {
+          extra.classList.remove("d-none");
+          extra.classList.add("bg-warning", "text-dark", "opacity-75");
+          extra.textContent = "Quedan pocas unidades";
         }
+      }
+
+      function updateStockState(stockQty) {
+        const s = parseInt(stockQty, 10) || 0;
+        const inStock = s > 0;
+
+        if (badge) {
+          badge.classList.remove("bg-danger", "bg-success");
+          badge.classList.add(inStock ? "bg-success" : "bg-danger");
+          badge.textContent = inStock ? "En stock" : "Sin stock";
+        }
+
+        if (qtyInput) {
+          qtyInput.max = String(Math.max(s, 1));
+          qtyInput.disabled = !inStock;
+
+          let current = parseInt(qtyInput.value || "1", 10) || 1;
+
+          if (!inStock) {
+            current = 1;
+          } else {
+            if (current < 1) current = 1;
+            if (current > s) current = s;
+          }
+
+          qtyInput.value = String(current);
+        }
+
+        if (addBtn) {
+          addBtn.disabled = !inStock;
+        }
+
         updateStockExtra(s);
-        return;
       }
 
-      const opt = sel.options[sel.selectedIndex];
-      if (!opt) return;
+      function updateDescription(text, fallback) {
+        if (!desc) return;
+        const cleanText = (text || "").trim();
+        const cleanFallback = (fallback || "").trim();
+        desc.textContent = cleanText !== "" ? cleanText : cleanFallback;
+      }
 
-      // id variante
-      if (hiddenVar) hiddenVar.value = opt.value;
+      function updateImage(url) {
+        if (!img || !url) return;
+        img.src = url;
+      }
 
-      // imagen
-      const imgUrl = opt.getAttribute("data-image");
-      if (img && imgUrl) img.src = imgUrl;
-
-      // descripción:
-      //  - si es principal => SIEMPRE la del producto
-      //  - si no es principal => descripcion_corta o fallback al producto
-      const isPrincipal = opt.getAttribute("data-principal") === "1";
-      if (desc) {
-        if (isPrincipal) {
-          desc.textContent = productDesc;
-        } else {
-          const d = (opt.getAttribute("data-desc") || "").trim();
-          desc.textContent = d !== "" ? d : productDesc;
+      function updatePrice(value) {
+        if (!priceSpan) return;
+        if (value !== null && value !== undefined && String(value).trim() !== "") {
+          priceSpan.textContent = value;
         }
       }
 
-      // precio (ya viene formateado desde el template)
-      const p = opt.getAttribute("data-price");
-      if (priceSpan && p !== null && p !== "") {
-        priceSpan.textContent = p;
+      function applyVariant() {
+        if (!sel) {
+          updateDescription(productDesc, "");
+          updateStockState(initialStock);
+          return;
+        }
+
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt) {
+          updateDescription(productDesc, "");
+          updateStockState(initialStock);
+          return;
+        }
+
+        if (hiddenVar) {
+          hiddenVar.value = opt.value;
+        }
+
+        const imgUrl = opt.getAttribute("data-image");
+        updateImage(imgUrl);
+
+        const isPrincipal = opt.getAttribute("data-principal") === "1";
+        const variantDesc = opt.getAttribute("data-desc") || "";
+        updateDescription(isPrincipal ? productDesc : variantDesc, productDesc);
+
+        const variantPrice = opt.getAttribute("data-price");
+        updatePrice(variantPrice);
+
+        const stock = parseInt(opt.getAttribute("data-stock") || "0", 10) || 0;
+        updateStockState(stock);
       }
 
-      // stock
-      const s = parseInt(opt.getAttribute("data-stock") || "0", 10) || 0;
-      if (stockNum) stockNum.textContent = String(s);
-
-      const inStock = s > 0;
-
-      if (badge) {
-        badge.classList.remove("bg-danger", "bg-success");
-        badge.classList.add(inStock ? "bg-success" : "bg-danger");
-        badge.textContent = inStock ? "En stock" : "Sin stock";
+      if (sel) {
+        sel.addEventListener("change", applyVariant);
       }
 
       if (qtyInput) {
-        qtyInput.max = String(s);
-        qtyInput.disabled = !inStock;
+        qtyInput.addEventListener("input", function () {
+          let value = parseInt(qtyInput.value || "1", 10) || 1;
+          const max = parseInt(qtyInput.max || "1", 10) || 1;
 
-        if (!inStock) {
-          qtyInput.value = "1";
-        } else {
-          let current = parseInt(qtyInput.value || "1", 10) || 1;
-          if (current > s) current = s;
-          if (current < 1) current = 1;
-          qtyInput.value = String(current);
-        }
+          if (value < 1) value = 1;
+          if (value > max) value = max;
+
+          qtyInput.value = String(value);
+        });
       }
 
-      if (addBtn) addBtn.disabled = !inStock;
-
-      // badge extra de stock
-      updateStockExtra(s);
-    }
-
-    if (sel) {
-      sel.addEventListener("change", applyVariant);
-      applyVariant();  // inicial con la variante principal
-    } else {
-      applyVariant();  // caso sin variantes
-    }
-
-    // límite de cantidad
-    if (qtyInput) {
-      qtyInput.addEventListener("input", function () {
-        const max = parseInt(qtyInput.max || "1", 10) || 1;
-        let v = parseInt(qtyInput.value || "1", 10) || 1;
-        if (v < 1) v = 1;
-        if (v > max) v = max;
-        qtyInput.value = String(v);
-      });
-    }
-  })();
-</script>
+      applyVariant();
+    });
+  </script>
 {% endblock %}
