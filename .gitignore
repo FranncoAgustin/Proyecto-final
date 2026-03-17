@@ -1,8 +1,11 @@
 .venv/
 venv/
 __pycache__/
+*.py[cod]
+*.sqlite3
 *.pyc
 staticfiles/
 .env
 db.sqlite3
 proyecto/credenciales/service_account.json
+proyecto\media\listas_precios
