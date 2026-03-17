@@ -1178,3 +1178,9 @@ a.deletelink:focus, a.deletelink:hover {
     color: var(--body-fg);
     background-color: var(--body-bg);
 }
+
+.catalogo-page {
+    background-color: #1363ca;   /* gris suave, tipo tienda online */
+    min-height: 100vh;           /* que ocupe alto de pantalla */
+    border-radius: 12px;
+}

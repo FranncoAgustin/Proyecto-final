@@ -6,130 +6,506 @@
 {% block content %}
 <style>
   :root {
-    --mp-surface: #fff;
-    --mp-muted: #6c757d;
-    --mp-border: rgba(0, 0, 0, .1);
-    --mp-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+    --mp-surface: #ffffff;
+    --mp-surface-soft: #f8fafc;
+    --mp-muted: #6b7280;
+    --mp-border: rgba(15, 23, 42, 0.08);
+    --mp-border-strong: rgba(15, 23, 42, 0.14);
+    --mp-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    --mp-shadow-soft: 0 6px 18px rgba(15, 23, 42, 0.06);
+    --mp-primary-soft: rgba(13, 110, 253, 0.08);
+    --mp-success-soft: rgba(25, 135, 84, 0.10);
+    --mp-warning-soft: rgba(255, 193, 7, 0.18);
+    --mp-danger-soft: rgba(220, 53, 69, 0.08);
   }
 
-  .admin-wrap {
-    background: linear-gradient(180deg, rgba(13, 110, 253, .05), transparent 60%);
-    padding: 18px;
-    border-radius: 10px;
+  .owner-dashboard {
+    background:
+      radial-gradient(circle at top right, rgba(13,110,253,.08), transparent 20%),
+      linear-gradient(180deg, rgba(13,110,253,.04), transparent 55%);
+    border-radius: 18px;
+    padding: 1.25rem;
+  }
+
+  .owner-hero {
+    background: linear-gradient(135deg, rgba(13,110,253,.10), rgba(13,110,253,.03));
+    border: 1px solid rgba(13,110,253,.10);
+    border-radius: 18px;
+    padding: 1.25rem 1.25rem;
+    box-shadow: var(--mp-shadow-soft);
+  }
+
+  .owner-title {
+    margin: 0;
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  .owner-subtitle {
+    color: var(--mp-muted);
+    margin: .35rem 0 0 0;
+    font-size: .98rem;
   }
 
   .admin-card {
     background: var(--mp-surface);
     border: 1px solid var(--mp-border);
-    border-radius: 10px;
-    box-shadow: var(--mp-shadow);
+    border-radius: 16px;
+    box-shadow: var(--mp-shadow-soft);
   }
 
   .admin-card .card-header {
-    background: rgba(0, 0, 0, .03);
+    background: rgba(248, 250, 252, .9);
     border-bottom: 1px solid var(--mp-border);
-    font-weight: 700;
+    font-weight: 800;
+    padding: .9rem 1rem;
   }
 
-  .admin-subtitle { color: var(--mp-muted); }
+  .section-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #111827;
+    margin-bottom: .9rem;
+  }
 
-  /* ===== Botones ===== */
+  .section-subtitle {
+    color: var(--mp-muted);
+    font-size: .9rem;
+    margin-top: -.25rem;
+    margin-bottom: 1rem;
+  }
+
   .btn-mp {
-    border-radius: 8px;
-    padding: .45rem .8rem;
-    border: 1px solid rgba(0, 0, 0, .12);
+    border-radius: 12px;
+    padding: .62rem .95rem;
+    border: 1px solid rgba(0, 0, 0, .09);
     background: #fff;
-    font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, .05);
+    font-weight: 700;
+    color: #111827;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, .04);
+    transition: all .18s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
   }
-  .btn-mp.primary { background: rgba(13, 110, 253, .08); }
-  .btn-mp.success { background: rgba(25, 135, 84, .12); }
-  .btn-mp.warning { background: rgba(255, 193, 7, .22); }
+
+  .btn-mp:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
+    color: #111827;
+  }
+
+  .btn-mp.primary { background: var(--mp-primary-soft); }
+  .btn-mp.success { background: var(--mp-success-soft); }
+  .btn-mp.warning { background: var(--mp-warning-soft); }
   .btn-mp.neutral { background: rgba(108, 117, 125, .08); }
 
-  /* ===== CATÁLOGO ===== */
-  .catalog-toolbar { display: grid; gap: .75rem; }
+  .btn-mp-sm {
+    padding: .45rem .75rem;
+    border-radius: 10px;
+    font-size: .9rem;
+  }
 
-  .tech-tabs { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .hero-actions {
+    display: flex;
+    gap: .75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 
-  .tech-tab {
+  .quick-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .quick-card {
+    background: #fff;
+    border: 1px solid var(--mp-border);
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: var(--mp-shadow-soft);
+    text-decoration: none;
+    color: inherit;
+    transition: all .18s ease;
+    min-height: 118px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .quick-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--mp-shadow);
+    border-color: rgba(13,110,253,.18);
+    color: inherit;
+  }
+
+  .quick-card.primary { background: linear-gradient(180deg, rgba(13,110,253,.08), rgba(13,110,253,.03)); }
+  .quick-card.success { background: linear-gradient(180deg, rgba(25,135,84,.10), rgba(25,135,84,.03)); }
+  .quick-card.warning { background: linear-gradient(180deg, rgba(255,193,7,.18), rgba(255,193,7,.05)); }
+  .quick-card.neutral { background: linear-gradient(180deg, rgba(108,117,125,.10), rgba(108,117,125,.03)); }
+
+  .quick-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    background: rgba(255,255,255,.75);
+    border: 1px solid rgba(0,0,0,.06);
+  }
+
+  .quick-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #111827;
+    margin: .75rem 0 .2rem 0;
+  }
+
+  .quick-desc {
+    color: var(--mp-muted);
+    font-size: .9rem;
+    margin: 0;
+  }
+
+  .group-card {
+    background: #fff;
+    border: 1px solid var(--mp-border);
+    border-radius: 16px;
+    box-shadow: var(--mp-shadow-soft);
+    padding: 1rem;
+    height: 100%;
+  }
+
+  .group-header {
     display: flex;
     align-items: center;
+    gap: .75rem;
+    margin-bottom: .9rem;
+  }
+
+  .group-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(13,110,253,.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    border: 1px solid rgba(13,110,253,.08);
+    flex-shrink: 0;
+  }
+
+  .group-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  .group-subtitle {
+    margin: .1rem 0 0 0;
+    color: var(--mp-muted);
+    font-size: .88rem;
+  }
+
+  .action-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem;
+  }
+
+  .catalog-toolbar {
+    display: grid;
+    gap: .9rem;
+  }
+
+  .toolbar-box {
+    background: var(--mp-surface-soft);
+    border: 1px solid var(--mp-border);
+    border-radius: 14px;
+    padding: .9rem;
+  }
+
+  .tech-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  .tech-tab {
+    display: inline-flex;
+    align-items: center;
     gap: .45rem;
-    padding: .45rem .7rem;
-    border: 1px solid rgba(0, 0, 0, .12);
-    border-radius: 8px;
+    padding: .5rem .8rem;
+    border: 1px solid rgba(0, 0, 0, .10);
+    border-radius: 999px;
     background: #fff;
-    color: #111;
+    color: #111827;
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 700;
+    font-size: .94rem;
+    transition: all .15s ease;
+  }
+
+  .tech-tab:hover {
+    border-color: rgba(13,110,253,.22);
+    color: #111827;
   }
 
   .tech-tab.active {
-    border-color: rgba(13, 110, 253, .4);
-    background: rgba(13, 110, 253, .08);
+    border-color: rgba(13,110,253,.35);
+    background: rgba(13,110,253,.08);
   }
 
-  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+
   .dot-all { background: #0d6efd; }
   .dot-sub { background: #dc3545; }
   .dot-las { background: #ffc107; }
   .dot-3d { background: #198754; }
   .dot-otr { background: #6c757d; }
 
-  .order-box { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-  .order-label { font-size: .9rem; color: rgba(0, 0, 0, .65); font-weight: 600; }
+  .order-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    flex-wrap: wrap;
+  }
 
-  .row-inactive { opacity: .7; }
+  .order-label {
+    font-size: .92rem;
+    color: rgba(0,0,0,.7);
+    font-weight: 700;
+    margin-right: .2rem;
+  }
+
+  .bulk-box {
+    background: var(--mp-surface-soft);
+    border: 1px solid var(--mp-border);
+    border-radius: 14px;
+    padding: .85rem;
+  }
 
   .badge-soft {
-    background: rgba(0, 0, 0, .05);
-    color: #333;
-    border: 1px solid rgba(0, 0, 0, .08);
+    background: rgba(15, 23, 42, .05);
+    color: #334155;
+    border: 1px solid rgba(15, 23, 42, .08);
+    font-weight: 700;
+  }
+
+  .row-inactive {
+    opacity: .72;
+  }
+
+  .table > :not(caption) > * > * {
+    padding-top: .82rem;
+    padding-bottom: .82rem;
+    vertical-align: middle;
+  }
+
+  .table thead th {
+    font-size: .87rem;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    color: #475569;
+    border-bottom-width: 1px;
+  }
+
+  .empty-state {
+    padding: 2.3rem 1rem;
+    color: var(--mp-muted);
+  }
+
+  .stat-badge {
+    background: rgba(13,110,253,.10);
+    color: #0d6efd;
+    border: 1px solid rgba(13,110,253,.15);
+    font-weight: 800;
+    border-radius: 999px;
+    padding: .45rem .7rem;
+  }
+
+  @media (max-width: 1199px) {
+    .quick-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 767px) {
+    .owner-dashboard {
+      padding: .85rem;
+      border-radius: 14px;
+    }
+
+    .owner-hero {
+      padding: 1rem;
+    }
+
+    .owner-title {
+      font-size: 1.35rem;
+    }
+
+    .quick-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-actions {
+      justify-content: flex-start;
+    }
+
+    .order-row {
+      align-items: stretch;
+    }
   }
 </style>
 
 <div class="container-fluid my-4">
-  <div class="admin-wrap">
+  <div class="owner-dashboard">
 
-    <!-- HEADER -->
-    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-      <div>
-        <h1 class="h4 mb-1">Panel de administración</h1>
-        <p class="admin-subtitle mb-0">Gestión de catálogo, precios y facturación</p>
-      </div>
-      <div class="d-flex gap-2">
-        <a class="btn btn-mp neutral" href="{% url 'home' %}">🔄 Refrescar</a>
-        <a class="btn btn-mp primary" href="{% url 'catalogo' %}" target="_blank">🛍️ Catálogo público</a>
-      </div>
-    </div>
-
-    <!-- ACCIONES -->
-    <div class="card admin-card mb-3">
-      <div class="card-body d-flex flex-wrap gap-2">
-        <a class="btn btn-mp primary" href="{% url 'importar_pdf' %}">📥 Importar PDF</a>
-        <a class="btn btn-mp primary" href="{% url 'procesar_factura' %}">🧾 Procesar factura</a>
-        <a class="btn btn-mp primary" href="{% url 'owner_historia_global' %}">📜 Historia global</a>
-        <a class="btn btn-mp warning" href="{% url 'owner_cupon_list' %}">🎟️ Cupones</a>
-        <a class="btn btn-mp success" href="{% url 'owner_oferta_list' %}">💸 Ofertas</a>
-        <a class="btn btn-mp primary" href="{% url 'owner_producto_create_ui' %}">➕ Nuevo artículo</a>
-        <a class="btn btn-mp neutral" href="{% url 'lista_precios_opciones' %}">📄 Lista PDF</a>
-        <a class="btn btn-mp primary" href="{% url 'factura_crear' %}">🧾 Generar factura</a>
-        <a class="btn btn-mp primary" href="{% url 'owner_autorubros' %}">🧾 Auto-Rubros</a>
-        <a class="btn btn-mp neutral" href="{% url 'owner_filtros_panel' %}">🧩 Filtros de catálogo</a>
-        <a class="btn btn-mp primary" href="{% url 'owner_siteinfo_list' %}">📝 Información del sitio</a>
-        <a class="btn btn-mp primary" href="{% url 'owner_siteconfig_edit' %}">🎨 Personalizar sitio</a>
-        <a class="btn btn-mp primary" href="{% url 'gestionar_cambios_doc_precios' %}">🎨 Cambios de precios desde Google Doc</a>
-
-
+    <!-- HERO -->
+    <div class="owner-hero mb-4">
+      <div class="row g-3 align-items-center">
+        <div class="col-lg-7">
+          <h1 class="owner-title">Panel de administración</h1>
+          <p class="owner-subtitle">
+            Gestión de catálogo, precios, promociones, facturación y configuración del sitio.
+          </p>
+        </div>
+        <div class="col-lg-5">
+          <div class="hero-actions">
+            <a class="btn btn-mp primary" href="{% url 'owner_producto_create_ui' %}">
+              ➕ Nuevo artículo
+            </a>
+            <a class="btn btn-mp success" href="{% url 'catalogo' %}" target="_blank">
+              🛍️ Catálogo público
+            </a>
+            <a class="btn btn-mp neutral" href="{% url 'home' %}">
+              🔄 Refrescar
+            </a>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- ACCIONES RÁPIDAS -->
+    <section class="mb-4">
+      <div class="section-title">Acciones rápidas</div>
+      <div class="section-subtitle">Tus accesos principales para trabajar más rápido.</div>
+
+      <div class="quick-grid">
+        <a class="quick-card primary" href="{% url 'owner_producto_create_ui' %}">
+          <div class="quick-icon">➕</div>
+          <div>
+            <div class="quick-title">Nuevo artículo</div>
+            <p class="quick-desc">Crear y publicar un producto nuevo en el catálogo.</p>
+          </div>
+        </a>
+
+        <a class="quick-card warning" href="{% url 'procesar_factura' %}">
+          <div class="quick-icon">🧾</div>
+          <div>
+            <div class="quick-title">Procesar factura</div>
+            <p class="quick-desc">Cargar datos y transformar comprobantes en información útil.</p>
+          </div>
+        </a>
+
+        <a class="quick-card success" href="{% url 'factura_crear' %}">
+          <div class="quick-icon">💵</div>
+          <div>
+            <div class="quick-title">Generar factura</div>
+            <p class="quick-desc">Emitir comprobantes y dejar lista la venta.</p>
+          </div>
+        </a>
+
+        <a class="quick-card neutral" href="{% url 'gestionar_cambios_doc_precios' %}">
+          <div class="quick-icon">📄</div>
+          <div>
+            <div class="quick-title">Cambios desde Google Doc</div>
+            <p class="quick-desc">Revisar y aplicar cambios detectados en precios.</p>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- GRUPOS DE ACCIONES -->
+    <section class="mb-4">
+      <div class="row g-3">
+
+        <div class="col-lg-4">
+          <div class="group-card">
+            <div class="group-header">
+              <div class="group-icon">📦</div>
+              <div>
+                <h2 class="group-title">Catálogo</h2>
+                <p class="group-subtitle">Gestión de productos, listas y estructura.</p>
+              </div>
+            </div>
+            <div class="action-list">
+              <a class="btn btn-mp btn-mp-sm primary" href="{% url 'importar_pdf' %}">📥 Importar PDF</a>
+              <a class="btn btn-mp btn-mp-sm neutral" href="{% url 'lista_precios_opciones' %}">📄 Lista PDF</a>
+              <a class="btn btn-mp btn-mp-sm primary" href="{% url 'owner_autorubros' %}">🗂️ Auto-Rubros</a>
+              <a class="btn btn-mp btn-mp-sm neutral" href="{% url 'owner_filtros_panel' %}">🧩 Filtros catálogo</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="group-card">
+            <div class="group-header">
+              <div class="group-icon">💰</div>
+              <div>
+                <h2 class="group-title">Ventas y promociones</h2>
+                <p class="group-subtitle">Facturación, descuentos y ofertas activas.</p>
+              </div>
+            </div>
+            <div class="action-list">
+              <a class="btn btn-mp btn-mp-sm primary" href="{% url 'procesar_factura' %}">🧾 Procesar factura</a>
+              <a class="btn btn-mp btn-mp-sm primary" href="{% url 'factura_crear' %}">🧾 Generar factura</a>
+              <a class="btn btn-mp btn-mp-sm warning" href="{% url 'owner_cupon_list' %}">🎟️ Cupones</a>
+              <a class="btn btn-mp btn-mp-sm success" href="{% url 'owner_oferta_list' %}">💸 Ofertas</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="group-card">
+            <div class="group-header">
+              <div class="group-icon">⚙️</div>
+              <div>
+                <h2 class="group-title">Configuración y control</h2>
+                <p class="group-subtitle">Ajustes visuales, info del sitio e historial.</p>
+              </div>
+            </div>
+            <div class="action-list">
+              <a class="btn btn-mp btn-mp-sm primary" href="{% url 'owner_siteinfo_list' %}">📝 Información del sitio</a>
+              <a class="btn btn-mp btn-mp-sm primary" href="{% url 'owner_siteconfig_edit' %}">🎨 Personalizar sitio</a>
+              <a class="btn btn-mp btn-mp-sm primary" href="{% url 'gestionar_cambios_doc_precios' %}">🔄 Google Doc precios</a>
+              <a class="btn btn-mp btn-mp-sm neutral" href="{% url 'owner_historia_global' %}">📜 Historia global</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
 
     <!-- CATÁLOGO -->
     <div class="card admin-card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        Catálogo de precios
-        <span class="badge bg-primary">{{ total_productos_precio|default:0 }} productos</span>
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>Catálogo de precios</span>
+        <span class="stat-badge">{{ total_productos_precio|default:0 }} productos</span>
       </div>
 
       <div class="card-body">
@@ -137,94 +513,120 @@
         <!-- BUSCADOR -->
         <form class="mb-3" method="get">
           <div class="input-group">
-            <input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por SKU o nombre público">
-            <button class="btn btn-mp neutral">Buscar</button>
+            <input
+              class="form-control"
+              name="q"
+              value="{{ q }}"
+              placeholder="Buscar por SKU o nombre público"
+            >
+            <button class="btn btn-mp neutral" type="submit">Buscar</button>
           </div>
         </form>
 
         <div class="catalog-toolbar">
 
-          <!-- FILTROS POR TÉCNICA -->
+          <!-- FILTROS -->
           {% with tl=t|default:''|lower %}
-          <div class="tech-tabs">
-            <a class="tech-tab {% if not tl %}active{% endif %}" href="?">
-              <span class="dot dot-all"></span> Todo
-            </a>
+          <div class="toolbar-box">
+            <div class="section-title mb-2" style="font-size:.95rem;">Filtrar por técnica</div>
+            <div class="tech-tabs">
+              <a class="tech-tab {% if not tl %}active{% endif %}" href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if o %}o={{ o|urlencode }}&{% endif %}{% if show_inactive %}show_inactive=1{% endif %}">
+                <span class="dot dot-all"></span> Todo
+              </a>
 
-            <a class="tech-tab {% if tl == 'sub' %}active{% endif %}" href="?t=sub">
-              <span class="dot dot-sub"></span> Sublimación
-            </a>
+              <a class="tech-tab {% if tl == 'sub' %}active{% endif %}" href="?t=sub{% if q %}&q={{ q|urlencode }}{% endif %}{% if o %}&o={{ o|urlencode }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+                <span class="dot dot-sub"></span> Sublimación
+              </a>
 
-            <a class="tech-tab {% if tl == 'laser' %}active{% endif %}" href="?t=laser">
-              <span class="dot dot-las"></span> Láser
-            </a>
+              <a class="tech-tab {% if tl == 'laser' %}active{% endif %}" href="?t=laser{% if q %}&q={{ q|urlencode }}{% endif %}{% if o %}&o={{ o|urlencode }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+                <span class="dot dot-las"></span> Láser
+              </a>
 
-            <a class="tech-tab {% if tl == '3d' %}active{% endif %}" href="?t=3d">
-              <span class="dot dot-3d"></span> 3D
-            </a>
+              <a class="tech-tab {% if tl == '3d' %}active{% endif %}" href="?t=3d{% if q %}&q={{ q|urlencode }}{% endif %}{% if o %}&o={{ o|urlencode }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+                <span class="dot dot-3d"></span> 3D
+              </a>
 
-            <a class="tech-tab {% if tl == 'otr' %}active{% endif %}" href="?t=otr">
-              <span class="dot dot-otr"></span> Otro
-            </a>
+              <a class="tech-tab {% if tl == 'otr' %}active{% endif %}" href="?t=otr{% if q %}&q={{ q|urlencode }}{% endif %}{% if o %}&o={{ o|urlencode }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}">
+                <span class="dot dot-otr"></span> Otro
+              </a>
+            </div>
           </div>
           {% endwith %}
 
-          <!-- ORDEN + INACTIVOS -->
-          <div class="order-box">
-            <span class="order-label">Orden:</span>
-            <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
-              <input type="hidden" name="q" value="{{ q }}">
-              <input type="hidden" name="t" value="{{ t }}">
-              <select name="o" class="form-select form-select-sm" onchange="this.form.submit()">
-                <option value="">Nombre</option>
-                <option value="recientes" {% if o == 'recientes' %}selected{% endif %}>Más recientes</option>
-                <option value="antiguos" {% if o == 'antiguos' %}selected{% endif %}>Más antiguos</option>
-                <option value="precio_desc" {% if o == 'precio_desc' %}selected{% endif %}>Mayor precio</option>
-                <option value="precio_asc" {% if o == 'precio_asc' %}selected{% endif %}>Menor precio</option>
-              </select>
-
-              <div class="form-check form-switch m-0">
-                <input class="form-check-input" type="checkbox" name="show_inactive" value="1" {% if show_inactive %}checked{% endif %} onchange="this.form.submit()">
-                <label class="form-check-label text-muted">Mostrar inactivos</label>
+          <!-- ORDEN -->
+          <div class="toolbar-box">
+            <div class="order-row">
+              <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="order-label">Orden y visibilidad</span>
               </div>
-            </form>
+
+              <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+                <input type="hidden" name="q" value="{{ q }}">
+                <input type="hidden" name="t" value="{{ t }}">
+
+                <select name="o" class="form-select form-select-sm" onchange="this.form.submit()">
+                  <option value="" {% if not o %}selected{% endif %}>Nombre</option>
+                  <option value="recientes" {% if o == 'recientes' %}selected{% endif %}>Más recientes</option>
+                  <option value="antiguos" {% if o == 'antiguos' %}selected{% endif %}>Más antiguos</option>
+                  <option value="precio_desc" {% if o == 'precio_desc' %}selected{% endif %}>Mayor precio</option>
+                  <option value="precio_asc" {% if o == 'precio_asc' %}selected{% endif %}>Menor precio</option>
+                </select>
+
+                <div class="form-check form-switch m-0">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    name="show_inactive"
+                    value="1"
+                    {% if show_inactive %}checked{% endif %}
+                    onchange="this.form.submit()"
+                  >
+                  <label class="form-check-label text-muted">Mostrar inactivos</label>
+                </div>
+              </form>
+            </div>
           </div>
 
         </div>
 
-        <!-- TABLA + ACCIONES MASIVAS -->
+        <!-- TABLA -->
         <div class="table-responsive mt-3">
           <form method="post" id="bulkForm">
             {% csrf_token %}
 
-            <!-- Barra de acciones masivas -->
-            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-              <div class="form-check mb-0">
-                <input class="form-check-input" type="checkbox" id="selectAllTop" onclick="toggleSelectAll(this)">
-                <label class="form-check-label small" for="selectAllTop">Seleccionar todos</label>
-              </div>
+            <div class="bulk-box mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" id="selectAllTop" onclick="toggleSelectAll(this)">
+                  <label class="form-check-label small" for="selectAllTop">Seleccionar todos</label>
+                </div>
 
-              <div class="d-flex gap-2 align-items-center flex-wrap">
-                <select name="bulkAccion" id="bulkAccion" class="form-select form-select-sm" onchange="toggleBulkTech()">
-                  <option value="">Acción masiva...</option>
-                  <option value="activar">Dar de alta seleccionados</option>
-                  <option value="desactivar">Dar de baja seleccionados</option>
-                  <option value="eliminar">Eliminar seleccionados</option>
-                  <option value="set_tech">Asignar técnica (tech)</option>
-                </select>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                  <select name="bulkAccion" id="bulkAccion" class="form-select form-select-sm" onchange="toggleBulkTech()">
+                    <option value="">Acción masiva...</option>
+                    <option value="activar">Dar de alta seleccionados</option>
+                    <option value="desactivar">Dar de baja seleccionados</option>
+                    <option value="eliminar">Eliminar seleccionados</option>
+                    <option value="set_tech">Asignar técnica (tech)</option>
+                  </select>
 
-                <!-- aparece solo si bulkAccion == set_tech -->
-                <select name="bulkTech" id="bulkTech" class="form-select form-select-sm" style="display:none; min-width: 180px;">
-                  <option value="">Elegir técnica...</option>
-                  <option value="SUB">Sublimación</option>
-                  <option value="LAS">Grabado láser</option>
-                  <option value="3D">Impresión 3D</option>
-                  <option value="OTR">Otro</option>
-                </select>
+                  <select
+                    name="bulkTech"
+                    id="bulkTech"
+                    class="form-select form-select-sm"
+                    style="display:none; min-width: 190px;"
+                  >
+                    <option value="">Elegir técnica...</option>
+                    <option value="SUB">Sublimación</option>
+                    <option value="LAS">Grabado láser</option>
+                    <option value="3D">Impresión 3D</option>
+                    <option value="OTR">Otro</option>
+                  </select>
 
-                <button type="submit" class="btn btn-sm btn-danger">
-                  Aplicar
-                </button>
+                  <button type="submit" class="btn btn-danger btn-sm">
+                    Aplicar
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -266,14 +668,14 @@
                   <td class="text-center">{{ p.stock }}</td>
                   <td class="text-end fw-bold">$ {{ p.precio|floatformat:0|intcomma }}</td>
                   <td class="text-end">
-                    <a class="btn btn-sm btn-mp primary" href="{% url 'owner_producto_editar' p.id %}">
+                    <a class="btn btn-mp btn-mp-sm primary" href="{% url 'owner_producto_editar' p.id %}">
                       Editar
                     </a>
                   </td>
                 </tr>
                 {% empty %}
                 <tr>
-                  <td colspan="7" class="text-center text-muted py-4">
+                  <td colspan="7" class="text-center empty-state">
                     No hay productos para mostrar
                   </td>
                 </tr>
@@ -290,12 +692,12 @@
 </div>
 
 <script>
-  // Seleccionar / deseleccionar todos
   function toggleSelectAll(source) {
-    document.querySelectorAll('.chk-producto').forEach(ch => ch.checked = source.checked);
+    document.querySelectorAll('.chk-producto').forEach(ch => {
+      ch.checked = source.checked;
+    });
   }
 
-  // Mostrar/ocultar selector de técnica según la acción elegida
   function toggleBulkTech() {
     const accion = document.getElementById("bulkAccion");
     const techSel = document.getElementById("bulkTech");
@@ -309,112 +711,6 @@
     }
   }
 
-  // asegurar estado correcto al cargar (por si el navegador recuerda el select)
   document.addEventListener("DOMContentLoaded", toggleBulkTech);
-
-  // --- Ir a editar producto (typeahead + redirect) ---
-  const gotoQ = document.getElementById("gotoEditQ");
-  const gotoBtn = document.getElementById("gotoEditBtn");
-  const gotoTA = document.getElementById("gotoEditTypeahead");
-
-  // Formateo de precio (sin decimales + separador de miles)
-  function formatARSNoDecimals(value) {
-    if (value === null || value === undefined) return "";
-    if (typeof value === "number") {
-      return Math.round(value).toLocaleString("es-AR");
-    }
-    const s = String(value).trim();
-    const num = Number(s.replace(/\./g, "").replace(",", "."));
-    if (!Number.isFinite(num)) {
-      return s.replace(/([.,]\d{1,2})$/, "");
-    }
-    return Math.round(num).toLocaleString("es-AR");
-  }
-
-  if (gotoQ && gotoBtn && gotoTA) {
-    let gotoTimer = null;
-    let gotoIndex = -1;
-
-    function gotoHide() {
-      gotoTA.style.display = "none";
-      gotoTA.innerHTML = "";
-      gotoIndex = -1;
-    }
-
-    function gotoShow(items) {
-      gotoTA.innerHTML = "";
-      if (!items.length) {
-        const div = document.createElement("div");
-        div.className = "dropdown-item text-muted";
-        div.textContent = "Sin resultados";
-        gotoTA.appendChild(div);
-      } else {
-        items.forEach((p) => {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "dropdown-item";
-          btn.innerHTML = `<strong>${p.sku}</strong> — ${p.nombre_publico}
-                           <span class="badge rounded-pill badge-soft ms-2">$ ${formatARSNoDecimals(p.precio)}</span>`;
-          btn.addEventListener("click", () => {
-            window.location.href = `{% url 'owner_producto_editar' 0 %}`.replace("/0/", `/${p.id}/`);
-          });
-          gotoTA.appendChild(btn);
-        });
-      }
-      gotoTA.style.display = "block";
-      gotoIndex = -1;
-    }
-
-    function gotoMove(delta) {
-      const items = Array.from(gotoTA.querySelectorAll(".dropdown-item"));
-      if (!items.length) return;
-      gotoIndex = Math.max(0, Math.min(items.length - 1, gotoIndex + delta));
-      items.forEach((el, i) => el.classList.toggle("active", i === gotoIndex));
-      items[gotoIndex].scrollIntoView({ block: "nearest" });
-    }
-
-    function gotoPick() {
-      const items = Array.from(gotoTA.querySelectorAll(".dropdown-item"));
-      if (gotoIndex >= 0 && gotoIndex < items.length) items[gotoIndex].click();
-    }
-
-    async function gotoSuggest(term) {
-      const r = await fetch(`{% url 'owner_api_product_suggest' %}?q=${encodeURIComponent(term)}`);
-      if (!r.ok) return { results: [] };
-      return r.json();
-    }
-
-    gotoQ.addEventListener("input", () => {
-      const term = gotoQ.value.trim();
-      if (gotoTimer) clearTimeout(gotoTimer);
-      if (!term) { gotoHide(); return; }
-
-      gotoTimer = setTimeout(async () => {
-        try {
-          const data = await gotoSuggest(term);
-          gotoShow(data.results || []);
-        } catch {
-          gotoTA.innerHTML = '<div class="dropdown-item text-danger">Error buscando</div>';
-          gotoTA.style.display = "block";
-        }
-      }, 200);
-    });
-
-    gotoQ.addEventListener("keydown", (e) => {
-      if (gotoTA.style.display !== "block") return;
-      if (e.key === "ArrowDown") { e.preventDefault(); gotoMove(1); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); gotoMove(-1); }
-      else if (e.key === "Enter") { e.preventDefault(); gotoPick(); }
-      else if (e.key === "Escape") { gotoHide(); }
-    });
-
-    gotoQ.addEventListener("blur", () => setTimeout(gotoHide(), 150));
-
-    gotoBtn.addEventListener("click", () => {
-      const term = gotoQ.value.trim();
-      if (!term) return;
-      gotoQ.dispatchEvent(new Event("input"));
-    });
-  }
 </script>
 {% endblock %}
