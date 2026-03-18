@@ -5,6 +5,8 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime
 from difflib import SequenceMatcher
 
+from django.core.paginator import Paginator
+
 from django.conf import settings
 from django.contrib import messages
 from django.db import IntegrityError, transaction
@@ -48,7 +50,7 @@ from .models import (
     PDFBranding,
 )
 from .utils import extraer_precios_de_pdf, get_similarity
-from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text
+from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text, parse_invoice_pdf
 from ofertas.utils import get_precio_con_oferta
 from owner.models import BitacoraEvento
 
@@ -217,16 +219,55 @@ def api_productos(request):
             "nombre": p.nombre_publico,
             "sku": p.sku,
             "precio": str((p.precio or Decimal("0.00")).quantize(Q2)),
+            "precio_costo": str((p.precio_costo or Decimal("0.00")).quantize(Q2)),
         })
     return JsonResponse({"results": data})
 
 
-def sugerencias_para(nombre_item: str, productos, top=8):
+def sugerencias_para(nombre_item: str, productos, top=2):
+    """
+    productos: lista de dicts con id, sku, nombre_publico, precio, precio_costo
+    devuelve sugerencias ordenadas por score descendente
+    """
+    nombre_item_norm = _norm(nombre_item)
     scored = []
-    for pid, sku, nom in productos:
-        s = max(_score(nombre_item, nom), _score(nombre_item, sku))
-        scored.append((s, pid, sku, nom))
-    scored.sort(reverse=True, key=lambda x: x[0])
+
+    for p in productos:
+        pid = p["id"]
+        sku = (p.get("sku") or "").strip()
+        nom = (p.get("nombre_publico") or "").strip()
+        precio = p.get("precio")
+        precio_costo = p.get("precio_costo")
+
+        score_nombre = _score(nombre_item_norm, nom)
+        score_sku = _score(nombre_item_norm, sku)
+
+        bonus = 0
+        nom_norm = _norm(nom)
+        sku_norm = _norm(sku)
+
+        if nombre_item_norm and nombre_item_norm in nom_norm:
+            bonus += 0.12
+        if nombre_item_norm and nombre_item_norm in sku_norm:
+            bonus += 0.08
+
+        palabras_item = set(nombre_item_norm.split())
+        palabras_nom = set(nom_norm.split())
+        comunes = len(palabras_item & palabras_nom)
+        bonus += min(comunes * 0.03, 0.12)
+
+        score_final = max(score_nombre, score_sku) + bonus
+
+        scored.append({
+            "score": round(score_final * 100, 1),
+            "id": pid,
+            "sku": sku,
+            "nombre": nom,
+            "precio": str(precio) if precio is not None else "0.00",
+            "precio_costo": str(precio_costo) if precio_costo is not None else "0.00",
+        })
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
     return scored[:top]
 
 
@@ -328,6 +369,16 @@ def mostrar_precios(request):
     rubro_filter = (request.GET.get("rubro") or "").strip()
     subrubro_filter = (request.GET.get("subrubro") or "").strip()
     producto_id = (request.GET.get("prod") or "").strip()
+    per_page_raw = (request.GET.get("per_page") or "28").strip()
+
+    # solo permitimos 20 o 28
+    try:
+        per_page = int(per_page_raw)
+    except ValueError:
+        per_page = 20
+
+    if per_page not in (20, 28):
+        per_page = 20
 
     productos_qs = ProductoPrecio.objects.filter(activo=True)
 
@@ -342,11 +393,11 @@ def mostrar_precios(request):
     if tech_filter:
         productos_qs = productos_qs.filter(tech=tech_filter)
 
-    # Rubro (CharField, matchea con Rubro.nombre)
+    # Rubro
     if rubro_filter:
         productos_qs = productos_qs.filter(rubro__iexact=rubro_filter)
 
-    # Subrubro (CharField, matchea con SubRubro.nombre)
+    # Subrubro
     if subrubro_filter:
         productos_qs = productos_qs.filter(subrubro__iexact=subrubro_filter)
 
@@ -357,14 +408,20 @@ def mostrar_precios(request):
         except ValueError:
             pass
 
-    productos = []
+    productos_lista = []
     for producto in productos_qs:
         precio_data = get_precio_con_oferta(producto)
-
         stock_principal = get_stock_disponible(producto, 0)
-        sin_stock = (stock_principal <= 0)
 
-        productos.append({
+        variantes_activas = list(producto.variantes.filter(activo=True))
+
+        if variantes_activas:
+            stock_total_variantes = sum(v.stock for v in variantes_activas)
+            sin_stock = stock_total_variantes <= 0
+        else:
+            sin_stock = stock_principal <= 0
+
+        productos_lista.append({
             "producto": producto,
             "precio_original": producto.precio,
             "precio_final": precio_data["precio_final"],
@@ -373,15 +430,33 @@ def mostrar_precios(request):
             "stock_principal": stock_principal,
         })
 
-    productos.sort(
+    productos_lista.sort(
         key=lambda x: (
             x["sin_stock"],
             x["producto"].nombre_publico.lower(),
         )
     )
 
+    paginator = Paginator(productos_lista, per_page)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # Para filtros rápidos de técnica
+    tech_cards = [
+        {"value": "", "label": "Todos", "icon": "fa-solid fa-border-all"},
+        {"value": "LAS", "label": "Grabado láser", "icon": "fa-solid fa-fire"},
+        {"value": "3D", "label": "Impresión 3D", "icon": "fa-solid fa-cube"},
+        {"value": "SUB", "label": "Sublimación", "icon": "fa-solid fa-mug-hot"},
+        {"value": "OTR", "label": "Otros", "icon": "fa-solid fa-shapes"},
+    ]
+
     context = {
-        "productos": productos,
+        "productos": page_obj.object_list,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "is_paginated": page_obj.has_other_pages(),
+        "per_page": per_page,
+        "tech_cards": tech_cards,
         "filtros_menu": _build_filtros_menu(),
         "q": q,
         "tech_actual": tech_filter,
@@ -499,34 +574,48 @@ def api_stock_variante(request, pk):
 def agregar_al_carrito(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
 
-    variante_id = request.POST.get("variante_id", "0")
+    variantes_activas = producto.variantes.filter(activo=True)
+    tiene_variantes = variantes_activas.exists()
+
+    variante_id_raw = request.POST.get("variante_id", "").strip()
     try:
-        variante_id = int(variante_id)
-    except ValueError:
+        variante_id = int(variante_id_raw) if variante_id_raw else 0
+    except (ValueError, TypeError):
         variante_id = 0
 
-    # Validar variante
-    if variante_id:
-        ok = ProductoVariante.objects.filter(
-            pk=variante_id,
-            producto=producto,
-            activo=True,
-        ).exists()
-        if not ok:
-            variante_id = 0
+    variante = None
+
+    # Si el producto tiene variantes, obligamos a elegir una válida
+    if tiene_variantes:
+        if not variante_id:
+            messages.error(request, "Tenés que elegir una variante antes de agregar al carrito.")
+            return redirect("detalle_producto", pk=pk)
+
+        variante = variantes_activas.filter(pk=variante_id).first()
+        if not variante:
+            messages.error(request, "La variante seleccionada no es válida.")
+            return redirect("detalle_producto", pk=pk)
+
+    else:
+        # Si no tiene variantes, ignoramos cualquier variante_id que venga
+        variante_id = 0
 
     # Cantidad
     try:
         cantidad = int(request.POST.get("cantidad", 1))
-    except ValueError:
+    except (ValueError, TypeError):
         cantidad = 1
+
     if cantidad < 1:
         cantidad = 1
 
     stock_disp = get_stock_disponible(producto, variante_id)
 
     if stock_disp <= 0:
-        messages.error(request, "Este producto/variante no tiene stock.")
+        if tiene_variantes and variante is not None:
+            messages.error(request, f"La variante '{variante.nombre}' no tiene stock.")
+        else:
+            messages.error(request, "Este producto no tiene stock.")
         return redirect("detalle_producto", pk=pk)
 
     if cantidad > stock_disp:
@@ -540,10 +629,15 @@ def agregar_al_carrito(request, pk):
     _save_cart(request, cart)
 
     # Bitácora
+    if tiene_variantes and variante is not None:
+        detalle_evento = f"{producto.nombre_publico or producto.sku} - {variante.nombre} x{cantidad}"
+    else:
+        detalle_evento = f"{producto.nombre_publico or producto.sku} x{cantidad}"
+
     registrar_evento(
         tipo="carrito_agregar",
         titulo="Producto agregado al carrito",
-        detalle=f"{producto.nombre_publico or producto.sku} x{cantidad} (variante {variante_id})",
+        detalle=detalle_evento,
         user=getattr(request, "user", None),
         obj=producto,
         extra={
@@ -554,9 +648,12 @@ def agregar_al_carrito(request, pk):
         },
     )
 
-    messages.success(request, "Producto agregado al carrito.")
-    return redirect("detalle_producto", pk=pk)
+    if tiene_variantes and variante is not None:
+        messages.success(request, f"Agregaste {producto.nombre_publico or producto.sku} - {variante.nombre} al carrito.")
+    else:
+        messages.success(request, "Producto agregado al carrito.")
 
+    return redirect("detalle_producto", pk=pk)
 
 # ============================================================
 # UTIL: verificar SKU existente (para input editable)
@@ -1004,7 +1101,8 @@ def procesar_factura(request):
         items_creados = 0
         productos_creados = 0
         productos_stock_actualizado = 0
-        productos_precio_actualizado = 0
+        productos_costo_actualizado = 0
+        productos_creados_ids = []
 
         with transaction.atomic():
 
@@ -1065,11 +1163,13 @@ def procesar_factura(request):
                     producto = ProductoPrecio.objects.create(
                         sku=sku,
                         nombre_publico=producto_txt or sku,
-                        precio=precio,   # costo por ahora
+                        precio=precio,
+                        precio_costo=precio,
                         stock=0,
-                        activo=True,
+                        activo=False,  # mejor dejarlo incompleto hasta revisarlo
                     )
                     productos_creados += 1
+                    productos_creados_ids.append(producto.id)
 
                 if not producto:
                     continue
@@ -1081,13 +1181,13 @@ def procesar_factura(request):
                     )
                     productos_stock_actualizado += 1
 
-                # Actualizar costo (precio)
+                # Actualizar costo (precio_costo)
                 if upd_precio:
-                    producto.precio = precio
-                    producto.save(update_fields=["precio"])
-                    productos_precio_actualizado += 1
+                    producto.precio_costo = precio
+                    producto.save(update_fields=["precio_costo"])
+                    productos_costo_actualizado += 1
 
-        # limpiar sesión
+        # limpiar sesión de factura
         request.session.pop("factura_id", None)
         request.session.pop("items_factura", None)
 
@@ -1098,7 +1198,7 @@ def procesar_factura(request):
             detalle=(
                 f"Items: {items_creados}, productos creados: {productos_creados}, "
                 f"stock actualizado: {productos_stock_actualizado}, "
-                f"precio actualizado: {productos_precio_actualizado}."
+                f"costo actualizado: {productos_costo_actualizado}."
             ),
             user=getattr(request, "user", None),
             obj=factura,
@@ -1107,9 +1207,18 @@ def procesar_factura(request):
                 "items_creados": items_creados,
                 "productos_creados": productos_creados,
                 "productos_stock_actualizado": productos_stock_actualizado,
-                "productos_precio_actualizado": productos_precio_actualizado,
+                "productos_costo_actualizado": productos_costo_actualizado,
             },
         )
+
+        # Si hubo productos creados, redirigir a la carga masiva
+        if productos_creados_ids:
+            request.session["productos_factura_creados_ids"] = productos_creados_ids
+            messages.success(
+                request,
+                "Factura guardada. Ahora completá los datos de los productos creados."
+            )
+            return redirect("owner_productos_completar_desde_factura")
 
         messages.success(
             request,
@@ -1145,15 +1254,23 @@ def procesar_factura(request):
                 raw_text = texto_manual
                 factura_url = None
                 es_pdf = False
+                resultado = parse_invoice_text(raw_text)
             else:
                 raw_text = extraer_texto_factura_simple(path)
                 factura_url = factura.archivo.url
                 es_pdf = True
 
-            resultado = parse_invoice_text(raw_text)
+                # Primero intentamos parser por posición del PDF
+                resultado = parse_invoice_pdf(path)
+
+                # Fallback: si no encontró nada, usamos texto plano
+                if not resultado:
+                    resultado = parse_invoice_text(raw_text)
 
             productos = list(
-                ProductoPrecio.objects.values("id", "sku", "nombre_publico")
+                ProductoPrecio.objects.filter(activo=True).values(
+                    "id", "sku", "nombre_publico", "precio", "precio_costo"
+                )
             )
 
             items = []
@@ -1162,12 +1279,15 @@ def procesar_factura(request):
                 cantidad = r.get("cantidad", Decimal("1"))
                 precio = r.get("precio_unitario", Decimal("0"))
 
+                sugerencias = sugerencias_para(producto_txt, productos, top=2)
+
                 items.append({
                     "producto": producto_txt,
                     "cantidad": str(cantidad),
                     "precio_unitario": str(precio),
                     "subtotal": str(cantidad * precio),
-                    "suggest": sugerencias_para(producto_txt, productos),
+                    "sugerencias": sugerencias,
+                    "match_principal": sugerencias[0] if sugerencias else None,
                 })
 
             request.session["factura_id"] = factura.id
@@ -1177,6 +1297,8 @@ def procesar_factura(request):
                     "cantidad": i["cantidad"],
                     "precio_unitario": i["precio_unitario"],
                     "subtotal": i["subtotal"],
+                    "sugerencias": i["sugerencias"],
+                    "decision": None,
                 }
                 for i in items
             ]
@@ -1206,7 +1328,6 @@ def procesar_factura(request):
         "pdf/procesar_factura.html",
         {"form": form, "ultimas_facturas": ultimas},
     )
-
 
 # ============================================================
 # HISTORIA LISTAS

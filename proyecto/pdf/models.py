@@ -1,5 +1,7 @@
 from django.db import models
+from django.db.models import Sum
 from decimal import Decimal
+
 
 class ListaPrecioPDF(models.Model):
     """Modelo para almacenar el archivo PDF subido."""
@@ -17,14 +19,13 @@ class ProductoPrecio(models.Model):
     Usaremos este modelo para guardar los productos extraídos.
     También lo usamos como catálogo de la tienda en el panel Owner.
     """
+
     class TechChoices(models.TextChoices):
         SUB = "SUB", "Sublimación"
         LAS = "LAS", "Grabado láser"
-        D3  = "3D",  "Impresión 3D"
+        D3 = "3D", "Impresión 3D"
         OTR = "OTR", "Otro"
 
-    # (Opcional) si querés seguir usando esta idea a nivel código,
-    # pero ya no la estamos usando como campo en la base:
     class RubroChoices(models.TextChoices):
         MATES = "MATES", "Mates"
         DIJES = "DIJES", "Dijes de acero"
@@ -59,7 +60,8 @@ class ProductoPrecio(models.Model):
     # Precio de venta actual
     precio = models.DecimalField(max_digits=10, decimal_places=2)
 
-    # Stock actual (para tu control interno)
+    # Stock actual del producto padre.
+    # Se usa solo cuando NO hay variantes activas.
     stock = models.IntegerField(default=0)
 
     # Técnica principal (Sublimación / Grabado láser / 3D / Otros)
@@ -70,7 +72,7 @@ class ProductoPrecio(models.Model):
         default="",
     )
 
-    # 🔹 Filtros del menú (EDITABLES DESDE EL OWNER)
+    # Filtros del menú (EDITABLES DESDE EL OWNER)
     rubro = models.CharField(
         max_length=80,
         blank=True,
@@ -93,6 +95,54 @@ class ProductoPrecio(models.Model):
 
     def __str__(self):
         return f"{self.nombre_publico} (SKU: {self.sku}) - ${self.precio}"
+
+    @property
+    def tiene_variantes(self) -> bool:
+        """
+        Devuelve True si el producto tiene al menos una variante activa.
+        """
+        if not self.pk:
+            return False
+        return self.variantes.filter(activo=True).exists()
+
+    @property
+    def stock_total_variantes(self) -> int:
+        """
+        Suma del stock de todas las variantes activas.
+        Solo informativo / calculado. No se guarda en el producto padre.
+        """
+        if not self.pk:
+            return 0
+        return self.variantes.filter(activo=True).aggregate(
+            total=Sum("stock")
+        )["total"] or 0
+
+    @property
+    def stock_disponible(self) -> int:
+        """
+        Stock real para usar en tienda:
+        - si tiene variantes activas -> suma stock de variantes
+        - si no -> stock del producto padre
+        """
+        if self.tiene_variantes:
+            return self.stock_total_variantes
+        return self.stock
+
+    def normalizar_stock_segun_variantes(self, save=True):
+        """
+        Si tiene variantes activas, el producto padre no debe manejar stock propio.
+        Entonces forzamos stock = 0.
+        """
+        if self.pk and self.variantes.filter(activo=True).exists() and self.stock != 0:
+            self.stock = 0
+            if save:
+                ProductoPrecio.objects.filter(pk=self.pk).update(stock=0)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Ojo: en este punto ya existe self.pk.
+        # Si todavía no hay variantes, no hace nada.
+        self.normalizar_stock_segun_variantes(save=True)
 
 
 class FacturaProveedor(models.Model):
@@ -135,7 +185,7 @@ class ProductoVariante(models.Model):
     orden = models.PositiveIntegerField(default=0)
     activo = models.BooleanField(default=True)
 
-    # 👇 NUEVO: precio propio de la variante (opcional)
+    # Precio propio de la variante (opcional)
     precio = models.DecimalField(
         "Precio de la variante",
         max_digits=10,
@@ -167,6 +217,18 @@ class ProductoVariante(models.Model):
         if self.precio is not None:
             return self.precio
         return self.producto.precio
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Cada vez que se guarda una variante, normalizamos el stock del padre.
+        if self.producto_id:
+            self.producto.normalizar_stock_segun_variantes(save=True)
+
+    def delete(self, *args, **kwargs):
+        producto = self.producto
+        super().delete(*args, **kwargs)
+        if producto and producto.pk:
+            producto.normalizar_stock_segun_variantes(save=True)
 
 
 class Factura(models.Model):
@@ -208,7 +270,7 @@ class Rubro(models.Model):
     Filtro de nivel 1 (Mates, Tazas, Dijes, etc).
     Lo podés asociar a una técnica para que el menú se arme por técnica → rubro.
     """
-    nombre = models.CharField(max_length=120)  # 👈 SACAMOS unique=True
+    nombre = models.CharField(max_length=120)
     tech = models.CharField(
         max_length=3,
         choices=ProductoPrecio.TechChoices.choices,
@@ -220,7 +282,6 @@ class Rubro(models.Model):
 
     class Meta:
         ordering = ["orden", "nombre"]
-        # 👇 Ahora la unicidad es "nombre + tech" (ej: Tazas+SUB, Tazas+LAS)
         unique_together = ("nombre", "tech")
 
     def __str__(self):
@@ -246,6 +307,7 @@ class SubRubro(models.Model):
 
     def __str__(self):
         return f"{self.rubro.nombre} → {self.nombre}"
+
 
 class PDFBranding(models.Model):
     # Singleton: vas a usar siempre el registro id=1

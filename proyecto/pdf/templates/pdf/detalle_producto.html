@@ -52,7 +52,8 @@
 
   .detail-media-card,
   .detail-info-card,
-  .detail-buy-card {
+  .detail-buy-card,
+  .google-proof-card {
     background: var(--mp-surface);
     border: 1px solid rgba(0, 0, 0, .08);
     border-radius: 18px;
@@ -68,7 +69,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, rgba(0,0,0,.015), rgba(0,0,0,.03));
+    background: linear-gradient(180deg, rgba(0, 0, 0, .015), rgba(0, 0, 0, .03));
     border: 1px solid rgba(0, 0, 0, .05);
     border-radius: 14px;
     overflow: hidden;
@@ -188,6 +189,184 @@
     flex-direction: column;
   }
 
+  /* ===== GOOGLE / RESEÑAS ===== */
+  .google-proof-wrap {
+    margin-top: 1.5rem;
+  }
+
+  .google-proof-card {
+    padding: 1.25rem;
+    background:
+      radial-gradient(circle at top right, rgba(var(--mp-primary-rgb), .06), transparent 22%),
+      linear-gradient(180deg, rgba(var(--mp-primary-rgb), .03), rgba(255,255,255,.96));
+  }
+
+  .google-proof-head {
+    text-align: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .google-proof-title {
+    margin: 0 0 .35rem 0;
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: var(--mp-text);
+  }
+
+  .google-proof-subtitle {
+    margin: 0;
+    color: var(--mp-muted);
+    font-size: .96rem;
+  }
+
+  .google-rating-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .9rem;
+    flex-wrap: wrap;
+    text-align: center;
+    background: rgba(255,255,255,.85);
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 16px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .google-stars {
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+    color: #f5b301;
+    line-height: 1;
+  }
+
+  .google-rating-text strong {
+    display: block;
+    font-size: 1.08rem;
+    color: #1f2937;
+  }
+
+  .google-rating-text span {
+    display: block;
+    color: var(--mp-muted);
+    font-size: .92rem;
+    margin-top: .1rem;
+  }
+
+  .google-reviews-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.15rem;
+  }
+
+  .google-review-item {
+    background: rgba(255,255,255,.92);
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 16px;
+    padding: 1rem;
+    height: 100%;
+  }
+
+  .google-review-top {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    margin-bottom: .75rem;
+  }
+
+  .google-avatar {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #2f80ed, #56ccf2);
+  }
+
+  .google-review-name {
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+  }
+
+  .google-review-stars {
+    color: #f5b301;
+    font-size: .95rem;
+    letter-spacing: 1px;
+    margin-top: .15rem;
+  }
+
+  .google-review-text {
+    margin: 0;
+    color: #374151;
+    line-height: 1.55;
+    font-size: .95rem;
+  }
+
+  .google-proof-actions {
+    text-align: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .google-proof-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    text-decoration: none;
+    border-radius: 14px;
+    min-height: 50px;
+    padding: .85rem 1.2rem;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #1f6feb, #2d8cff);
+    box-shadow: 0 8px 18px rgba(13, 110, 253, .18);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+
+  .google-proof-btn:hover {
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(13, 110, 253, .22);
+  }
+
+  .google-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .85rem;
+  }
+
+  .google-gallery-item {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.06);
+    background: rgba(0,0,0,.03);
+    min-height: 220px;
+  }
+
+  .google-gallery-item img {
+    width: 100%;
+    height: 100%;
+    min-height: 220px;
+    object-fit: cover;
+    display: block;
+  }
+
+  @media (max-width: 991.98px) {
+    .google-reviews-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .google-gallery {
+      grid-template-columns: 1fr;
+    }
+  }
+
   @media (max-width: 767.98px) {
     .detail-wrap {
       padding: .75rem;
@@ -197,7 +376,8 @@
     .detail-hero,
     .detail-media-card,
     .detail-info-card,
-    .detail-buy-card {
+    .detail-buy-card,
+    .google-proof-card {
       border-radius: 14px;
     }
 
@@ -224,6 +404,15 @@
     .qty-input {
       max-width: 100%;
     }
+
+    .google-proof-title {
+      font-size: 1.2rem;
+    }
+
+    .google-gallery-item,
+    .google-gallery-item img {
+      min-height: 240px;
+    }
   }
 </style>
 
@@ -240,7 +429,6 @@
 
   <div class="row g-4 detail-grid">
 
-    <!-- IMAGEN -->
     <div class="col-lg-6">
       <div class="detail-media-card">
         <div class="detail-image-wrap">
@@ -260,7 +448,6 @@
       </div>
     </div>
 
-    <!-- INFO + COMPRA -->
     <div class="col-lg-6">
       <div class="detail-side-stack">
 
@@ -295,42 +482,45 @@
             {% csrf_token %}
 
             {% if variantes_ui %}
-              <input type="hidden" name="variante_id" id="variante_id_input" value="{{ variantes_ui.0.id }}">
+              <input type="hidden" name="variante_id" id="variante_id_input" value="">
             {% else %}
               <input type="hidden" name="variante_id" value="0">
             {% endif %}
 
-            {% if variantes_ui %}
+            {% if variantes_ui and variantes_ui|length > 1 %}
               <div class="mb-3">
                 <label class="section-label" for="variant-select">Variante</label>
                 <select id="variant-select" class="form-select variant-select">
+                  <option value="" selected disabled>Elegí una variante</option>
                   {% for v in variantes_ui %}
-                    <option value="{{ v.id }}"
-                      {% if v.imagen %}
-                        data-image="{{ v.imagen.url }}"
-                      {% elif producto.imagen %}
-                        data-image="{{ producto.imagen.url }}"
-                      {% endif %}
-                      data-principal="{% if v.es_principal %}1{% else %}0{% endif %}"
-                      data-desc="{{ v.descripcion_corta|default:'' }}"
-                      data-stock="{{ v.stock|default:0 }}"
-                      data-price="{{ v.precio_final|floatformat:0|intcomma }}"
-                    >
-                      {{ v.nombre }}{% if v.es_principal %} (Principal){% endif %}
-                    </option>
+                    {% if not v.es_principal %}
+                      <option
+                        value="{{ v.id }}"
+                        {% if v.imagen %}
+                          data-image="{{ v.imagen.url }}"
+                        {% elif producto.imagen %}
+                          data-image="{{ producto.imagen.url }}"
+                        {% endif %}
+                        data-principal="0"
+                        data-desc="{{ v.descripcion_corta|default:'' }}"
+                        data-stock="{{ v.stock|default:0 }}"
+                        data-price="{{ v.precio_final|floatformat:0|intcomma }}"
+                      >
+                        {{ v.nombre }}
+                      </option>
+                    {% endif %}
                   {% endfor %}
                 </select>
+                <div class="form-text buy-helper">
+                  Tenés que elegir una variante antes de agregar al carrito.
+                </div>
               </div>
             {% endif %}
 
             <div class="mb-3">
               <label class="section-label">Descripción</label>
               <div id="variant-desc" class="variant-desc-box">
-                {% if variantes_ui %}
-                  {{ variantes_ui.0.descripcion_corta|default:producto.descripcion|default:"" }}
-                {% else %}
-                  {{ producto.descripcion|default:"" }}
-                {% endif %}
+                {{ producto.descripcion|default:"" }}
               </div>
             </div>
 
@@ -343,11 +533,11 @@
                 id="qty-input"
                 value="1"
                 min="1"
-                max="{{ stock_inicial|default:0 }}"
-                {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}
+                max="{% if variantes_ui and variantes_ui|length > 1 %}1{% else %}{{ stock_inicial|default:0 }}{% endif %}"
+                {% if variantes_ui and variantes_ui|length > 1 %}disabled{% elif stock_inicial|default:0 <= 0 %}disabled{% endif %}
               >
               <div class="form-text buy-helper">
-                Se limita automáticamente al stock disponible de la variante.
+                Se limita automáticamente al stock disponible{% if variantes_ui and variantes_ui|length > 1 %} de la variante{% endif %}.
               </div>
             </div>
 
@@ -355,7 +545,7 @@
               type="submit"
               class="btn btn-primary buy-btn w-100 mt-2"
               id="add-cart-btn"
-              {% if stock_inicial|default:0 <= 0 %}disabled{% endif %}
+              {% if variantes_ui and variantes_ui|length > 1 %}disabled{% elif stock_inicial|default:0 <= 0 %}disabled{% endif %}
             >
               <i class="fa-solid fa-cart-shopping me-2"></i>
               Agregar al carrito
@@ -366,6 +556,91 @@
       </div>
     </div>
   </div>
+
+  <div class="google-proof-wrap">
+    <div class="google-proof-card">
+      <div class="google-proof-head">
+        <h2 class="google-proof-title">Opiniones reales de nuestros clientes</h2>
+        <p class="google-proof-subtitle">
+          Reseñas reales y algunos trabajos personalizados hechos por Mundo Personalizado
+        </p>
+      </div>
+
+      <div class="google-rating-box">
+        <div class="google-stars">★★★★★</div>
+        <div class="google-rating-text">
+          <strong>Muy buenas reseñas en Google</strong>
+          <span>Conocé lo que opinan nuestros clientes y mirá más fotos de nuestros trabajos</span>
+        </div>
+      </div>
+
+      <div class="google-reviews-grid">
+        <article class="google-review-item">
+          <div class="google-review-top">
+            <div class="google-avatar">C</div>
+            <div>
+              <p class="google-review-name">Camila Bengoa</p>
+              <div class="google-review-stars">★★★★★</div>
+            </div>
+          </div>
+          <p class="google-review-text">
+            Compré 2 sets de jardín y una chapita con nombre. Todo de 10, súper rápido y muy atenta. Recomiendo ✨
+          </p>
+        </article>
+
+        <article class="google-review-item">
+          <div class="google-review-top">
+            <div class="google-avatar">J</div>
+            <div>
+              <p class="google-review-name">Jesica Sotelo</p>
+              <div class="google-review-stars">★★★★★</div>
+            </div>
+          </div>
+          <p class="google-review-text">
+            Le compré un set de jardín, muy lindo 💗
+          </p>
+        </article>
+
+        <article class="google-review-item">
+          <div class="google-review-top">
+            <div class="google-avatar">P</div>
+            <div>
+              <p class="google-review-name">Probulliez Argentina</p>
+              <div class="google-review-stars">★★★★★</div>
+            </div>
+          </div>
+          <p class="google-review-text">
+            Súper responsables y hermoso su trabajo.
+          </p>
+        </article>
+      </div>
+
+      <div class="google-proof-actions">
+        <a
+          href="https://maps.app.goo.gl/uZeitwSUp4wF6HMK9"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="google-proof-btn"
+        >
+          <i class="fa-brands fa-google"></i>
+          Ver reseñas y fotos en Google
+        </a>
+      </div>
+
+      <div class="google-gallery">
+        <div class="google-gallery-item">
+          <img src="{% static 'img/google/trabajo1.jpeg' %}" alt="Productos personalizados infantiles">
+        </div>
+        <div class="google-gallery-item">
+          <img src="{% static 'img/google/trabajo2.jpeg' %}" alt="Bombillas personalizadas">
+        </div>
+        <div class="google-gallery-item">
+          <img src="{% static 'img/google/trabajo3.jpeg' %}" alt="Termos y mates personalizados">
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -386,6 +661,7 @@
 
       const productDesc = "{{ producto.descripcion|default:''|escapejs }}";
       const initialStock = parseInt("{{ stock_inicial|default:'0'|escapejs }}", 10) || 0;
+      const initialPrice = "{% if variantes_ui %}{{ precio_inicial|floatformat:0|intcomma }}{% else %}{{ producto.precio|floatformat:0|intcomma }}{% endif %}";
 
       function resetExtraBadge() {
         if (!extra) return;
@@ -414,7 +690,7 @@
         const inStock = s > 0;
 
         if (badge) {
-          badge.classList.remove("bg-danger", "bg-success");
+          badge.classList.remove("bg-danger", "bg-success", "bg-secondary");
           badge.classList.add(inStock ? "bg-success" : "bg-danger");
           badge.textContent = inStock ? "En stock" : "Sin stock";
         }
@@ -465,13 +741,36 @@
         if (!sel) {
           updateDescription(productDesc, "");
           updateStockState(initialStock);
+          updatePrice(initialPrice);
           return;
         }
 
         const opt = sel.options[sel.selectedIndex];
-        if (!opt) {
+        if (!opt || !opt.value) {
+          if (hiddenVar) {
+            hiddenVar.value = "";
+          }
+
           updateDescription(productDesc, "");
-          updateStockState(initialStock);
+          updatePrice(initialPrice);
+          resetExtraBadge();
+
+          if (badge) {
+            badge.classList.remove("bg-danger", "bg-success", "bg-secondary");
+            badge.classList.add("bg-secondary");
+            badge.textContent = "Elegí una variante";
+          }
+
+          if (qtyInput) {
+            qtyInput.value = "1";
+            qtyInput.max = "1";
+            qtyInput.disabled = true;
+          }
+
+          if (addBtn) {
+            addBtn.disabled = true;
+          }
+
           return;
         }
 
@@ -482,9 +781,8 @@
         const imgUrl = opt.getAttribute("data-image");
         updateImage(imgUrl);
 
-        const isPrincipal = opt.getAttribute("data-principal") === "1";
         const variantDesc = opt.getAttribute("data-desc") || "";
-        updateDescription(isPrincipal ? productDesc : variantDesc, productDesc);
+        updateDescription(variantDesc, productDesc);
 
         const variantPrice = opt.getAttribute("data-price");
         updatePrice(variantPrice);

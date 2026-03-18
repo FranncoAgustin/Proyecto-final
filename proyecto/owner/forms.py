@@ -175,6 +175,41 @@ class ProductoPrecioForm(forms.ModelForm):
             "descripcion": forms.Textarea(attrs={"rows": 3, "placeholder": "Descripción del producto (opcional)", }),
         }
 
+class ProductoDesdeFacturaBulkForm(forms.ModelForm):
+    """
+    Form para completar productos recién creados desde factura.
+    No incluye variantes.
+    """
+    class Meta:
+        model = ProductoPrecio
+        fields = [
+            "sku",
+            "nombre_publico",
+            "descripcion",
+            "precio",
+            "precio_costo",
+            "stock",
+            "tech",
+            "imagen",
+            "activo",
+        ]
+        widgets = {
+            "sku": forms.TextInput(attrs={"class": "form-control"}),
+            "nombre_publico": forms.TextInput(attrs={"class": "form-control"}),
+            "descripcion": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Descripción del producto (opcional)",
+                }
+            ),
+            "precio": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "precio_costo": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "stock": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
+            "tech": forms.Select(attrs={"class": "form-select"}),
+            "imagen": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
 
 # =========================
 # Variantes (form clásico)

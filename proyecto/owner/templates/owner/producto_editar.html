@@ -44,7 +44,6 @@
             <input type="text" name="nombre_publico" class="form-control" value="{{ producto.nombre_publico }}">
           </div>
 
-          <!-- ✅ NUEVO: DESCRIPCIÓN -->
           <div class="col-md-12">
             <label class="form-label">Descripción</label>
             <textarea name="descripcion" class="form-control" rows="4"
@@ -53,7 +52,6 @@
               Se muestra en la ficha del producto. Podés usar saltos de línea.
             </div>
           </div>
-          <!-- ✅ FIN NUEVO -->
 
           <div class="col-md-4">
             <label class="form-label">Precio</label>
@@ -65,8 +63,24 @@
 
           <div class="col-md-4">
             <label class="form-label">Stock</label>
-            <input type="number" name="stock" class="form-control" value="{{ producto.stock }}">
-            <div class="form-text">Si usás variantes, se recalcula al guardar.</div>
+            <input
+              type="number"
+              name="stock"
+              id="stockPadreInput"
+              class="form-control"
+              value="{{ producto.stock }}"
+              {% if variantes %}readonly{% endif %}
+            >
+            {% if variantes %}
+              <div class="form-text text-warning">
+                Este producto tiene variantes. El stock del producto padre no se usa y queda en 0.
+                El stock real se maneja en cada variante.
+              </div>
+            {% else %}
+              <div class="form-text">
+                Usá este stock solo si el producto no tiene variantes.
+              </div>
+            {% endif %}
           </div>
 
           <div class="col-md-4">
@@ -147,11 +161,13 @@
 
         <hr class="my-4">
 
-        <!-- ================= Variantes ================= -->
         <div class="d-flex align-items-center justify-content-between gap-2">
           <div>
             <h2 class="h6 mb-1">🎛️ Variantes (opcional)</h2>
-            <div class="form-text">Si dejás precio vacío: usa el precio principal.</div>
+            <div class="form-text">
+              Si dejás precio vacío: usa el precio principal.
+              Si cargás variantes, el stock del producto padre deja de usarse.
+            </div>
           </div>
           <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddVar">
             + Agregar variante
@@ -175,7 +191,6 @@
                       {{ f.descripcion_corta }}
                     </div>
 
-                    <!-- 🔹 IMAGEN VARIANTE CON PREVIEW COMO EL PRINCIPAL -->
                     <div class="col-md-3">
                       <label class="form-label">Imagen</label>
 
@@ -198,7 +213,6 @@
                       {{ f.imagen }}
                       <div class="form-text">JPG/PNG cuadrada (ej: 800×800).</div>
                     </div>
-                    <!-- 🔹 FIN BLOQUE IMAGEN VARIANTE -->
 
                     <div class="col-md-1">
                       <label class="form-label">Stock</label>
@@ -224,7 +238,6 @@
             {% endfor %}
           </div>
 
-          <!-- TEMPLATE PARA NUEVA VARIANTE -->
           <template id="emptyVarTemplate">
             <div class="card border-0 shadow-sm variant-item">
               <div class="card-body">
@@ -238,7 +251,6 @@
                     {{ vformset.empty_form.descripcion_corta }}
                   </div>
 
-                  <!-- 🔹 IMAGEN EN NUEVA VARIANTE (SIN PREVIEW) -->
                   <div class="col-md-3">
                     <label class="form-label">Imagen</label>
                     <div class="small text-muted mb-1">
@@ -247,7 +259,6 @@
                     {{ vformset.empty_form.imagen }}
                     <div class="form-text">JPG/PNG cuadrada (ej: 800×800).</div>
                   </div>
-                  <!-- 🔹 FIN IMAGEN NUEVA VARIANTE -->
 
                   <div class="col-md-1">
                     <label class="form-label">Stock</label>
@@ -284,12 +295,12 @@
 </div>
 
 <script>
-  // ===================== Variantes (Formset dinámico) =====================
   (function () {
     const prefix = "v";
     const container = document.getElementById("variantsContainer");
     const addBtn = document.getElementById("btnAddVar");
     const tpl = document.getElementById("emptyVarTemplate");
+    const stockPadreInput = document.getElementById("stockPadreInput");
 
     function totalFormsInput() {
       return document.querySelector(`input[name="${prefix}-TOTAL_FORMS"]`);
@@ -303,6 +314,28 @@
       const del = item.querySelector(`input[name$="-DELETE"]`);
       if (del) del.checked = true;
       item.style.display = "none";
+      syncStockPadreState();
+    }
+
+    function variantCardsVisibles() {
+      return Array.from(container.querySelectorAll(".variant-item")).filter(item => {
+        if (item.style.display === "none") return false;
+        const del = item.querySelector(`input[name$="-DELETE"]`);
+        return !(del && del.checked);
+      });
+    }
+
+    function syncStockPadreState() {
+      if (!stockPadreInput) return;
+
+      const hayVariantes = variantCardsVisibles().length > 0;
+
+      if (hayVariantes) {
+        stockPadreInput.value = 0;
+        stockPadreInput.setAttribute("readonly", "readonly");
+      } else {
+        stockPadreInput.removeAttribute("readonly");
+      }
     }
 
     function wireExisting() {
@@ -328,9 +361,12 @@
 
       const btn = node.querySelector(".btnRemoveVar");
       if (btn) btn.addEventListener("click", () => removeSafe(node));
+
+      syncStockPadreState();
     });
 
     wireExisting();
+    syncStockPadreState();
   })();
 </script>
 
@@ -416,7 +452,6 @@
 
   skuInput.addEventListener("blur", () => setTimeout(hideTA, 150));
 
-  // 🔹 Rubros / Subrubros + creación rápida
   document.addEventListener("DOMContentLoaded", function () {
     const rubroSelect = document.getElementById("id_rubro");
     const subrubroSelect = document.getElementById("id_subrubro");

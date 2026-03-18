@@ -1,6 +1,8 @@
 # cliente/urls.py
 from django.urls import path
+from pdf import views as pdf_views
 from . import views
+
 
 urlpatterns = [
     path("carrito/", views.ver_carrito, name="ver_carrito"),
@@ -25,4 +27,5 @@ urlpatterns = [
     path("mis-compras/<int:pedido_id>/eliminar/", views.pedido_eliminar, name="pedido_eliminar"),
     path("logout/", views.logout_view, name="logout"),
     path("carrito/whatsapp/", views.carrito_whatsapp, name="carrito_whatsapp"),
+    path('catalogo/', pdf_views.mostrar_precios, name='catalogo'),
 ]

@@ -411,7 +411,10 @@ def agregar_al_carrito(request, pk):
                 "mi_hold_qty": int(mi_hold_qty),
             },
         )
-        return redirect(request.GET.get("next") or "detalle_producto", pk=pk)
+        next_url = request.GET.get("next")
+        if next_url:
+            return redirect(next_url)
+        return redirect("detalle_producto", pk=pk)
 
     if cantidad > disp_para_mi:
         cantidad = disp_para_mi
@@ -669,7 +672,7 @@ def mis_favoritos(request):
     items = []
 
     for prod_id in favs.keys():
-        producto = ProductoPrecio.objects.filter(pk=prod_id).first()
+        producto = ProductoPrecio.objects.filter(pk=prod_id, activo=True).first()
         if not producto:
             continue
 
@@ -677,15 +680,17 @@ def mis_favoritos(request):
         if hasattr(producto, "imagen") and producto.imagen:
             imagen_url = producto.imagen.url
 
+        tiene_variantes_activas = producto.variantes.filter(activo=True).exists()
+
         items.append(
             {
                 "producto": producto,
                 "imagen_url": imagen_url,
+                "tiene_variantes_activas": tiene_variantes_activas,
             }
         )
 
     return render(request, "cliente/favoritos.html", {"items": items})
-
 
 @login_required
 def agregar_favorito(request, pk):

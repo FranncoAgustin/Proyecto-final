@@ -5,7 +5,6 @@
 {% block content %}
 <div class="container py-3">
 
-  <!-- HEADER -->
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h1 class="h5 mb-0">Cargar Factura de Proveedor</h1>
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">← Volver</a>
@@ -39,8 +38,12 @@
 
           <div class="col-md-6">
             <label class="form-label fw-bold">Texto manual (opcional)</label>
-            <textarea name="texto_manual" rows="5" class="form-control"
-              placeholder="Pegá acá el texto si el PDF no tiene OCR"></textarea>
+            <textarea
+              name="texto_manual"
+              rows="5"
+              class="form-control"
+              placeholder="Pegá acá el texto si el PDF no tiene OCR"
+            ></textarea>
           </div>
 
           <div class="col-12 text-end">
@@ -55,205 +58,252 @@
   {% endif %}
 
   {# ===================================================== #}
-  {# PASO 2 — REVISIÓN                                    #}
+  {# PASO 2 — REVISIÓN                                     #}
   {# ===================================================== #}
   {% if preview|default:False %}
 
-  <form method="post">
+  <form method="post" id="reviewForm">
     {% csrf_token %}
     <input type="hidden" name="confirmar_factura" value="1">
 
-    <!-- DATALIST DEL CATÁLOGO -->
     <datalist id="catalogoProductos">
       {% for p in productos_livianos %}
         <option value="{{ p.sku }}">{{ p.nombre_publico }}</option>
       {% endfor %}
     </datalist>
 
-    <!-- ================= ACCIONES MASIVAS ================= -->
-    <div class="d-flex flex-wrap gap-2 align-items-center p-2 mb-2 border rounded bg-light">
-      <strong class="small text-muted">Acciones masivas:</strong>
-
-      <div class="btn-group btn-group-sm">
-        <button type="button" class="btn btn-outline-secondary"
-          onclick="bulkSet('.bulk-item-check', true); actualizarTotalGeneral();">
-          Seleccionar todos
-        </button>
-        <button type="button" class="btn btn-outline-secondary"
-          onclick="bulkSet('.bulk-item-check', false); actualizarTotalGeneral();">
-          Deseleccionar todos
-        </button>
-      </div>
-
-      <div class="btn-group btn-group-sm">
-        <button type="button" class="btn btn-outline-primary"
-          onclick="bulkSet('.bulk-upd-stock', true)">
-          Stock ✓
-        </button>
-        <button type="button" class="btn btn-outline-primary"
-          onclick="bulkSet('.bulk-upd-stock', false)">
-          Stock ✗
-        </button>
-      </div>
-
-      <div class="btn-group btn-group-sm">
-        <button type="button" class="btn btn-outline-success"
-          onclick="bulkSet('.bulk-upd-costo', true)">
-          Costo ✓
-        </button>
-        <button type="button" class="btn btn-outline-success"
-          onclick="bulkSet('.bulk-upd-costo', false)">
-          Costo ✗
-        </button>
-      </div>
-
-      <div class="btn-group btn-group-sm">
-        <button type="button" class="btn btn-outline-warning"
-          onclick="bulkSet('.bulk-crear', true)">
-          Crear ✓
-        </button>
-        <button type="button" class="btn btn-outline-warning"
-          onclick="bulkSet('.bulk-crear', false)">
-          Crear ✗
-        </button>
-      </div>
-    </div>
-
-    <!-- ================= TABLA ================= -->
     <div class="card shadow-sm border-0 mb-3">
-      <div class="card-header bg-primary text-white d-flex justify-content-between">
-        <strong>Datos detectados</strong>
-        <input type="date" name="fecha_factura" value="{{ fecha_detectada }}"
-               class="form-control form-control-sm w-auto">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <strong>Revisión de artículos</strong>
+          <div class="small opacity-75">Revisá uno por uno y avanzá</div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+          <label class="small mb-0">Fecha</label>
+          <input
+            type="date"
+            name="fecha_factura"
+            value="{{ fecha_detectada }}"
+            class="form-control form-control-sm w-auto"
+          >
+        </div>
       </div>
 
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th></th>
-              <th>Cant.</th>
-              <th>Descripción</th>
-              <th>Precio</th>
-              <th>Subtotal</th>
-              <th>Catálogo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in items %}
-            <tr id="row_{{ forloop.counter0 }}">
-              <td>
-                <input type="checkbox"
-                       name="item_{{ forloop.counter0 }}_check"
-                       id="check_{{ forloop.counter0 }}"
-                       checked
-                       class="form-check-input bulk-item-check item-check"
-                       onchange="toggleRowVisibility({{ forloop.counter0 }})">
-              </td>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <div class="small text-muted">
+            Artículo <span id="currentStep">1</span> de <span id="totalSteps">{{ items|length }}</span>
+          </div>
 
-              <td>
-                <input type="number"
-                       name="item_{{ forloop.counter0 }}_cantidad"
-                       value="{{ item.cantidad }}"
-                       class="form-control form-control-sm text-center"
-                       id="cant_{{ forloop.counter0 }}"
-                       oninput="calcularFila({{ forloop.counter0 }})">
-              </td>
+          <div class="progress flex-grow-1 mx-0 mx-md-3" style="height: 8px; max-width: 320px; min-width: 180px;">
+            <div id="wizardProgress" class="progress-bar" style="width: 0%"></div>
+          </div>
 
-              <td>
-                <input type="text"
-                       name="item_{{ forloop.counter0 }}_producto"
-                       value="{{ item.producto }}"
-                       class="form-control form-control-sm">
+          <div class="fw-bold">
+            Total seleccionado: $<span id="totalGeneral">0.00</span>
+          </div>
+        </div>
 
-                {% if item.suggest %}
-                <div class="mt-1">
-                  {% for s in item.suggest %}
-                  <button type="button" class="btn btn-xs btn-outline-secondary"
-                    onclick="setSku({{ forloop.parentloop.counter0 }}, '{{ s.2|escapejs }}')">
-                    {{ s.2 }}
-                  </button>
-                  {% endfor %}
+        {% for item in items %}
+        <div
+          class="review-step"
+          id="step_{{ forloop.counter0 }}"
+          {% if not forloop.first %}style="display:none;"{% endif %}
+        >
+          <div class="border rounded p-3 bg-light-subtle">
+
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div class="form-check">
+                <input
+                  type="checkbox"
+                  name="item_{{ forloop.counter0 }}_check"
+                  id="check_{{ forloop.counter0 }}"
+                  checked
+                  class="form-check-input item-check"
+                  onchange="toggleItem({{ forloop.counter0 }}); actualizarTotalGeneral();"
+                >
+                <label class="form-check-label fw-semibold" for="check_{{ forloop.counter0 }}">
+                  Procesar este artículo
+                </label>
+              </div>
+
+              <div class="text-end small text-muted">
+                Índice: {{ forloop.counter }}
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-lg-7">
+                <label class="form-label fw-semibold small">Descripción detectada</label>
+                <input
+                  type="text"
+                  name="item_{{ forloop.counter0 }}_producto"
+                  value="{{ item.producto }}"
+                  class="form-control form-control-sm"
+                >
+
+                <div class="row g-2 mt-2">
+                  <div class="col-4">
+                    <label class="form-label small mb-1">Cantidad</label>
+                    <input
+                      type="number"
+                      name="item_{{ forloop.counter0 }}_cantidad"
+                      value="{{ item.cantidad }}"
+                      class="form-control form-control-sm text-center"
+                      id="cant_{{ forloop.counter0 }}"
+                      oninput="calcularFila({{ forloop.counter0 }})"
+                    >
+                  </div>
+
+                  <div class="col-4">
+                    <label class="form-label small mb-1">Costo unitario</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="item_{{ forloop.counter0 }}_precio"
+                      value="{{ item.precio_unitario }}"
+                      class="form-control form-control-sm text-end"
+                      id="prec_{{ forloop.counter0 }}"
+                      oninput="calcularFila({{ forloop.counter0 }})"
+                    >
+                  </div>
+
+                  <div class="col-4">
+                    <label class="form-label small mb-1">Subtotal</label>
+                    <div class="form-control form-control-sm text-end fw-bold bg-white">
+                      $<span id="subtotal_{{ forloop.counter0 }}">{{ item.subtotal }}</span>
+                    </div>
+                  </div>
                 </div>
+
+                <div class="mt-3">
+                  <label class="form-label fw-semibold small">Buscar manualmente en catálogo</label>
+                  <input
+                    type="text"
+                    name="item_{{ forloop.counter0 }}_catalogo_sku"
+                    id="sku_{{ forloop.counter0 }}"
+                    list="catalogoProductos"
+                    class="form-control form-control-sm"
+                    placeholder="Buscar SKU o elegir sugerencia"
+                  >
+                </div>
+
+                <div class="d-flex flex-wrap gap-3 mt-3">
+                  <label class="form-check small">
+                    <input
+                      class="form-check-input bulk-upd-stock"
+                      type="checkbox"
+                      name="item_{{ forloop.counter0 }}_upd_stock"
+                      checked
+                    >
+                    Actualizar stock
+                  </label>
+
+                  <label class="form-check small">
+                    <input
+                      class="form-check-input bulk-upd-costo"
+                      type="checkbox"
+                      name="item_{{ forloop.counter0 }}_upd_precio"
+                    >
+                    Actualizar costo
+                  </label>
+
+                  <label class="form-check small">
+                    <input
+                      class="form-check-input bulk-crear"
+                      type="checkbox"
+                      name="item_{{ forloop.counter0 }}_crear_si_no_existe"
+                    >
+                    Crear si no existe
+                  </label>
+                </div>
+              </div>
+
+              <div class="col-lg-5">
+                <label class="form-label fw-semibold small">Sugerencias del catálogo</label>
+
+                {% if item.sugerencias %}
+                  <div class="d-grid gap-2">
+                    {% for s in item.sugerencias %}
+                    <div class="border rounded p-2 bg-white">
+                      <div class="fw-semibold small">{{ s.nombre }}</div>
+
+                      <div class="small text-muted mb-2">
+                        SKU: {{ s.sku }} · Similitud: {{ s.score }}%
+                      </div>
+
+                      <div class="small mb-2">
+                        Venta: ${{ s.precio }}<br>
+                        Costo actual: ${{ s.precio_costo }}
+                      </div>
+
+                      <div class="d-flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-primary"
+                          onclick="usarSugerencia({{ forloop.parentloop.counter0 }}, '{{ s.sku|escapejs }}', null)"
+                        >
+                          Usar nombre
+                        </button>
+
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-success"
+                          onclick="usarSugerencia({{ forloop.parentloop.counter0 }}, '{{ s.sku|escapejs }}', '{{ s.precio_costo|escapejs }}')"
+                        >
+                          Nombre + costo actual
+                        </button>
+                      </div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="border rounded p-3 bg-white text-muted small">
+                    No se encontraron coincidencias claras.
+                  </div>
                 {% endif %}
-              </td>
-
-              <td>
-                <input type="number" step="0.01"
-                       name="item_{{ forloop.counter0 }}_precio"
-                       value="{{ item.precio_unitario }}"
-                       class="form-control form-control-sm text-end"
-                       id="prec_{{ forloop.counter0 }}"
-                       oninput="calcularFila({{ forloop.counter0 }})">
-              </td>
-
-              <td class="text-end fw-bold">
-                <span id="subtotal_{{ forloop.counter0 }}">{{ item.subtotal }}</span>
-              </td>
-
-              <td>
-                <input type="text"
-                       name="item_{{ forloop.counter0 }}_catalogo_sku"
-                       id="sku_{{ forloop.counter0 }}"
-                       list="catalogoProductos"
-                       class="form-control form-control-sm"
-                       placeholder="Buscar SKU…">
-
-                <div class="d-flex gap-2 mt-2">
-                  <label class="form-check small">
-                    <input class="form-check-input bulk-upd-stock"
-                           type="checkbox"
-                           name="item_{{ forloop.counter0 }}_upd_stock" checked>
-                    Stock
-                  </label>
-
-                  <label class="form-check small">
-                    <input class="form-check-input bulk-upd-costo"
-                           type="checkbox"
-                           name="item_{{ forloop.counter0 }}_upd_precio">
-                    Costo
-                  </label>
-
-                  <label class="form-check small">
-                    <input class="form-check-input bulk-crear"
-                           type="checkbox"
-                           name="item_{{ forloop.counter0 }}_crear_si_no_existe">
-                    Crear
-                  </label>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-
-          <tfoot class="table-light">
-            <tr>
-              <td colspan="4" class="text-end fw-bold">Total:</td>
-              <td class="text-end fw-bold">
-                $<span id="totalGeneral">0.00</span>
-              </td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
       </div>
 
-      <div class="card-footer text-end">
-        <button type="submit" class="btn btn-success">
-          Confirmar y guardar
-        </button>
+      <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="prevStep()">
+            ← Anterior
+          </button>
+          <button type="button" class="btn btn-outline-primary btn-sm" onclick="nextStep()">
+            Siguiente →
+          </button>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="bulkSet('.item-check', true); actualizarTotalGeneral();">
+            Seleccionar todos
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="bulkSet('.item-check', false); actualizarTotalGeneral();">
+            Deseleccionar todos
+          </button>
+          <button type="submit" class="btn btn-success">
+            Confirmar y guardar
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- ================= PREVIEW ABAJO ================= -->
     <div class="card shadow-sm">
       <div class="card-header bg-dark text-white d-flex justify-content-between">
         <span>Preview de la factura</span>
-        <button class="btn btn-sm btn-outline-light"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#previewFactura"
-                onclick="this.textContent = this.textContent==='Mostrar'?'Ocultar':'Mostrar'">
+        <button
+          class="btn btn-sm btn-outline-light"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#previewFactura"
+          onclick="this.textContent = this.textContent==='Mostrar' ? 'Ocultar' : 'Mostrar'"
+        >
           Mostrar
         </button>
       </div>
@@ -272,36 +322,83 @@
     </div>
 
   </form>
-
   {% endif %}
 </div>
 
 <script>
+let currentStep = 0;
+
+function getSteps() {
+  return Array.from(document.querySelectorAll('.review-step'));
+}
+
+function showStep(index) {
+  const steps = getSteps();
+  if (!steps.length) return;
+
+  if (index < 0) index = 0;
+  if (index >= steps.length) index = steps.length - 1;
+
+  currentStep = index;
+
+  steps.forEach((step, i) => {
+    step.style.display = (i === currentStep) ? 'block' : 'none';
+  });
+
+  document.getElementById('currentStep').textContent = currentStep + 1;
+
+  const percent = ((currentStep + 1) / steps.length) * 100;
+  document.getElementById('wizardProgress').style.width = percent + '%';
+}
+
+function nextStep() {
+  const steps = getSteps();
+  if (currentStep < steps.length - 1) {
+    showStep(currentStep + 1);
+  }
+}
+
+function prevStep() {
+  if (currentStep > 0) {
+    showStep(currentStep - 1);
+  }
+}
+
+function usarSugerencia(index, sku, costo) {
+  const skuInput = document.getElementById(`sku_${index}`);
+  if (skuInput) skuInput.value = sku;
+
+  if (costo !== null && costo !== '') {
+    const precioInput = document.getElementById(`prec_${index}`);
+    if (precioInput) {
+      precioInput.value = costo;
+      calcularFila(index);
+    }
+  }
+}
+
+function toggleItem(index) {
+  const cb = document.getElementById(`check_${index}`);
+  const box = document.getElementById(`step_${index}`);
+  box.style.opacity = cb.checked ? '1' : '0.45';
+}
+
 function bulkSet(selector, checked) {
   document.querySelectorAll(selector).forEach(el => {
     el.checked = checked;
-    if (selector === '.bulk-item-check') {
-      el.dispatchEvent(new Event('change'));
+
+    if (el.classList.contains('item-check')) {
+      const parts = el.id.split('_');
+      const index = parts[1];
+      toggleItem(index);
     }
   });
-}
-
-function setSku(index, sku) {
-  const i = document.getElementById(`sku_${index}`);
-  if (i) i.value = sku;
-}
-
-function toggleRowVisibility(index) {
-  const cb = document.getElementById(`check_${index}`);
-  const row = document.getElementById(`row_${index}`);
-  row.style.opacity = cb.checked ? '1' : '0.4';
-  actualizarTotalGeneral();
 }
 
 function calcularFila(index) {
   const c = parseFloat(document.getElementById(`cant_${index}`).value) || 0;
   const p = parseFloat(document.getElementById(`prec_${index}`).value) || 0;
-  document.getElementById(`subtotal_${index}`).textContent = (c*p).toFixed(2);
+  document.getElementById(`subtotal_${index}`).textContent = (c * p).toFixed(2);
   actualizarTotalGeneral();
 }
 
@@ -314,7 +411,10 @@ function actualizarTotalGeneral() {
   document.getElementById('totalGeneral').textContent = t.toFixed(2);
 }
 
-document.addEventListener('DOMContentLoaded', actualizarTotalGeneral);
+document.addEventListener('DOMContentLoaded', function() {
+  showStep(0);
+  actualizarTotalGeneral();
+});
 </script>
 
 {% endblock %}
