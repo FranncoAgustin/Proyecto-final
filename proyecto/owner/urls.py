@@ -31,6 +31,7 @@ from .views import (
     owner_siteinfo_list,
     owner_siteconfig_edit,
     owner_historia_global,
+    owner_productos_completar_desde_factura,
 
 )
 
@@ -77,4 +78,5 @@ urlpatterns = [
     path("theme.css", owner.views_theme.theme_css, name="theme_css"),
     path("owner/site-config/", owner_siteconfig_edit, name="owner_siteconfig_edit"),
      path("historia/", owner_historia_global, name="owner_historia_global"),
+    path("productos/completar-desde-factura/",owner_productos_completar_desde_factura,name="owner_productos_completar_desde_factura",),
 ]

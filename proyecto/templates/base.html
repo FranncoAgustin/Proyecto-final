@@ -1,20 +1,15 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
   <meta charset="utf-8">
   <title>{% block title %}{{ site_cfg.texts.site_title|default:"Mundo Personalizado" }}{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 
-  {# === THEME (desde SiteConfig) === #}
   {% if site_cfg.google_fonts_url %}
-  <link rel="stylesheet" href="{{ site_cfg.google_fonts_url }}">
+    <link rel="stylesheet" href="{{ site_cfg.google_fonts_url }}">
   {% endif %}
 
   <style id="mp-theme-vars">
@@ -28,10 +23,9 @@
       --mp-surface: {{ site_cfg.surface|default:"#ffffff" }};
       --mp-text: {{ site_cfg.text_color|default:"#111111" }};
       --mp-primary-rgb: {{ site_cfg.primary_rgb|default:"13,110,253" }};
-      --mp-font-base: {{ site_cfg.font_base|default:"system-ui, -apple-system, Segoe UI, Roboto, Arial" }};
-      --mp-font-headings: {{ site_cfg.font_headings|default:"system-ui, -apple-system, Segoe UI, Roboto, Arial" }};
+      --mp-font-base: {{ site_cfg.font_base|default:"system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" }};
+      --mp-font-headings: {{ site_cfg.font_headings|default:"system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" }};
 
-      /* Bootstrap mapping */
       --bs-primary: var(--mp-primary);
       --bs-secondary: var(--mp-secondary);
       --bs-success: var(--mp-success);
@@ -41,12 +35,13 @@
       --bs-font-sans-serif: var(--mp-font-base);
     }
 
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
+    body {
+      color: var(--mp-text);
+      font-family: var(--mp-font-base);
+      background: var(--mp-bg);
+    }
+
+    h1, h2, h3, h4, h5, h6 {
       font-family: var(--mp-font-headings);
     }
   </style>
@@ -56,23 +51,10 @@
       --mp-border: rgba(0, 0, 0, .10);
       --mp-shadow: 0 10px 28px rgba(0, 0, 0, .08);
       --mp-shadow-soft: 0 6px 16px rgba(0, 0, 0, .06);
-
-      /* ✅ Más cuadrado */
       --mp-radius: 10px;
-      /* cards/dropdowns */
       --mp-radius-sm: 8px;
-      /* inputs/buttons */
     }
 
-    body {
-      color: var(--mp-text);
-      background:
-        radial-gradient(1100px 360px at 50% 0%, rgba(var(--mp-primary-rgb), .07), transparent 60%),
-        var(--mp-bg);
-      font-family: var(--mp-font-base);
-    }
-
-    /* Superficies principales: tarjetas, navbar, footer, dropdowns */
     .card,
     .mp-navbar,
     .mp-footer,
@@ -84,7 +66,6 @@
       max-width: 1140px;
     }
 
-    /* Inputs más cuadrados */
     .form-control,
     .form-select {
       border-radius: var(--mp-radius-sm);
@@ -93,11 +74,10 @@
 
     .form-control:focus,
     .form-select:focus {
-      border-color: rgba(13, 110, 253, .35);
-      box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .14);
+      border-color: rgba(var(--mp-primary-rgb), .35);
+      box-shadow: 0 0 0 .2rem rgba(var(--mp-primary-rgb), .14);
     }
 
-    /* Botones más cuadrados y consistentes */
     .btn {
       border-radius: var(--mp-radius-sm);
     }
@@ -122,10 +102,9 @@
       transform: translateY(0);
     }
 
-    /* Variantes suaves */
     .btn-mp.primary {
-      border-color: rgba(13, 110, 253, .28) !important;
-      background: rgba(13, 110, 253, .07) !important;
+      border-color: rgba(var(--mp-primary-rgb), .28) !important;
+      background: rgba(var(--mp-primary-rgb), .07) !important;
     }
 
     .btn-mp.success {
@@ -143,7 +122,6 @@
       background: rgba(108, 117, 125, .07) !important;
     }
 
-    /* Dropdowns más “admin” */
     .dropdown-menu {
       border-radius: var(--mp-radius);
       border: 1px solid rgba(0, 0, 0, .12);
@@ -152,18 +130,18 @@
     }
 
     .dropdown-item:active {
-      background: rgba(13, 110, 253, .12);
+      background: rgba(var(--mp-primary-rgb), .12);
       color: #111;
     }
 
-    /* Navbar (limpia y pro) */
     .mp-navbar {
       position: sticky;
       top: 0;
       z-index: 1030;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background-color: var(--mp-surface) !important;
       border-bottom: 1px solid var(--mp-border);
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
 
     .mp-navbar .nav-link {
@@ -177,7 +155,6 @@
       color: rgba(0, 0, 0, .95);
     }
 
-    /* === Fondo sólido para el panel de filtros (offcanvas) === */
     .offcanvas {
       background-color: var(--mp-surface) !important;
       backdrop-filter: none !important;
@@ -189,7 +166,6 @@
       background-color: var(--mp-surface) !important;
     }
 
-    /* ✅ Mantengo tus estilos de producto */
     .product-thumb {
       position: relative;
       width: 100%;
@@ -220,7 +196,6 @@
       font-weight: 600;
     }
 
-    /* ✅ ICONOS NAV EN NEGRO (carrito y favoritos) */
     .nav-icon {
       color: #111 !important;
     }
@@ -229,12 +204,253 @@
       color: #000 !important;
     }
 
-    /* Badges más cuadrados */
+    .nav-icon-btn {
+      width: 42px;
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      text-decoration: none;
+      color: #111 !important;
+      position: relative;
+      transition: background .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+
+    .nav-icon-btn:hover {
+      background: rgba(0, 0, 0, .05);
+      color: #000 !important;
+      transform: translateY(-1px);
+    }
+
+    .nav-counter {
+      position: absolute;
+      top: 2px;
+      right: -2px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px !important;
+      font-size: .7rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, .16);
+    }
+
+    .mini-panel {
+      width: 370px;
+      padding: 0 !important;
+      border-radius: 16px !important;
+      overflow: hidden;
+      border: 1px solid rgba(0, 0, 0, .10);
+      box-shadow: 0 18px 36px rgba(0, 0, 0, .14);
+    }
+
+    .mini-panel-header {
+      padding: .95rem 1rem .8rem;
+      border-bottom: 1px solid rgba(0, 0, 0, .06);
+      background: linear-gradient(135deg, rgba(var(--mp-primary-rgb), .10), rgba(var(--mp-primary-rgb), .03));
+    }
+
+    .mini-panel-title {
+      font-size: .98rem;
+      font-weight: 800;
+      color: #111827;
+      margin: 0;
+    }
+
+    .mini-panel-subtitle {
+      margin: .2rem 0 0;
+      font-size: .82rem;
+      color: #6b7280;
+    }
+
+    .mini-panel-body {
+      max-height: 360px;
+      overflow-y: auto;
+      padding: .8rem;
+      background: #fff;
+    }
+
+    .mini-panel-item {
+      display: grid;
+      grid-template-columns: 58px 1fr auto;
+      gap: .7rem;
+      align-items: start;
+      padding: .7rem;
+      border: 1px solid rgba(0, 0, 0, .07);
+      border-radius: 14px;
+      background: #fff;
+    }
+
+    .mini-panel-item + .mini-panel-item {
+      margin-top: .65rem;
+    }
+
+    .mini-thumb {
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(0, 0, 0, .03);
+      border: 1px solid rgba(0, 0, 0, .06);
+      flex-shrink: 0;
+    }
+
+    .mini-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .mini-thumb-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      font-size: 1rem;
+    }
+
+    .mini-info {
+      min-width: 0;
+    }
+
+    .mini-name {
+      font-size: .88rem;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.2;
+      margin-bottom: .18rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .mini-variant {
+      font-size: .78rem;
+      color: #6b7280;
+      margin-bottom: .2rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .mini-meta {
+      font-size: .8rem;
+      color: #4b5563;
+    }
+
+    .mini-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: .4rem;
+      min-width: 74px;
+    }
+
+    .mini-price {
+      font-size: .86rem;
+      font-weight: 800;
+      color: #111827;
+      white-space: nowrap;
+    }
+
+    .mini-actions {
+      display: flex;
+      gap: .35rem;
+      align-items: center;
+    }
+
+    .mini-icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      border: 1px solid rgba(0, 0, 0, .09);
+      background: #fff;
+      transition: all .18s ease;
+    }
+
+    .mini-icon-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, .08);
+    }
+
+    .mini-icon-btn.view {
+      color: #2563eb;
+      border-color: rgba(37, 99, 235, .18);
+      background: rgba(37, 99, 235, .05);
+    }
+
+    .mini-icon-btn.remove {
+      color: #dc2626;
+      border-color: rgba(220, 38, 38, .18);
+      background: rgba(220, 38, 38, .05);
+    }
+
+    .mini-panel-footer {
+      padding: .9rem 1rem 1rem;
+      border-top: 1px solid rgba(0, 0, 0, .06);
+      background: #fff;
+    }
+
+    .mini-total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .8rem;
+      font-size: .92rem;
+      color: #111827;
+    }
+
+    .mini-total-row strong {
+      font-size: 1rem;
+    }
+
+    .mini-panel-buttons {
+      display: grid;
+      gap: .55rem;
+    }
+
+    .mini-panel-empty {
+      padding: 1.35rem 1rem 1.45rem;
+      text-align: center;
+      background: #fff;
+    }
+
+    .mini-panel-empty i {
+      font-size: 1.7rem;
+      color: rgba(var(--mp-primary-rgb), .45);
+      margin-bottom: .65rem;
+    }
+
+    .mini-panel-empty-title {
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: .2rem;
+    }
+
+    .mini-panel-empty-text {
+      color: #6b7280;
+      font-size: .86rem;
+      margin-bottom: .85rem;
+    }
+
     .badge {
       border-radius: 10px !important;
     }
 
-    /* Floating buttons (cuadrados suaves) */
     .floating-btn {
       position: fixed;
       bottom: 20px;
@@ -256,12 +472,10 @@
       border: 1px solid rgba(255, 255, 255, .35);
     }
 
-    /* Footer */
     .mp-footer {
       border-top: 1px solid var(--mp-border);
     }
 
-    /* Sección info sitio (acordeón) */
     .siteinfo-section-title {
       font-size: .85rem;
       text-transform: uppercase;
@@ -269,7 +483,6 @@
       color: var(--mp-muted);
     }
 
-    /* En celulares, que el numerito del carrito/favoritos vaya en línea, no flotando afuera */
     @media (max-width: 575.98px) {
       .nav-icon .badge {
         position: static !important;
@@ -279,11 +492,24 @@
         right: auto !important;
         margin-left: .25rem;
       }
-    }
 
-    /* ===== Versión compacta de tarjetas SOLO en móviles ===== */
-    @media (max-width: 575.98px) {
-      .catalog-grid>[class*="col-"] {
+      .mini-panel {
+        width: min(92vw, 370px);
+      }
+
+      .mini-panel-item {
+        grid-template-columns: 52px 1fr;
+      }
+
+      .mini-side {
+        grid-column: 2;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: .25rem;
+      }
+
+      .catalog-grid > [class*="col-"] {
         margin-bottom: .75rem;
       }
 
@@ -319,7 +545,6 @@
       }
     }
 
-    /* ===== Limitar títulos de producto a 4 renglones (catálogo) ===== */
     .catalog-grid .card-title {
       display: -webkit-box;
       -webkit-line-clamp: 4;
@@ -334,18 +559,16 @@
   {% block head %}{% endblock %}
 </head>
 
-<body class="bg-light">
+<body>
 
   {% block top_extra %}{% endblock %}
 
-  <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg mp-navbar mb-3">
     <div class="container">
 
-      <!-- Brand -->
       <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{% url 'catalogo' %}">
         <span class="d-inline-flex align-items-center justify-content-center"
-          style="width:34px;height:34px;border-radius:12px;background:rgba(13,110,253,.10);border:1px solid rgba(13,110,253,.18);">
+          style="width:34px;height:34px;border-radius:12px;background:rgba(var(--mp-primary-rgb),.10);border:1px solid rgba(var(--mp-primary-rgb),.18);">
           <i class="fa-solid fa-wand-magic-sparkles"></i>
         </span>
         {{ site_cfg.texts.brand_name|default:"Mundo Personalizado" }}
@@ -358,7 +581,6 @@
 
       <div id="mainNav" class="collapse navbar-collapse">
 
-        <!-- Buscador -->
         <form id="navSearchForm" class="d-flex ms-auto my-2 my-lg-0 gap-2 flex-grow-1" role="search" method="get"
           action="{% url 'catalogo' %}">
           <div class="position-relative flex-grow-1">
@@ -395,9 +617,7 @@
             <ul class="dropdown-menu dropdown-menu-end">
               <li><a class="dropdown-item" href="{% url 'mi_cuenta' %}">Mi cuenta</a></li>
               <li><a class="dropdown-item" href="{% url 'mis_compras' %}">Mis compras</a></li>
-              <li>
-                <hr class="dropdown-divider">
-              </li>
+              <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item text-danger" href="{% url 'logout' %}">Cerrar sesión</a></li>
             </ul>
           </li>
@@ -410,106 +630,186 @@
           </li>
           {% endif %}
 
-          <!-- Carrito -->
           <li class="nav-item dropdown">
-            <a class="nav-link position-relative nav-icon d-flex align-items-center" href="#" role="button"
-              data-bs-toggle="dropdown" aria-expanded="false" aria-label="Carrito">
+            <a class="nav-link nav-icon-btn" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Carrito">
               <i class="fa-solid fa-bag-shopping"></i>
               {% if cart_total_qty %}
-              <span class="badge bg-primary position-absolute top-0 start-100 translate-middle">
-                {{ cart_total_qty }}
-              </span>
+              <span class="badge bg-primary nav-counter">{{ cart_total_qty }}</span>
               {% endif %}
               <span class="ms-1 d-lg-none">Carrito</span>
             </a>
-            <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 280px;">
+
+            <div class="dropdown-menu dropdown-menu-end mini-panel">
+              <div class="mini-panel-header">
+                <div class="mini-panel-title">Mi carrito</div>
+                <div class="mini-panel-subtitle">
+                  {% if cart_total_qty %}
+                  {{ cart_total_qty }} producto{{ cart_total_qty|pluralize }}
+                  {% else %}
+                  Tu selección actual
+                  {% endif %}
+                </div>
+              </div>
+
               {% if cart_items %}
-              {% for item in cart_items %}
-              <li class="dropdown-item d-flex justify-content-between align-items-start small">
-                <div class="me-2">
-                  <div class="fw-semibold text-truncate" style="max-width: 170px;">
-                    {{ item.nombre }}
+              <div class="mini-panel-body">
+                {% for item in cart_items %}
+                <div class="mini-panel-item">
+                  <div class="mini-thumb">
+                    {% if item.imagen_url %}
+                    <img src="{{ item.imagen_url }}" alt="{{ item.nombre }}">
+                    {% else %}
+                    <div class="mini-thumb-placeholder">
+                      <i class="fa-solid fa-box"></i>
+                    </div>
+                    {% endif %}
                   </div>
-                  <div class="text-muted">
-                    x{{ item.cantidad }} · ${{ item.precio }}
+
+                  <div class="mini-info">
+                    <div class="mini-name">{{ item.nombre }}</div>
+                    {% if item.variante_nombre %}
+                    <div class="mini-variant">Variante: {{ item.variante_nombre }}</div>
+                    {% endif %}
+                    <div class="mini-meta">
+                      x{{ item.cantidad }} · ${{ item.precio|floatformat:0 }}
+                    </div>
+                  </div>
+
+                  <div class="mini-side">
+                    <div class="mini-price">${{ item.subtotal|floatformat:0 }}</div>
+                    <div class="mini-actions">
+                      {% if item.producto_id %}
+                      <a href="{% url 'detalle_producto' item.producto_id %}" class="mini-icon-btn view" title="Ver producto" aria-label="Ver producto">
+                        <i class="fa-solid fa-eye"></i>
+                      </a>
+                      {% endif %}
+                      {% if item.key %}
+                      <a href="{% url 'eliminar_del_carrito' item.key %}" class="mini-icon-btn remove" title="Quitar del carrito" aria-label="Quitar del carrito">
+                        <i class="fa-regular fa-trash-can"></i>
+                      </a>
+                      {% endif %}
+                    </div>
                   </div>
                 </div>
-                <div class="text-end">
-                  <span class="fw-semibold">${{ item.subtotal }}</span>
+                {% endfor %}
+              </div>
+
+              <div class="mini-panel-footer">
+                <div class="mini-total-row">
+                  <span>Total</span>
+                  <strong>${{ cart_total|floatformat:0 }}</strong>
                 </div>
-              </li>
-              {% endfor %}
-              <li>
-                <hr class="dropdown-divider">
-              </li>
-              <li>
-                <a class="dropdown-item text-center fw-semibold" href="{% url 'ver_carrito' %}">
-                  Ver carrito
-                </a>
-              </li>
+
+                <div class="mini-panel-buttons">
+                  <a class="btn btn-outline-primary btn-sm w-100" href="{% url 'ver_carrito' %}">Ver carrito</a>
+                  <a class="btn btn-success btn-sm w-100" href="{% url 'carrito_whatsapp' %}">
+                    <i class="fab fa-whatsapp me-1"></i> Finalizar por WhatsApp
+                  </a>
+                </div>
+              </div>
               {% else %}
-              <li class="dropdown-item text-muted small">
-                Tu carrito está vacío
-              </li>
+              <div class="mini-panel-empty">
+                <i class="fa-solid fa-bag-shopping"></i>
+                <div class="mini-panel-empty-title">Tu carrito está vacío</div>
+                <div class="mini-panel-empty-text">Agregá productos para verlos acá.</div>
+                <a href="{% url 'catalogo' %}" class="btn btn-primary btn-sm">Ir al catálogo</a>
+              </div>
               {% endif %}
-            </ul>
+            </div>
           </li>
 
-          <!-- Favoritos -->
           <li class="nav-item dropdown">
-            <a class="nav-link position-relative nav-icon d-flex align-items-center" href="#" role="button"
-              data-bs-toggle="dropdown" aria-expanded="false" aria-label="Favoritos">
+            <a class="nav-link nav-icon-btn" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Favoritos">
               <i class="fa-solid fa-heart"></i>
               {% if favorites_count %}
-              <span class="badge bg-danger position-absolute top-0 start-100 translate-middle">
-                {{ favorites_count }}
-              </span>
+              <span class="badge bg-danger nav-counter">{{ favorites_count }}</span>
               {% endif %}
               <span class="ms-1 d-lg-none">Favoritos</span>
             </a>
-            <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: 280px;">
-              {% if favorites_items %}
-              {% for fav in favorites_items %}
-              <li class="dropdown-item d-flex align-items-center small">
-                {% if fav.imagen_url %}
-                <img src="{{ fav.imagen_url }}" alt="" class="me-2 rounded"
-                  style="width:32px;height:32px;object-fit:cover;">
-                {% endif %}
-                <div class="flex-grow-1 text-truncate" style="max-width: 185px;">
-                  {{ fav.nombre }}
-                </div>
-                <a href="{% url 'detalle_producto' fav.id %}" class="ms-2 text-decoration-none">
-                  <i class="fa-solid fa-eye"></i>
-                </a>
-              </li>
-              {% endfor %}
-              <li>
-                <hr class="dropdown-divider">
-              </li>
-              <li>
-                <a class="dropdown-item text-center fw-semibold" href="{% url 'mis_favoritos' %}">
-                  Ver todos los favoritos
-                </a>
-              </li>
-              {% else %}
-              <li class="dropdown-item text-muted small">
-                Todavía no tenés favoritos
-              </li>
-              {% endif %}
-            </ul>
-          </li>
 
+            <div class="dropdown-menu dropdown-menu-end mini-panel">
+              <div class="mini-panel-header">
+                <div class="mini-panel-title">Mis favoritos</div>
+                <div class="mini-panel-subtitle">
+                  {% if favorites_count %}
+                  {{ favorites_count }} producto{{ favorites_count|pluralize }} guardado{{ favorites_count|pluralize }}
+                  {% else %}
+                  Tus productos favoritos
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if favorites_items %}
+              <div class="mini-panel-body">
+                {% for fav in favorites_items %}
+                <div class="mini-panel-item">
+                  <div class="mini-thumb">
+                    {% if fav.imagen_url %}
+                    <img src="{{ fav.imagen_url }}" alt="{{ fav.nombre }}">
+                    {% else %}
+                    <div class="mini-thumb-placeholder">
+                      <i class="fa-solid fa-heart"></i>
+                    </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="mini-info">
+                    <div class="mini-name">{{ fav.nombre }}</div>
+                    <div class="mini-meta">Guardado en favoritos</div>
+                  </div>
+
+                  <div class="mini-side">
+                    <div class="mini-actions">
+                      <a href="{% url 'detalle_producto' fav.id %}" class="mini-icon-btn view" title="Ver producto" aria-label="Ver producto">
+                        <i class="fa-solid fa-eye"></i>
+                      </a>
+
+                      <a href="{% url 'eliminar_favorito' fav.id %}?next={{ request.get_full_path|urlencode }}"
+                        class="mini-icon-btn remove" title="Quitar de favoritos" aria-label="Quitar de favoritos">
+                        <i class="fa-regular fa-trash-can"></i>
+                      </a>
+                    </div>
+
+                    {% if fav.tiene_variantes_activas %}
+                    <a href="{% url 'detalle_producto' fav.id %}" class="btn btn-outline-primary btn-sm">Elegir</a>
+                    {% else %}
+                    <form method="post" action="{% url 'agregar_al_carrito' fav.id %}?next={{ request.get_full_path|urlencode }}">
+                      {% csrf_token %}
+                      <input type="hidden" name="cantidad" value="1">
+                      <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+
+              <div class="mini-panel-footer">
+                <div class="mini-panel-buttons">
+                  <a class="btn btn-outline-danger btn-sm w-100" href="{% url 'mis_favoritos' %}">
+                    Ver todos los favoritos
+                  </a>
+                </div>
+              </div>
+              {% else %}
+              <div class="mini-panel-empty">
+                <i class="fa-solid fa-heart"></i>
+                <div class="mini-panel-empty-title">Todavía no tenés favoritos</div>
+                <div class="mini-panel-empty-text">Guardá tus productos preferidos para encontrarlos rápido.</div>
+                <a href="{% url 'catalogo' %}" class="btn btn-primary btn-sm">Ver productos</a>
+              </div>
+              {% endif %}
+            </div>
+          </li>
         </ul>
       </div>
     </div>
   </nav>
 
-  <!-- CONTENIDO -->
   <main class="container mb-5">
     {% block content %}{% endblock %}
   </main>
 
-  <!-- SECCIÓN INFO SITIO (ACORDEÓN) -->
   {% if siteinfo_blocks %}
   <section class="mt-2 mb-4">
     <div class="container">
@@ -540,7 +840,6 @@
   </section>
   {% endif %}
 
-  <!-- FOOTER -->
   <footer class="mp-footer py-4 mt-auto">
     <div class="container">
       <div class="d-flex flex-column flex-md-row gap-3 justify-content-center">
@@ -562,19 +861,15 @@
     </div>
   </footer>
 
-  <!-- BOTONES FLOTANTES -->
   <div class="floating-btn">
-    <a href="{{ site_cfg.texts.whatsapp_url|default:'https://wa.me/message/NSO7K5POCXLKE1' }}" target="_blank"
-      class="btn btn-success">
+    <a href="{{ site_cfg.texts.whatsapp_url|default:'https://wa.me/message/NSO7K5POCXLKE1' }}" target="_blank" class="btn btn-success">
       <i class="fab fa-whatsapp"></i>
     </a>
-    <a href="{{ site_cfg.texts.instagram_url|default:'https://www.instagram.com/_mundo_personalizado/?next=%2F' }}"
-      target="_blank" class="btn btn-danger">
+    <a href="{{ site_cfg.texts.instagram_url|default:'https://www.instagram.com/_mundo_personalizado/?next=%2F' }}" target="_blank" class="btn btn-danger">
       <i class="fab fa-instagram"></i>
     </a>
   </div>
 
-  <!-- MENSAJES -->
   {% if messages %}
   <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1080;">
     {% for message in messages %}
@@ -584,8 +879,7 @@
         <div class="toast-body">
           {{ message }}
         </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-          aria-label="Cerrar"></button>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
       </div>
     </div>
     {% endfor %}
@@ -603,7 +897,6 @@
   </script>
   {% endif %}
 
-  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
@@ -625,7 +918,6 @@
   </script>
 
   <script>
-    // ===== Autocomplete buscador catálogo =====
     document.addEventListener('DOMContentLoaded', function () {
       const input = document.getElementById('navSearchInput');
       const menu = document.getElementById('navSearchResults');
@@ -768,5 +1060,4 @@
 
   {% block scripts %}{% endblock %}
 </body>
-
 </html>

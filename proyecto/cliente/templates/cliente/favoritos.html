@@ -20,14 +20,29 @@
             <p class="mb-2">
               ${{ item.producto.precio }}
             </p>
-            <div class="mt-auto d-flex gap-2">
+
+            <div class="mt-auto d-flex gap-2 flex-wrap">
               <a href="{% url 'detalle_producto' item.producto.id %}" class="btn btn-sm btn-outline-primary">
                 Ver
               </a>
-              <a href="{% url 'agregar_al_carrito' item.producto.id %}?next={% url 'mis_favoritos' %}"
-                 class="btn btn-sm btn-primary">
-                Agregar al carrito
-              </a>
+
+              {% if item.tiene_variantes_activas %}
+                <a href="{% url 'detalle_producto' item.producto.id %}?next={% url 'mis_favoritos' %}"
+                   class="btn btn-sm btn-primary">
+                  Elegir variante
+                </a>
+              {% else %}
+                <form method="post"
+                      action="{% url 'agregar_al_carrito' item.producto.id %}?next={% url 'mis_favoritos' %}"
+                      class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="cantidad" value="1">
+                  <button type="submit" class="btn btn-sm btn-primary">
+                    Agregar al carrito
+                  </button>
+                </form>
+              {% endif %}
+
               <a href="{% url 'eliminar_favorito' item.producto.id %}?next={% url 'mis_favoritos' %}"
                  class="btn btn-sm btn-outline-danger">
                 Quitar
@@ -42,7 +57,7 @@
   <div class="alert alert-info">
     Todavía no tenés productos en favoritos.
   </div>
-  <a href="{% url 'catalogo_directo' %}" class="btn btn-primary">
+  <a href="{% url 'catalogo' %}" class="btn btn-primary">
     Ver productos
   </a>
 {% endif %}
