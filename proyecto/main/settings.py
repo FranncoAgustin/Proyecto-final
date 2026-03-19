@@ -15,12 +15,9 @@ load_dotenv(BASE_DIR / ".env")
 # CLAVES / ENV
 # ==============================
 # En producción (Render) poné SECRET_KEY en variables de entorno
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "django-insecure-l^&=+p0jlju3o40u3q0$=6tsy+_(g3k^!4y(j!%53*+0o3lq^=",
-)
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-insecure-key")
 
-DEBUG = os.getenv("DEBUG", "True") == "True"
+DEBUG = os.getenv("DEBUG", "False") == "True"
 
 MP_PUBLIC_KEY = os.getenv("MP_PUBLIC_KEY", "")
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN", "")
@@ -41,20 +38,21 @@ else:
 # ==============================
 # SECURITY / HOSTS
 # ==============================
-ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    "petronila-irremovable-abnormally.ngrok-free.dev",
-]
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS",
+    "127.0.0.1,localhost"
+).split(",")
 
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://*.ngrok-free.dev",
-    "https://petronila-irremovable-abnormally.ngrok-free.dev",
-    # opcional: si alguna vez usás el dominio viejo de ngrok
-    "https://*.ngrok.io",
+    origin.strip()
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        "https://*.ngrok-free.dev,https://*.ngrok.io"
+    ).split(",")
+    if origin.strip()
 ]
 
 if RENDER_EXTERNAL_HOSTNAME:
@@ -98,7 +96,7 @@ AUTHENTICATION_BACKENDS = [
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-SITE_ID = 3
+SITE_ID = int(os.getenv("SITE_ID", "1"))
 
 LOGIN_REDIRECT_URL = "/mi-cuenta/"
 LOGOUT_REDIRECT_URL = "/catalogo/"
@@ -189,7 +187,7 @@ USE_TZ = True
 # ==============================
 # STATIC FILES
 # ==============================
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Para Render: donde se juntan los estáticos con collectstatic
