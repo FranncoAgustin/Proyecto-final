@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+{% block title %}Completar productos desde PDF{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h5 mb-1">Completar productos creados desde PDF</h1>
+      <div class="text-muted small">
+        Completá los datos de los productos importados antes de dejarlos listos para la tienda.
+      </div>
+    </div>
+    <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">← Volver al panel</a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="vstack gap-4">
+      {% for row in rows %}
+        <div class="card shadow-sm border-0 producto-editor-card">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <strong>{{ row.producto.nombre_publico|default:row.producto.sku }}</strong>
+              <div class="small text-muted">
+                ID {{ row.producto.id }} · SKU actual: {{ row.producto.sku }}
+              </div>
+            </div>
+            <div class="badge text-bg-secondary"></div>
+          </div>
+
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">SKU</label>
+                {{ row.form.sku }}
+                {% if row.form.sku.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.sku.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-8">
+                <label class="form-label">Nombre público</label>
+                {{ row.form.nombre_publico }}
+                {% if row.form.nombre_publico.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.nombre_publico.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-12">
+                <label class="form-label">Descripción</label>
+                {{ row.form.descripcion }}
+                {% if row.form.descripcion.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.descripcion.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Precio de venta</label>
+                {{ row.form.precio }}
+                {% if row.form.precio.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.precio.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Precio costo</label>
+                {{ row.form.precio_costo }}
+                {% if row.form.precio_costo.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.precio_costo.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Stock</label>
+                {{ row.form.stock }}
+                {% if row.form.stock.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.stock.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Técnica</label>
+                {{ row.form.tech }}
+                {% if row.form.tech.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.tech.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <div class="d-flex justify-content-between align-items-center">
+                  <label class="form-label mb-0">Rubro</label>
+                  <button type="button" class="btn btn-sm btn-outline-primary js-btn-nuevo-rubro">
+                    + Nuevo rubro
+                  </button>
+                </div>
+
+                <select name="{{ row.prefix }}-rubro_nombre" class="form-select js-rubro mt-1">
+                  <option value="">(Sin rubro)</option>
+                  {% for r in rubros %}
+                    <option
+                      value="{{ r.nombre }}"
+                      data-rubro-id="{{ r.id }}"
+                      {% if row.producto.rubro == r.nombre %}selected{% endif %}
+                    >
+                      [{{ r.tech }}] {{ r.nombre }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <div class="d-flex justify-content-between align-items-center">
+                  <label class="form-label mb-0">Sub-filtro</label>
+                  <button type="button" class="btn btn-sm btn-outline-secondary js-btn-nuevo-subrubro">
+                    + Nuevo sub-filtro
+                  </button>
+                </div>
+
+                <select name="{{ row.prefix }}-subrubro_nombre" class="form-select js-subrubro mt-1">
+                  <option value="">(Sin sub-filtro)</option>
+                  {% for s in subrubros %}
+                    <option
+                      value="{{ s.nombre }}"
+                      data-rubro-id="{{ s.rubro_id }}"
+                      {% if row.producto.subrubro == s.nombre %}selected{% endif %}
+                    >
+                      {{ s.rubro.nombre }} → {{ s.nombre }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-8">
+                <label class="form-label">Imagen principal</label>
+
+                {% if row.producto.imagen %}
+                  <div class="d-flex align-items-center gap-3 mb-2">
+                    <img
+                      src="{{ row.producto.imagen.url }}"
+                      alt="Imagen del producto"
+                      class="border rounded"
+                      style="width: 100px; height: 100px; object-fit: cover;"
+                    >
+                    <div class="small text-muted">
+                      Imagen actual cargada. Si subís otra, se reemplaza.
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="small text-muted mb-2">Todavía no tiene imagen.</div>
+                {% endif %}
+
+                {{ row.form.imagen }}
+                {% if row.form.imagen.errors %}
+                  <div class="text-danger small mt-1">{{ row.form.imagen.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-4 d-flex align-items-end">
+                <div class="form-check">
+                  {{ row.form.activo }}
+                  <label class="form-check-label" for="{{ row.form.activo.id_for_label }}">
+                    Producto activo
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {% if row.form.non_field_errors %}
+              <div class="alert alert-danger mt-3 mb-0">
+                {{ row.form.non_field_errors }}
+              </div>
+            {% endif %}
+
+            <hr class="my-4">
+
+            <div class="d-flex align-items-center justify-content-between gap-2">
+              <div>
+                <h2 class="h6 mb-1">🎛️ Variantes (opcional)</h2>
+                <div class="form-text">Si dejás precio vacío: usa el precio principal.</div>
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary js-btn-add-var"
+                data-prefix="{{ row.vprefix }}"
+              >
+                + Agregar variante
+              </button>
+            </div>
+
+            <div class="mt-3">
+              {{ row.vformset.management_form }}
+
+              <div class="vstack gap-2 js-variants-container" data-prefix="{{ row.vprefix }}">
+                {% for f in row.vformset %}
+                  <div class="card border-0 shadow-sm variant-item">
+                    <div class="card-body">
+                      <div class="row g-2 align-items-end">
+                        <div class="col-md-3">
+                          <label class="form-label">Nombre *</label>
+                          {{ f.nombre }}
+                          {% if f.nombre.errors %}
+                            <div class="text-danger small mt-1">{{ f.nombre.errors|join:", " }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-md-3">
+                          <label class="form-label">Descripción corta</label>
+                          {{ f.descripcion_corta }}
+                          {% if f.descripcion_corta.errors %}
+                            <div class="text-danger small mt-1">{{ f.descripcion_corta.errors|join:", " }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-md-3">
+                          <label class="form-label">Imagen</label>
+
+                          {% if f.instance.pk and f.instance.imagen %}
+                            <div class="mb-2">
+                              <img
+                                src="{{ f.instance.imagen.url }}"
+                                alt="Imagen de variante"
+                                class="border rounded"
+                                style="width: 100px; height: 100px; object-fit: cover;"
+                              >
+                            </div>
+                          {% else %}
+                            <div class="small text-muted mb-1">Sin imagen.</div>
+                          {% endif %}
+
+                          {{ f.imagen }}
+                          {% if f.imagen.errors %}
+                            <div class="text-danger small mt-1">{{ f.imagen.errors|join:", " }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-md-1">
+                          <label class="form-label">Stock</label>
+                          {{ f.stock }}
+                          {% if f.stock.errors %}
+                            <div class="text-danger small mt-1">{{ f.stock.errors|join:", " }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-md-2">
+                          <label class="form-label">Precio</label>
+                          {{ f.precio }}
+                          {% if f.precio.errors %}
+                            <div class="text-danger small mt-1">{{ f.precio.errors|join:", " }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-12 d-flex justify-content-between align-items-center mt-2">
+                          <div class="d-none">
+                            {{ f.id }} {{ f.DELETE }}
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-danger js-btn-remove-var">
+                            Eliminar variante
+                          </button>
+                          <small class="text-muted">Se borra al guardar.</small>
+                        </div>
+
+                        {% if f.non_field_errors %}
+                          <div class="col-12">
+                            <div class="alert alert-danger py-2 mb-0 mt-2">
+                              {{ f.non_field_errors }}
+                            </div>
+                          </div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% empty %}
+                {% endfor %}
+              </div>
+
+              <template class="js-empty-var-template" data-prefix="{{ row.vprefix }}">
+                <div class="card border-0 shadow-sm variant-item">
+                  <div class="card-body">
+                    <div class="row g-2 align-items-end">
+                      <div class="col-md-3">
+                        <label class="form-label">Nombre *</label>
+                        {{ row.vformset.empty_form.nombre }}
+                      </div>
+
+                      <div class="col-md-3">
+                        <label class="form-label">Descripción corta</label>
+                        {{ row.vformset.empty_form.descripcion_corta }}
+                      </div>
+
+                      <div class="col-md-3">
+                        <label class="form-label">Imagen</label>
+                        <div class="small text-muted mb-1">Aún sin imagen.</div>
+                        {{ row.vformset.empty_form.imagen }}
+                      </div>
+
+                      <div class="col-md-1">
+                        <label class="form-label">Stock</label>
+                        {{ row.vformset.empty_form.stock }}
+                      </div>
+
+                      <div class="col-md-2">
+                        <label class="form-label">Precio</label>
+                        {{ row.vformset.empty_form.precio }}
+                      </div>
+
+                      <div class="col-12 d-flex justify-content-between align-items-center mt-2">
+                        <div class="d-none">
+                          {{ row.vformset.empty_form.id }} {{ row.vformset.empty_form.DELETE }}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger js-btn-remove-var">
+                          Eliminar variante
+                        </button>
+                        <small class="text-muted">Se borra al guardar.</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a href="{% url 'importar_pdf' %}" class="btn btn-outline-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">Guardar todos los productos</button>
+    </div>
+  </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + "=")) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  const csrftoken = getCookie("csrftoken");
+
+  function totalFormsInput(prefix) {
+    return document.querySelector(`input[name="${prefix}-TOTAL_FORMS"]`);
+  }
+
+  function renumberForm(html, index) {
+    return html.replaceAll("__prefix__", String(index));
+  }
+
+  function removeSafe(item) {
+    const del = item.querySelector(`input[name$="-DELETE"]`);
+    if (del) {
+      del.checked = true;
+      item.style.display = "none";
+      return;
+    }
+    item.remove();
+  }
+
+  function wireVariantButtons(scope) {
+    scope.querySelectorAll(".js-btn-remove-var").forEach(btn => {
+      if (btn.dataset.wired === "1") return;
+      btn.dataset.wired = "1";
+      btn.addEventListener("click", () => {
+        const item = btn.closest(".variant-item");
+        if (item) removeSafe(item);
+      });
+    });
+  }
+
+  document.querySelectorAll(".producto-editor-card").forEach(function (card) {
+    const rubroSelect = card.querySelector(".js-rubro");
+    const subrubroSelect = card.querySelector(".js-subrubro");
+    const techSelect = card.querySelector('select[name$="-tech"]');
+    const btnNuevoRubro = card.querySelector(".js-btn-nuevo-rubro");
+    const btnNuevoSubrubro = card.querySelector(".js-btn-nuevo-subrubro");
+
+    function filtrarSubrubros() {
+      if (!rubroSelect || !subrubroSelect) return;
+
+      const selectedOption = rubroSelect.options[rubroSelect.selectedIndex];
+      const rubroId = selectedOption ? selectedOption.getAttribute("data-rubro-id") : null;
+
+      Array.from(subrubroSelect.options).forEach(function (opt) {
+        const optRubroId = opt.getAttribute("data-rubro-id");
+
+        if (!optRubroId || !rubroId) {
+          opt.hidden = false;
+        } else {
+          opt.hidden = (optRubroId !== rubroId);
+        }
+      });
+
+      if (subrubroSelect.selectedOptions.length && subrubroSelect.selectedOptions[0].hidden) {
+        subrubroSelect.value = "";
+      }
+    }
+
+    async function crearRubroDesdeBulk() {
+      const tech = techSelect ? (techSelect.value || "") : "";
+      const nombre = prompt("Nombre del nuevo rubro:");
+      if (!nombre) return;
+
+      try {
+        const resp = await fetch("{% url 'owner_api_rubro_create' %}", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            nombre: nombre,
+            tech: tech,
+          }),
+        });
+
+        const data = await resp.json();
+
+        if (!resp.ok || !data.ok) {
+          alert(data.error || "Error al crear el rubro.");
+          return;
+        }
+
+        const r = data.rubro;
+
+        const opt = document.createElement("option");
+        opt.value = r.nombre;
+        opt.textContent = `[${r.tech || ""}] ${r.nombre}`;
+        opt.setAttribute("data-rubro-id", r.id);
+
+        rubroSelect.appendChild(opt);
+        rubroSelect.value = r.nombre;
+        rubroSelect.dispatchEvent(new Event("change"));
+
+        alert(`Rubro “${r.nombre}” creado y asignado.`);
+      } catch (e) {
+        console.error(e);
+        alert("Error inesperado al crear el rubro.");
+      }
+    }
+
+    async function crearSubrubroDesdeBulk() {
+      const rubroOption = rubroSelect.options[rubroSelect.selectedIndex];
+      const rubroId = rubroOption ? rubroOption.getAttribute("data-rubro-id") : null;
+      const rubroNombre = rubroOption ? rubroOption.value : "";
+
+      if (!rubroId) {
+        alert("Primero seleccioná un rubro.");
+        return;
+      }
+
+      const nombre = prompt(`Nombre del nuevo sub-filtro para “${rubroNombre}”:`);
+      if (!nombre) return;
+
+      try {
+        const resp = await fetch("{% url 'owner_api_subrubro_create' %}", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            rubro_id: rubroId,
+            nombre: nombre,
+          }),
+        });
+
+        const data = await resp.json();
+
+        if (!resp.ok || !data.ok) {
+          alert(data.error || "Error al crear el sub-filtro.");
+          return;
+        }
+
+        const s = data.subrubro;
+
+        const opt = document.createElement("option");
+        opt.value = s.nombre;
+        opt.textContent = `${s.rubro_nombre} → ${s.nombre}`;
+        opt.setAttribute("data-rubro-id", s.rubro_id);
+
+        subrubroSelect.appendChild(opt);
+        subrubroSelect.value = s.nombre;
+
+        alert(`Sub-filtro “${s.nombre}” creado y asignado.`);
+      } catch (e) {
+        console.error(e);
+        alert("Error inesperado al crear el sub-filtro.");
+      }
+    }
+
+    if (rubroSelect && subrubroSelect) {
+      rubroSelect.addEventListener("change", filtrarSubrubros);
+      filtrarSubrubros();
+    }
+
+    if (btnNuevoRubro) {
+      btnNuevoRubro.addEventListener("click", crearRubroDesdeBulk);
+    }
+
+    if (btnNuevoSubrubro) {
+      btnNuevoSubrubro.addEventListener("click", crearSubrubroDesdeBulk);
+    }
+  });
+
+  document.querySelectorAll(".js-btn-add-var").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const prefix = btn.dataset.prefix;
+      const container = document.querySelector(`.js-variants-container[data-prefix="${prefix}"]`);
+      const tpl = document.querySelector(`.js-empty-var-template[data-prefix="${prefix}"]`);
+      const totalEl = totalFormsInput(prefix);
+
+      if (!container || !tpl || !totalEl) return;
+
+      const index = parseInt(totalEl.value, 10);
+      const html = renumberForm(tpl.innerHTML, index);
+
+      const temp = document.createElement("div");
+      temp.innerHTML = html.trim();
+      const node = temp.firstElementChild;
+
+      container.appendChild(node);
+      totalEl.value = index + 1;
+
+      wireVariantButtons(node);
+    });
+  });
+
+  wireVariantButtons(document);
+});
+</script>
+{% endblock %}

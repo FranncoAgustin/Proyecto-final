@@ -34,6 +34,11 @@ from reportlab.platypus import (
 
 from django.core.files.base import ContentFile
 
+from django.forms import modelformset_factory, inlineformset_factory
+
+from owner.forms import ProductoDesdeFacturaBulkForm, ProductoVarianteFormSet
+ 
+
 from .forms import (
     ListaPrecioForm,
     FacturaProveedorForm,
@@ -48,6 +53,7 @@ from .models import (
     ProductoVariante,
     Rubro,
     PDFBranding,
+    SubRubro,
 )
 from .utils import extraer_precios_de_pdf, get_similarity
 from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text, parse_invoice_pdf
@@ -278,6 +284,22 @@ def _to_decimal(v, default="0"):
     except (InvalidOperation, ValueError):
         return Decimal(default)
 
+def _slug_sku_base(texto: str) -> str:
+    texto = (texto or "").strip().lower()
+    texto = texto.replace("ñ", "n")
+    texto = re.sub(r"[^a-z0-9]+", "_", texto)
+    texto = re.sub(r"_+", "_", texto).strip("_")
+    return texto[:60] or "producto_pdf"
+
+
+def _sku_unico(base: str) -> str:
+    sku = base
+    n = 2
+    while ProductoPrecio.objects.filter(sku__iexact=sku).exists():
+        sufijo = f"_{n}"
+        sku = f"{base[:60-len(sufijo)]}{sufijo}"
+        n += 1
+    return sku
 
 # ============================================================
 # CATÁLOGO / LISTAS
@@ -738,28 +760,31 @@ def importar_pdf(request):
     """
     Importa / actualiza precios desde un PDF de lista de precios.
 
-    Paso 1 (POST con file): genera 'candidates' y los guarda en sesión.
-    Paso 2 (POST con confirm): aplica acciones elegidas y genera 'report'.
-    GET: muestra formulario vacío + últimas listas procesadas.
+    Flujo:
+    - Paso 1: subir PDF y generar preview
+    - Paso 2: confirmar acciones
+      * existentes -> actualiza precio
+      * nuevos -> crea borradores inactivos para completar luego
     """
 
-    # Reporte base compatible con el template “pro”
     report = {
         "imported": 0,
         "updated": 0,
         "skipped": 0,
-        "usd_to_review": [],      # productos detectados en USD
-        "not_found": [],          # productos que no estaban en DB en modo update_only
-        "not_seen_active": [],    # productos en DB que no aparecieron en el PDF
+        "usd_to_review": [],
+        "not_found": [],
+        "not_seen_active": [],
         "imported_items": [],
         "updated_items": [],
         "skipped_items": [],
-        "parse_errors": [],       # líneas del PDF que no se pudieron interpretar
+        "parse_errors": [],
     }
     msg = ""
     update_only = request.POST.get("update_only") in ("on", "true", "1")
 
-    # =============== PASO 2: CONFIRMAR E IMPORTAR ===============
+    # ============================================================
+    # PASO 2: CONFIRMAR E IMPORTAR
+    # ============================================================
     if request.method == "POST" and request.POST.get("confirm"):
         productos_a_revisar = request.session.pop("productos_a_revisar", [])
         lista_pdf_id = request.session.pop("lista_pdf_id", None)
@@ -781,129 +806,145 @@ def importar_pdf(request):
 
         lista_pdf = get_object_or_404(ListaPrecioPDF, pk=lista_pdf_id)
 
-        # Para calcular luego qué SKUs no aparecieron en el PDF
         skus_vistos_pdf = []
+        productos_pdf_creados_ids = []
 
-        for index, producto in enumerate(productos_a_revisar):
-            action_key = f"action_{index}"
-            accion_valor = (request.POST.get(action_key) or "").strip()
+        with transaction.atomic():
+            for index, producto in enumerate(productos_a_revisar):
+                action_key = f"action_{index}"
+                accion_valor = (request.POST.get(action_key) or "").strip()
 
-            # Nombre final (editado o original)
-            name_key = f"name_{index}"
-            nombre_final = request.POST.get(name_key, producto["sku_original"]).strip()
+                name_key = f"name_{index}"
+                nombre_final = request.POST.get(name_key, producto["sku_original"]).strip()
 
-            if not nombre_final:
-                # Nada que hacer
-                continue
-
-            skus_vistos_pdf.append(nombre_final)
-
-            if not accion_valor:
-                # Si por algún motivo no vino, lo tratamos como "ignore"
-                accion = "ignore"
-                target_id = None
-            else:
-                parts = accion_valor.split(":", 1)
-                accion = parts[0]
-                target_id = parts[1] if len(parts) > 1 else None
-
-            sku = nombre_final
-            precio_nuevo = Decimal(producto["precio_nuevo"])
-            moneda = producto.get("moneda", "ARS")
-
-            # Búsqueda de producto existente
-            producto_existente_db = None
-            if target_id:
-                try:
-                    producto_existente_db = ProductoPrecio.objects.get(pk=target_id)
-                except ProductoPrecio.DoesNotExist:
-                    producto_existente_db = None
-
-            if not producto_existente_db:
-                producto_existente_db = ProductoPrecio.objects.filter(sku=sku).first()
-
-            # Crear base del ítem para el reporte
-            item_reporte = {
-                "sku": sku,
-                "currency": moneda,
-                "price": f"{precio_nuevo:.2f}",
-            }
-
-            # Si está en USD lo marcamos para revisión
-            if moneda == "USD":
-                report["usd_to_review"].append({
-                    "sku": sku,
-                    "price": f"{precio_nuevo:.2f}",
-                })
-
-            # Si el usuario marcó IGNORAR → reporte y seguimos
-            if accion == "ignore":
-                report["skipped"] += 1
-                report["skipped_items"].append({
-                    "reason": "Ignorado por usuario",
-                    "sku": sku,
-                })
-                continue
-
-            # Si está activo "sólo actualizar" y no existe el producto → lo agregamos a not_found
-            if update_only and not producto_existente_db:
-                report["skipped"] += 1
-                report["not_found"].append(sku)
-                report["skipped_items"].append({
-                    "reason": "update_only_sin_existente",
-                    "sku": sku,
-                })
-                continue
-
-            # ========== LÓGICA DE ACTUALIZACIÓN / CREACIÓN ==========
-            if producto_existente_db:
-                # Ya existe → actualizamos si cambió el precio
-                prev_price = producto_existente_db.precio
-                changed = (prev_price != precio_nuevo)
-
-                if changed:
-                    producto_existente_db.precio = precio_nuevo
-                    producto_existente_db.lista_pdf = lista_pdf
-                    producto_existente_db.save()
-
-                    report["updated"] += 1
-                    item_reporte.update({
-                        "prev_price": f"{prev_price:.2f}",
-                        "changed": True,
-                        "note": "Precio actualizado",
-                    })
-                    report["updated_items"].append(item_reporte)
-                else:
+                if not nombre_final:
                     report["skipped"] += 1
                     report["skipped_items"].append({
-                        "reason": "Precio sin cambios",
-                        "sku": sku,
-                    })
-            else:
-                # No existe y no estamos en update_only → crear
-                try:
-                    ProductoPrecio.objects.create(
-                        lista_pdf=lista_pdf,
-                        sku=sku,
-                        nombre_publico=sku,
-                        precio=precio_nuevo,
-                    )
-                except IntegrityError:
-                    # En caso de colisión inesperada por unique
-                    report["skipped"] += 1
-                    report["skipped_items"].append({
-                        "reason": "Error: nombre duplicado en DB",
-                        "sku": sku,
+                        "reason": "Nombre vacío",
+                        "sku": producto["sku_original"],
                     })
                     continue
 
+                skus_vistos_pdf.append(nombre_final)
+
+                if not accion_valor:
+                    accion = "ignore"
+                    target_id = None
+                else:
+                    parts = accion_valor.split(":", 1)
+                    accion = parts[0]
+                    target_id = parts[1] if len(parts) > 1 else None
+
+                precio_nuevo = Decimal(producto["precio_nuevo"])
+                moneda = producto.get("moneda", "ARS")
+
+                producto_existente_db = None
+
+                if target_id:
+                    try:
+                        producto_existente_db = ProductoPrecio.objects.get(pk=target_id)
+                    except ProductoPrecio.DoesNotExist:
+                        producto_existente_db = None
+
+                if not producto_existente_db:
+                    producto_existente_db = ProductoPrecio.objects.filter(
+                        sku__iexact=nombre_final
+                    ).first()
+
+                item_reporte = {
+                    "sku": nombre_final,
+                    "currency": moneda,
+                    "price": f"{precio_nuevo:.2f}",
+                }
+
+                if moneda == "USD":
+                    report["usd_to_review"].append({
+                        "sku": nombre_final,
+                        "price": f"{precio_nuevo:.2f}",
+                    })
+
+                # IGNORAR
+                if accion == "ignore":
+                    report["skipped"] += 1
+                    report["skipped_items"].append({
+                        "reason": "Ignorado por usuario",
+                        "sku": nombre_final,
+                    })
+                    continue
+
+                # SOLO ACTUALIZAR Y NO EXISTE
+                if update_only and not producto_existente_db:
+                    report["skipped"] += 1
+                    report["not_found"].append(nombre_final)
+                    report["skipped_items"].append({
+                        "reason": "update_only_sin_existente",
+                        "sku": nombre_final,
+                    })
+                    continue
+
+                # =====================================================
+                # EXISTE -> ACTUALIZAR PRECIO
+                # =====================================================
+                if producto_existente_db:
+                    prev_price = producto_existente_db.precio
+                    changed = (prev_price != precio_nuevo)
+
+                    if changed:
+                        producto_existente_db.precio = precio_nuevo
+                        producto_existente_db.lista_pdf = lista_pdf
+                        producto_existente_db.save(update_fields=["precio", "lista_pdf"])
+
+                        report["updated"] += 1
+                        item_reporte.update({
+                            "prev_price": f"{prev_price:.2f}",
+                            "changed": True,
+                            "note": "Precio actualizado",
+                        })
+                        report["updated_items"].append(item_reporte)
+                    else:
+                        report["skipped"] += 1
+                        report["skipped_items"].append({
+                            "reason": "Precio sin cambios",
+                            "sku": nombre_final,
+                        })
+
+                    continue
+
+                # =====================================================
+                # NO EXISTE -> CREAR BORRADOR INCOMPLETO
+                # =====================================================
+                base_sku = _slug_sku_base(nombre_final)
+                sku_nuevo = _sku_unico(base_sku)
+
+                try:
+                    nuevo = ProductoPrecio.objects.create(
+                        lista_pdf=lista_pdf,
+                        sku=sku_nuevo,
+                        nombre_publico=nombre_final,
+                        precio=precio_nuevo,
+                        precio_costo=precio_nuevo,
+                        descripcion=f"{nombre_final}",
+                        stock=0,
+                        activo=False,
+                    )
+                except IntegrityError:
+                    report["skipped"] += 1
+                    report["skipped_items"].append({
+                        "reason": "Error: no se pudo crear el producto",
+                        "sku": nombre_final,
+                    })
+                    continue
+
+                productos_pdf_creados_ids.append(nuevo.id)
+
                 report["imported"] += 1
                 item_reporte.update({
-                    "note": "Nuevo producto creado",
+                    "sku_temporal": sku_nuevo,
+                    "note": "Producto borrador creado para completar",
                 })
                 report["imported_items"].append(item_reporte)
 
-        # SKUs existentes en la DB que no aparecieron en el PDF actual
+        # Productos existentes en DB que no aparecieron en este PDF
         todos_skus = list(
             ProductoPrecio.objects
             .exclude(sku__isnull=True)
@@ -916,13 +957,12 @@ def importar_pdf(request):
         ][:200]
 
         msg = (
-            f"PROCESO OK — importados {report['imported']}, "
+            f"PROCESO OK — borradores creados {report['imported']}, "
             f"actualizados {report['updated']}, omitidos {report['skipped']}, "
             f"no encontrados (update_only) {len(report['not_found'])}, "
             f"activos no vistos {len(report['not_seen_active'])}."
         )
 
-        # Bitácora
         registrar_evento(
             tipo="lista_precio_importada",
             titulo=f"Lista de precios procesada: {lista_pdf.nombre}",
@@ -937,8 +977,17 @@ def importar_pdf(request):
                 "not_found": len(report["not_found"]),
                 "not_seen_active": len(report["not_seen_active"]),
                 "usd_to_review": len(report["usd_to_review"]),
+                "productos_pdf_creados_ids": productos_pdf_creados_ids,
             },
         )
+
+        if productos_pdf_creados_ids:
+            request.session["productos_pdf_creados_ids"] = productos_pdf_creados_ids
+            messages.success(
+                request,
+                "Se generaron productos borrador. Ahora completá sus datos."
+            )
+            return redirect("owner_productos_completar_desde_pdf")
 
         return render(
             request,
@@ -951,7 +1000,9 @@ def importar_pdf(request):
             },
         )
 
-    # =============== PASO 1: SUBIR PDF Y PREVIEW ===============
+    # ============================================================
+    # PASO 1: SUBIR PDF Y PREVIEW
+    # ============================================================
     if request.method == "POST" and request.FILES.get("file"):
         archivo_pdf = request.FILES["file"]
 
@@ -961,7 +1012,6 @@ def importar_pdf(request):
         )
         pdf_path = os.path.join(settings.MEDIA_ROOT, lista_pdf.archivo_pdf.name)
 
-        # Bitácora
         registrar_evento(
             tipo="lista_precio_subida",
             titulo=f"Lista de precios subida: {lista_pdf.nombre}",
@@ -975,14 +1025,11 @@ def importar_pdf(request):
             },
         )
 
-        # Nueva versión: items + errores de parseo
         productos_extraidos, parse_errors = extraer_precios_de_pdf(pdf_path)
 
         candidates = []
         skus_existentes = {p.sku: p for p in ProductoPrecio.objects.all()}
         productos_a_revisar = []
-
-        # Para marcar duplicados dentro del mismo PDF
         contador_nombres = {}
 
         for item in productos_extraidos:
@@ -990,7 +1037,6 @@ def importar_pdf(request):
             precio_nuevo = item["precio"]
             moneda = item.get("moneda", "ARS")
 
-            # Marcamos productos en USD para revisión
             if moneda == "USD":
                 report["usd_to_review"].append({
                     "sku": sku_original,
@@ -1015,7 +1061,7 @@ def importar_pdf(request):
                 "name": sku_original,
                 "price": precio_nuevo,
                 "currency": moneda,
-                "dup_in_pdf": False,  # lo pisamos luego
+                "dup_in_pdf": False,
                 "exact_db_id": exact_match.id if exact_match else None,
                 "exact_db_label": exact_match.nombre_publico if exact_match else None,
                 "sug_id": sug_match.id if sug_match else None,
@@ -1031,15 +1077,12 @@ def importar_pdf(request):
                 "coincidencia_id": c["exact_db_id"] or c["sug_id"],
             })
 
-        # Ahora marcamos los duplicados en PDF
         for c in candidates:
             c["dup_in_pdf"] = contador_nombres.get(c["name"], 0) > 1
 
-        # Guardamos en sesión para el paso 2
         request.session["productos_a_revisar"] = productos_a_revisar
         request.session["lista_pdf_id"] = lista_pdf.id
 
-        # Errores de parseo
         report["parse_errors"] = parse_errors
 
         return render(
@@ -1054,7 +1097,9 @@ def importar_pdf(request):
             },
         )
 
-    # =============== GET / FORM VACÍO ===============
+    # ============================================================
+    # GET / FORM VACÍO
+    # ============================================================
     listas_procesadas = ListaPrecioPDF.objects.all().order_by("-fecha_subida")[:5]
     return render(
         request,
@@ -1068,6 +1113,124 @@ def importar_pdf(request):
         },
     )
 
+
+def owner_productos_completar_desde_pdf(request):
+    ids = request.session.get("productos_pdf_creados_ids", [])
+
+    if not ids:
+        messages.info(request, "No hay productos creados desde PDF para completar.")
+        return redirect("importar_pdf")
+
+    productos = list(
+        ProductoPrecio.objects.filter(pk__in=ids).order_by("id")
+    )
+
+    if not productos:
+        request.session.pop("productos_pdf_creados_ids", None)
+        messages.info(request, "No se encontraron productos pendientes.")
+        return redirect("importar_pdf")
+
+    rubros = Rubro.objects.filter(activo=True).order_by("tech", "orden", "nombre")
+    subrubros = SubRubro.objects.filter(activo=True).select_related("rubro").order_by(
+        "rubro__nombre", "orden", "nombre"
+    )
+
+    rows = []
+    todo_ok = True
+
+    if request.method == "POST":
+        for producto in productos:
+            prefix = f"prod_{producto.id}"
+            vprefix = f"vars_{producto.id}"
+
+            form = ProductoDesdeFacturaBulkForm(
+                request.POST,
+                request.FILES,
+                instance=producto,
+                prefix=prefix,
+            )
+
+            vformset = ProductoVarianteFormSet(
+                request.POST,
+                request.FILES,
+                instance=producto,
+                prefix=vprefix,
+            )
+
+            rubro_nombre = (request.POST.get(f"{prefix}-rubro_nombre") or "").strip()
+            subrubro_nombre = (request.POST.get(f"{prefix}-subrubro_nombre") or "").strip()
+
+            if form.is_valid() and vformset.is_valid():
+                obj = form.save(commit=False)
+                obj.rubro = rubro_nombre
+                obj.subrubro = subrubro_nombre
+
+                # seguridad mínima
+                if not obj.nombre_publico or not obj.sku:
+                    obj.activo = False
+
+                obj.save()
+                vformset.save()
+
+                registrar_evento(
+                    tipo="producto_actualizado",
+                    titulo=f"Producto completado desde PDF: {obj.nombre_publico or obj.sku}",
+                    detalle=f"SKU: {obj.sku}",
+                    user=getattr(request, "user", None),
+                    obj=obj,
+                    extra={
+                        "producto_id": obj.id,
+                        "origen": "importar_pdf",
+                    },
+                )
+            else:
+                todo_ok = False
+
+            rows.append({
+                "producto": producto,
+                "form": form,
+                "vformset": vformset,
+                "prefix": prefix,
+                "vprefix": vprefix,
+            })
+
+        if todo_ok:
+            request.session.pop("productos_pdf_creados_ids", None)
+            messages.success(request, "Se guardaron todos los productos creados desde PDF.")
+            return redirect("importar_pdf")
+
+    else:
+        for producto in productos:
+            prefix = f"prod_{producto.id}"
+            vprefix = f"vars_{producto.id}"
+
+            form = ProductoDesdeFacturaBulkForm(
+                instance=producto,
+                prefix=prefix,
+            )
+
+            vformset = ProductoVarianteFormSet(
+                instance=producto,
+                prefix=vprefix,
+            )
+
+            rows.append({
+                "producto": producto,
+                "form": form,
+                "vformset": vformset,
+                "prefix": prefix,
+                "vprefix": vprefix,
+            })
+
+    return render(
+        request,
+        "owner/productos_completar_desde_pdf.html",
+        {
+            "rows": rows,
+            "rubros": rubros,
+            "subrubros": subrubros,
+        },
+    )
 
 # ============================================================
 # FACTURAS PROVEEDOR (OCR + linkeo a catálogo)

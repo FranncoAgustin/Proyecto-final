@@ -27,4 +27,6 @@ urlpatterns = [
     path("factura/", views.factura_crear, name="factura_crear"),
     path("api/productos/", views.api_productos, name="api_productos"),
      path("api/catalogo/suggest/", views.catalogo_suggest, name="catalogo_api_suggest"),
+     path("owner/productos/completar-desde-pdf/",views.owner_productos_completar_desde_pdf,name="owner_productos_completar_desde_pdf",),
+
 ]
