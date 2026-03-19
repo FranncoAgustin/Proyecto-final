@@ -765,6 +765,10 @@ def importar_pdf(request):
     - Paso 2: confirmar acciones
       * existentes -> actualiza precio
       * nuevos -> crea borradores inactivos para completar luego
+
+    Mejora importante:
+    - busca coincidencia exacta por SKU y también por nombre_publico
+    - sugiere comparando contra nombre_publico o sku
     """
 
     report = {
@@ -846,9 +850,11 @@ def importar_pdf(request):
                     except ProductoPrecio.DoesNotExist:
                         producto_existente_db = None
 
+                # Buscar por sku o por nombre público
                 if not producto_existente_db:
                     producto_existente_db = ProductoPrecio.objects.filter(
-                        sku__iexact=nombre_final
+                        Q(sku__iexact=nombre_final) |
+                        Q(nombre_publico__iexact=nombre_final)
                     ).first()
 
                 item_reporte = {
@@ -923,7 +929,7 @@ def importar_pdf(request):
                         nombre_publico=nombre_final,
                         precio=precio_nuevo,
                         precio_costo=precio_nuevo,
-                        descripcion=f"{nombre_final}",
+                        descripcion=f"Importado desde PDF: {nombre_final}",
                         stock=0,
                         activo=False,
                     )
@@ -1028,9 +1034,18 @@ def importar_pdf(request):
         productos_extraidos, parse_errors = extraer_precios_de_pdf(pdf_path)
 
         candidates = []
-        skus_existentes = {p.sku: p for p in ProductoPrecio.objects.all()}
+        productos_existentes = list(ProductoPrecio.objects.all())
         productos_a_revisar = []
         contador_nombres = {}
+
+        skus_existentes = {}
+        nombres_existentes = {}
+
+        for p in productos_existentes:
+            if p.sku:
+                skus_existentes[p.sku.strip().lower()] = p
+            if p.nombre_publico:
+                nombres_existentes[p.nombre_publico.strip().lower()] = p
 
         for item in productos_extraidos:
             sku_original = item["nombre"]
@@ -1046,13 +1061,20 @@ def importar_pdf(request):
 
             contador_nombres[sku_original] = contador_nombres.get(sku_original, 0) + 1
 
-            exact_match = skus_existentes.get(sku_original)
+            clave_pdf = sku_original.strip().lower()
+
+            exact_match = (
+                skus_existentes.get(clave_pdf)
+                or nombres_existentes.get(clave_pdf)
+            )
+
             sug_match = None
             max_similitud = 0
 
             if not exact_match:
-                for existing_sku, existing_product in skus_existentes.items():
-                    similitud = get_similarity(sku_original, existing_sku)
+                for existing_product in productos_existentes:
+                    base_comparacion = existing_product.nombre_publico or existing_product.sku or ""
+                    similitud = get_similarity(sku_original, base_comparacion)
                     if similitud > max_similitud and similitud >= 70:
                         max_similitud = similitud
                         sug_match = existing_product
@@ -1112,7 +1134,6 @@ def importar_pdf(request):
             "listas_procesadas": listas_procesadas,
         },
     )
-
 
 def owner_productos_completar_desde_pdf(request):
     ids = request.session.get("productos_pdf_creados_ids", [])
