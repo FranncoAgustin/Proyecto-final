@@ -1,16 +1,9 @@
 from django.db import models
 from django.utils.text import slugify
 from django.conf import settings
+from decimal import Decimal
+from pdf.models import ProductoPrecio, ProductoVariante
 
-
-class ProductoPrecio(models.Model):
-    # ⚠ SIN FK a ListaPrecioPDF acá
-    sku = models.CharField(max_length=255, unique=True)
-    nombre_publico = models.CharField(max_length=255)
-    precio = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def __str__(self):
-        return self.nombre_publico
 
 
 class SiteInfoBlock(models.Model):
@@ -139,6 +132,8 @@ class BitacoraEvento(models.Model):
         ("productos_bulk_desactivar", "Productos: baja masiva"),
         ("productos_bulk_eliminar", "Productos: eliminación masiva"),
         ("productos_bulk_tech", "Productos: técnica asignada masivamente"),
+        ("venta_registrada", "Venta registrada"),
+        ("venta_eliminada", "Venta eliminada"),
 
         # =====================================================
         # RUBROS / FILTROS
@@ -213,3 +208,70 @@ class BitacoraEvento(models.Model):
 
     def __str__(self):
         return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.get_tipo_display()} - {self.titulo}"
+
+class VentaRapida(models.Model):
+    MEDIO_PAGO_CHOICES = [
+        ("efectivo", "Efectivo"),
+        ("transferencia", "Transferencia"),
+    ]
+
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    producto = models.ForeignKey(
+        ProductoPrecio,
+        on_delete=models.PROTECT,
+        related_name="ventas_rapidas",
+    )
+
+    variante = models.ForeignKey(
+        ProductoVariante,
+        on_delete=models.PROTECT,
+        related_name="ventas_rapidas",
+        null=True,
+        blank=True,
+    )
+
+    cantidad = models.PositiveIntegerField(default=1)
+    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    costo_unitario = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    medio_pago = models.CharField(
+        max_length=20,
+        choices=MEDIO_PAGO_CHOICES,
+        default="transferencia",
+    )
+
+    observacion = models.CharField(max_length=255, blank=True, default="")
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ventas_rapidas_owner",
+    )
+
+    class Meta:
+        ordering = ("-fecha", "-id")
+        verbose_name = "Venta rápida"
+        verbose_name_plural = "Ventas rápidas"
+
+    def __str__(self):
+        base = self.producto.nombre_publico or self.producto.sku
+        if self.variante:
+            base = f"{base} - {self.variante.nombre}"
+        return f"{base} x {self.cantidad} - {self.fecha:%d/%m/%Y %H:%M}"
+
+class SiteCarouselImage(models.Model):
+    site = models.ForeignKey("owner.SiteConfig", on_delete=models.CASCADE, related_name="carousel_images")
+    titulo = models.CharField(max_length=120, blank=True)
+    imagen = models.ImageField(upload_to="site/carousel/")
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["orden", "id"]
+
+    def __str__(self):
+        return self.titulo or f"Imagen #{self.pk}"

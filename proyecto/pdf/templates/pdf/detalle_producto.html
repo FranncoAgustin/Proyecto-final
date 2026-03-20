@@ -138,6 +138,37 @@
     font-weight: 700;
   }
 
+  .availability-box {
+    margin-top: .7rem;
+    border-radius: 14px;
+    padding: .9rem 1rem;
+    border: 1px solid rgba(0, 0, 0, .08);
+    background: rgba(0, 0, 0, .03);
+  }
+
+  .availability-box strong {
+    display: block;
+    margin-bottom: .2rem;
+    color: #1f2937;
+  }
+
+  .availability-box p {
+    margin: 0;
+    color: #4b5563;
+    line-height: 1.45;
+    font-size: .94rem;
+  }
+
+  .availability-box.is-in-stock {
+    background: rgba(25, 135, 84, .08);
+    border-color: rgba(25, 135, 84, .18);
+  }
+
+  .availability-box.is-on-demand {
+    background: rgba(255, 193, 7, .12);
+    border-color: rgba(255, 193, 7, .25);
+  }
+
   .detail-buy-card {
     padding: 1rem;
   }
@@ -184,12 +215,15 @@
     box-shadow: 0 8px 18px rgba(13, 110, 253, .16);
   }
 
+  .buy-btn.btn-success {
+    box-shadow: 0 8px 18px rgba(25, 135, 84, .16);
+  }
+
   .detail-side-stack {
     display: flex;
     flex-direction: column;
   }
 
-  /* ===== GOOGLE / RESEÑAS ===== */
   .google-proof-wrap {
     margin-top: 1.5rem;
   }
@@ -198,7 +232,7 @@
     padding: 1.25rem;
     background:
       radial-gradient(circle at top right, rgba(var(--mp-primary-rgb), .06), transparent 22%),
-      linear-gradient(180deg, rgba(var(--mp-primary-rgb), .03), rgba(255,255,255,.96));
+      linear-gradient(180deg, rgba(var(--mp-primary-rgb), .03), rgba(255, 255, 255, .96));
   }
 
   .google-proof-head {
@@ -226,8 +260,8 @@
     gap: .9rem;
     flex-wrap: wrap;
     text-align: center;
-    background: rgba(255,255,255,.85);
-    border: 1px solid rgba(0,0,0,.06);
+    background: rgba(255, 255, 255, .85);
+    border: 1px solid rgba(0, 0, 0, .06);
     border-radius: 16px;
     padding: 1rem 1.1rem;
     margin-bottom: 1.1rem;
@@ -261,8 +295,8 @@
   }
 
   .google-review-item {
-    background: rgba(255,255,255,.92);
-    border: 1px solid rgba(0,0,0,.06);
+    background: rgba(255, 255, 255, .92);
+    border: 1px solid rgba(0, 0, 0, .06);
     border-radius: 16px;
     padding: 1rem;
     height: 100%;
@@ -335,26 +369,51 @@
     box-shadow: 0 12px 24px rgba(13, 110, 253, .22);
   }
 
-  .google-gallery {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: .85rem;
-  }
-
-  .google-gallery-item {
-    border-radius: 16px;
+  .google-slider-wrap {
     overflow: hidden;
-    border: 1px solid rgba(0,0,0,.06);
-    background: rgba(0,0,0,.03);
-    min-height: 220px;
+    border-radius: 18px;
+    position: relative;
+    padding: .25rem 0;
+    width: 100%;
   }
 
-  .google-gallery-item img {
+  .google-slider-track {
+    display: flex;
+    gap: 0.9rem;
+    width: max-content;
+    animation: googleSliderMove 40s linear infinite;
+    align-items: stretch;
+  }
+
+  .google-slider-wrap:hover .google-slider-track {
+    animation-play-state: paused;
+  }
+
+  .google-slide-card {
+    flex: 0 0 220px;
+    width: 220px;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, .06);
+    background: rgba(0, 0, 0, .03);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .05);
+  }
+
+  .google-slide-card img {
     width: 100%;
-    height: 100%;
-    min-height: 220px;
+    height: 220px;
     object-fit: cover;
     display: block;
+  }
+
+  @keyframes googleSliderMove {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(-50%);
+    }
   }
 
   @media (max-width: 991.98px) {
@@ -362,8 +421,13 @@
       grid-template-columns: 1fr;
     }
 
-    .google-gallery {
-      grid-template-columns: 1fr;
+    .google-slide-card {
+      flex: 0 0 190px;
+      width: 190px;
+    }
+
+    .google-slide-card img {
+      height: 190px;
     }
   }
 
@@ -409,9 +473,13 @@
       font-size: 1.2rem;
     }
 
-    .google-gallery-item,
-    .google-gallery-item img {
-      min-height: 240px;
+    .google-slide-card {
+      flex: 0 0 160px;
+      width: 160px;
+    }
+
+    .google-slide-card img {
+      height: 160px;
     }
   }
 </style>
@@ -433,12 +501,7 @@
       <div class="detail-media-card">
         <div class="detail-image-wrap">
           {% if producto.imagen %}
-            <img
-              id="product-image"
-              src="{{ producto.imagen.url }}"
-              class="img-fluid detail-image"
-              alt="{{ producto.nombre_publico }}"
-            >
+            <img id="product-image" src="{{ producto.imagen.url }}" class="img-fluid detail-image" alt="{{ producto.nombre_publico }}">
           {% else %}
             <div class="detail-placeholder">
               Sin imagen
@@ -466,25 +529,31 @@
           </div>
 
           <div class="stock-row">
-            <span
-              id="stock-badge"
-              class="badge stock-badge-main {% if stock_inicial|default:0 <= 0 %}bg-danger{% else %}bg-success{% endif %}"
-            >
-              {% if stock_inicial|default:0 <= 0 %}Sin stock{% else %}En stock{% endif %}
+            <span id="stock-badge" class="badge stock-badge-main {% if stock_inicial|default:0 <= 0 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+              {% if stock_inicial|default:0 <= 0 %}Disponible por pedido{% else %}En stock{% endif %}
             </span>
-
             <span id="stock-extra" class="badge stock-extra-badge d-none"></span>
+          </div>
+
+          <div id="availability-box" class="availability-box {% if stock_inicial|default:0 > 0 %}is-in-stock{% else %}is-on-demand{% endif %}">
+            {% if stock_inicial|default:0 > 0 %}
+              <strong>Entrega rápida</strong>
+              <p>Este producto está disponible para entrega rápida de 1 a 3 días.</p>
+            {% else %}
+              <strong>Consultar disponibilidad</strong>
+              <p>No contamos con stock para entrega inmediata. Podemos consultar si se consigue con nuestros distribuidores y confirmarte el tiempo estimado de entrega.</p>
+            {% endif %}
           </div>
         </div>
 
         <div class="detail-buy-card">
-          <form method="post" action="{% url 'agregar_al_carrito' producto.id %}">
+          <form method="post" action="{% url 'agregar_al_carrito' producto.id %}" id="product-form">
             {% csrf_token %}
 
             {% if variantes_ui %}
               <input type="hidden" name="variante_id" id="variante_id_input" value="">
             {% else %}
-              <input type="hidden" name="variante_id" value="0">
+              <input type="hidden" name="variante_id" value="0" id="variante_id_input">
             {% endif %}
 
             {% if variantes_ui and variantes_ui|length > 1 %}
@@ -496,6 +565,7 @@
                     {% if not v.es_principal %}
                       <option
                         value="{{ v.id }}"
+                        data-name="{{ v.nombre|escape }}"
                         {% if v.imagen %}
                           data-image="{{ v.imagen.url }}"
                         {% elif producto.imagen %}
@@ -512,7 +582,7 @@
                   {% endfor %}
                 </select>
                 <div class="form-text buy-helper">
-                  Tenés que elegir una variante antes de agregar al carrito.
+                  Tenés que elegir una variante antes de continuar.
                 </div>
               </div>
             {% endif %}
@@ -534,21 +604,38 @@
                 value="1"
                 min="1"
                 max="{% if variantes_ui and variantes_ui|length > 1 %}1{% else %}{{ stock_inicial|default:0 }}{% endif %}"
-                {% if variantes_ui and variantes_ui|length > 1 %}disabled{% elif stock_inicial|default:0 <= 0 %}disabled{% endif %}
+                {% if variantes_ui and variantes_ui|length > 1 or stock_inicial|default:0 <= 0 %}disabled{% endif %}
               >
-              <div class="form-text buy-helper">
-                Se limita automáticamente al stock disponible{% if variantes_ui and variantes_ui|length > 1 %} de la variante{% endif %}.
+              <div class="form-text buy-helper" id="qty-helper">
+                {% if stock_inicial|default:0 > 0 %}
+                  Se limita automáticamente al stock disponible{% if variantes_ui and variantes_ui|length > 1 %} de la variante{% endif %}.
+                {% else %}
+                  Si no hay stock inmediato, podés consultarnos disponibilidad por WhatsApp.
+                {% endif %}
               </div>
             </div>
 
             <button
               type="submit"
-              class="btn btn-primary buy-btn w-100 mt-2"
-              id="add-cart-btn"
-              {% if variantes_ui and variantes_ui|length > 1 %}disabled{% elif stock_inicial|default:0 <= 0 %}disabled{% endif %}
+              class="btn buy-btn w-100 mt-2 {% if stock_inicial|default:0 > 0 and not variantes_ui %}btn-primary{% elif stock_inicial|default:0 > 0 and variantes_ui and variantes_ui|length <= 1 %}btn-primary{% elif variantes_ui and variantes_ui|length > 1 %}btn-secondary{% else %}btn-success{% endif %}"
+              id="main-action-btn"
+              {% if variantes_ui and variantes_ui|length > 1 %}disabled{% endif %}
             >
-              <i class="fa-solid fa-cart-shopping me-2"></i>
-              Agregar al carrito
+              <i
+                class="{% if stock_inicial|default:0 > 0 and not variantes_ui %}fa-solid fa-cart-shopping{% elif stock_inicial|default:0 > 0 and variantes_ui and variantes_ui|length <= 1 %}fa-solid fa-cart-shopping{% elif variantes_ui and variantes_ui|length > 1 %}fa-solid fa-circle-info{% else %}fa-brands fa-whatsapp{% endif %} me-2"
+                id="main-action-icon"
+              ></i>
+              <span id="main-action-text">
+                {% if stock_inicial|default:0 > 0 and not variantes_ui %}
+                  Agregar al carrito
+                {% elif stock_inicial|default:0 > 0 and variantes_ui and variantes_ui|length <= 1 %}
+                  Agregar al carrito
+                {% elif variantes_ui and variantes_ui|length > 1 %}
+                  Elegí una variante
+                {% else %}
+                  Consultar disponibilidad
+                {% endif %}
+              </span>
             </button>
           </form>
         </div>
@@ -616,26 +703,46 @@
       </div>
 
       <div class="google-proof-actions">
-        <a
-          href="https://maps.app.goo.gl/uZeitwSUp4wF6HMK9"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="google-proof-btn"
-        >
+        <a href="https://maps.app.goo.gl/uZeitwSUp4wF6HMK9" target="_blank" rel="noopener noreferrer" class="google-proof-btn">
           <i class="fa-brands fa-google"></i>
           Ver reseñas y fotos en Google
         </a>
       </div>
 
-      <div class="google-gallery">
-        <div class="google-gallery-item">
-          <img src="{% static 'img/google/trabajo1.jpeg' %}" alt="Productos personalizados infantiles">
-        </div>
-        <div class="google-gallery-item">
-          <img src="{% static 'img/google/trabajo2.jpeg' %}" alt="Bombillas personalizadas">
-        </div>
-        <div class="google-gallery-item">
-          <img src="{% static 'img/google/trabajo3.jpeg' %}" alt="Termos y mates personalizados">
+      <div class="google-slider-wrap">
+        <div class="google-slider-track" id="googleSliderTrack">
+          {% if google_fotos %}
+            {% for foto in google_fotos %}
+              <div class="google-slide-card">
+                <img src="{{ foto.imagen.url }}" alt="{{ foto.titulo|default:'Trabajo de Mundo Personalizado' }}">
+              </div>
+            {% endfor %}
+
+            {% for foto in google_fotos %}
+              <div class="google-slide-card">
+                <img src="{{ foto.imagen.url }}" alt="{{ foto.titulo|default:'Trabajo de Mundo Personalizado' }}">
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="google-slide-card">
+              <img src="{% static 'img/google/trabajo1.jpeg' %}" alt="Productos personalizados infantiles">
+            </div>
+            <div class="google-slide-card">
+              <img src="{% static 'img/google/trabajo2.jpeg' %}" alt="Bombillas personalizadas">
+            </div>
+            <div class="google-slide-card">
+              <img src="{% static 'img/google/trabajo3.jpeg' %}" alt="Termos y mates personalizados">
+            </div>
+            <div class="google-slide-card">
+              <img src="{% static 'img/google/trabajo1.jpeg' %}" alt="Productos personalizados infantiles">
+            </div>
+            <div class="google-slide-card">
+              <img src="{% static 'img/google/trabajo2.jpeg' %}" alt="Bombillas personalizadas">
+            </div>
+            <div class="google-slide-card">
+              <img src="{% static 'img/google/trabajo3.jpeg' %}" alt="Termos y mates personalizados">
+            </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -656,12 +763,19 @@
       const badge = document.getElementById("stock-badge");
       const extra = document.getElementById("stock-extra");
       const qtyInput = document.getElementById("qty-input");
-      const addBtn = document.getElementById("add-cart-btn");
+      const qtyHelper = document.getElementById("qty-helper");
       const priceSpan = document.getElementById("price-amount");
+      const availabilityBox = document.getElementById("availability-box");
 
+      const mainBtn = document.getElementById("main-action-btn");
+      const mainBtnText = document.getElementById("main-action-text");
+      const mainBtnIcon = document.getElementById("main-action-icon");
+
+      const productName = "{{ producto.nombre_publico|default:''|escapejs }}";
       const productDesc = "{{ producto.descripcion|default:''|escapejs }}";
       const initialStock = parseInt("{{ stock_inicial|default:'0'|escapejs }}", 10) || 0;
       const initialPrice = "{% if variantes_ui %}{{ precio_inicial|floatformat:0|intcomma }}{% else %}{{ producto.precio|floatformat:0|intcomma }}{% endif %}";
+      const whatsappNumber = "5491156637260";
 
       function resetExtraBadge() {
         if (!extra) return;
@@ -685,39 +799,6 @@
         }
       }
 
-      function updateStockState(stockQty) {
-        const s = parseInt(stockQty, 10) || 0;
-        const inStock = s > 0;
-
-        if (badge) {
-          badge.classList.remove("bg-danger", "bg-success", "bg-secondary");
-          badge.classList.add(inStock ? "bg-success" : "bg-danger");
-          badge.textContent = inStock ? "En stock" : "Sin stock";
-        }
-
-        if (qtyInput) {
-          qtyInput.max = String(Math.max(s, 1));
-          qtyInput.disabled = !inStock;
-
-          let current = parseInt(qtyInput.value || "1", 10) || 1;
-
-          if (!inStock) {
-            current = 1;
-          } else {
-            if (current < 1) current = 1;
-            if (current > s) current = s;
-          }
-
-          qtyInput.value = String(current);
-        }
-
-        if (addBtn) {
-          addBtn.disabled = !inStock;
-        }
-
-        updateStockExtra(s);
-      }
-
       function updateDescription(text, fallback) {
         if (!desc) return;
         const cleanText = (text || "").trim();
@@ -737,28 +818,139 @@
         }
       }
 
+      function getSelectedVariantName() {
+        if (!sel) return "";
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return "";
+        return opt.getAttribute("data-name") || opt.textContent.trim() || "";
+      }
+
+      function buildWhatsAppUrl() {
+        const variantName = getSelectedVariantName();
+        let message = `Hola, vi el producto "${productName}"`;
+
+        if (variantName) {
+          message += `, variante "${variantName}"`;
+        }
+
+        message += `, y quería consultar disponibilidad y tiempo estimado de entrega.`;
+
+        return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+      }
+
+      function setButtonMode(mode) {
+        if (!mainBtn || !mainBtnText || !mainBtnIcon) return;
+
+        mainBtn.classList.remove("btn-primary", "btn-success", "btn-secondary");
+
+        if (mode === "cart") {
+          mainBtn.disabled = false;
+          mainBtn.type = "submit";
+          mainBtn.classList.add("btn-primary");
+          mainBtnText.textContent = "Agregar al carrito";
+          mainBtnIcon.className = "fa-solid fa-cart-shopping me-2";
+        } else if (mode === "whatsapp") {
+          mainBtn.disabled = false;
+          mainBtn.type = "button";
+          mainBtn.classList.add("btn-success");
+          mainBtnText.textContent = "Consultar disponibilidad";
+          mainBtnIcon.className = "fa-brands fa-whatsapp me-2";
+        } else {
+          mainBtn.disabled = true;
+          mainBtn.type = "button";
+          mainBtn.classList.add("btn-secondary");
+          mainBtnText.textContent = "Elegí una variante";
+          mainBtnIcon.className = "fa-solid fa-circle-info me-2";
+        }
+      }
+
+      function updateAvailabilityState(stockQty) {
+        const s = parseInt(stockQty, 10) || 0;
+        const inStock = s > 0;
+
+        if (badge) {
+          badge.classList.remove("bg-danger", "bg-success", "bg-secondary", "bg-warning", "text-dark");
+          if (inStock) {
+            badge.classList.add("bg-success");
+            badge.textContent = "En stock";
+          } else {
+            badge.classList.add("bg-warning", "text-dark");
+            badge.textContent = "Disponible por pedido";
+          }
+        }
+
+        if (availabilityBox) {
+          availabilityBox.classList.remove("is-in-stock", "is-on-demand");
+          if (inStock) {
+            availabilityBox.classList.add("is-in-stock");
+            availabilityBox.innerHTML = `
+              <strong>Entrega rápida</strong>
+              <p>Este producto está disponible para entrega rápida de 1 a 3 días.</p>
+            `;
+          } else {
+            availabilityBox.classList.add("is-on-demand");
+            availabilityBox.innerHTML = `
+              <strong>Consultar disponibilidad</strong>
+              <p>No contamos con stock para entrega inmediata. Podemos consultar si se consigue con nuestros distribuidores y confirmarte el tiempo estimado de entrega.</p>
+            `;
+          }
+        }
+
+        if (qtyInput) {
+          qtyInput.max = String(Math.max(s, 1));
+          qtyInput.disabled = !inStock;
+
+          let current = parseInt(qtyInput.value || "1", 10) || 1;
+
+          if (!inStock) {
+            current = 1;
+          } else {
+            if (current < 1) current = 1;
+            if (current > s) current = s;
+          }
+
+          qtyInput.value = String(current);
+        }
+
+        if (qtyHelper) {
+          qtyHelper.textContent = inStock
+            ? "Se limita automáticamente al stock disponible" + (sel ? " de la variante." : ".")
+            : "Si no hay stock inmediato, podés consultarnos disponibilidad por WhatsApp.";
+        }
+
+        updateStockExtra(s);
+        setButtonMode(inStock ? "cart" : "whatsapp");
+      }
+
       function applyVariant() {
         if (!sel) {
           updateDescription(productDesc, "");
-          updateStockState(initialStock);
           updatePrice(initialPrice);
+          updateAvailabilityState(initialStock);
           return;
         }
 
         const opt = sel.options[sel.selectedIndex];
+
         if (!opt || !opt.value) {
-          if (hiddenVar) {
-            hiddenVar.value = "";
-          }
+          if (hiddenVar) hiddenVar.value = "";
 
           updateDescription(productDesc, "");
           updatePrice(initialPrice);
           resetExtraBadge();
 
           if (badge) {
-            badge.classList.remove("bg-danger", "bg-success", "bg-secondary");
+            badge.classList.remove("bg-danger", "bg-success", "bg-warning", "bg-secondary", "text-dark");
             badge.classList.add("bg-secondary");
             badge.textContent = "Elegí una variante";
+          }
+
+          if (availabilityBox) {
+            availabilityBox.classList.remove("is-in-stock", "is-on-demand");
+            availabilityBox.innerHTML = `
+              <strong>Elegí una variante</strong>
+              <p>Seleccioná una variante para ver disponibilidad, precio y forma de compra.</p>
+            `;
           }
 
           if (qtyInput) {
@@ -767,10 +959,11 @@
             qtyInput.disabled = true;
           }
 
-          if (addBtn) {
-            addBtn.disabled = true;
+          if (qtyHelper) {
+            qtyHelper.textContent = "Primero elegí una variante para continuar.";
           }
 
+          setButtonMode("disabled");
           return;
         }
 
@@ -788,7 +981,15 @@
         updatePrice(variantPrice);
 
         const stock = parseInt(opt.getAttribute("data-stock") || "0", 10) || 0;
-        updateStockState(stock);
+        updateAvailabilityState(stock);
+      }
+
+      if (mainBtn) {
+        mainBtn.addEventListener("click", function () {
+          if (mainBtn.type === "button" && !mainBtn.disabled) {
+            window.open(buildWhatsAppUrl(), "_blank");
+          }
+        });
       }
 
       if (sel) {

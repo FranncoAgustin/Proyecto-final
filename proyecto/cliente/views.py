@@ -1,4 +1,3 @@
-# cliente/views.py
 from decimal import Decimal
 from datetime import timedelta
 from urllib.parse import quote
@@ -18,8 +17,7 @@ from .models import StockHold
 from pdf.models import ProductoPrecio, ProductoVariante
 from cupones.models import Cupon
 from ofertas.utils import get_precio_con_oferta
-from pdf.views import get_stock_disponible, registrar_evento  # helper stock + bitácora
-from integraciones.models import Pedido, PedidoItem
+from pdf.views import get_stock_disponible, registrar_evento
 
 
 # =========================
@@ -120,13 +118,11 @@ def _build_cart_context(request):
 
         variante = _get_variante_or_none(producto, var_id)
         if var_id != 0 and not variante:
-            # variante inválida -> lo tratamos como principal
             var_id = 0
             variante = None
 
         qty = max(0, int(qty))
 
-        # precio con oferta
         precio_data = get_precio_con_oferta(producto)
         precio_unitario = precio_data["precio_final"]
         oferta = precio_data["oferta"]
@@ -134,14 +130,12 @@ def _build_cart_context(request):
         subtotal = (precio_unitario * qty).quantize(Q2)
         total += subtotal
 
-        # imagen para el carrito: prioridad variante, sino producto
         imagen_url = None
         if variante and getattr(variante, "imagen", None):
             imagen_url = variante.imagen.url
         elif getattr(producto, "imagen", None):
             imagen_url = producto.imagen.url
 
-        # stock efectivo “ahora”
         stock_efectivo = get_stock_disponible_efectivo(producto, var_id)
 
         items.append({
@@ -157,9 +151,6 @@ def _build_cart_context(request):
             "stock_efectivo": stock_efectivo,
         })
 
-    # =====================
-    # CUPÓN
-    # =====================
     cupon = None
     descuento_cupon = Decimal("0.00")
     cupon_id = request.session.get("cupon_id")
@@ -220,7 +211,6 @@ def ver_carrito(request):
 def carrito_whatsapp(request):
     """
     Toma el contenido del carrito y redirige a WhatsApp con un mensaje prearmado.
-    Reemplaza el flujo de "pagar" con Mercado Pago.
     """
     cleanup_expired_holds()
 
@@ -240,16 +230,13 @@ def carrito_whatsapp(request):
         nombre = getattr(producto, "nombre_publico", str(producto))
         var_txt = ""
 
-        # Texto para la variante (si existe)
         if variante:
             nombre_var = getattr(variante, "nombre", None) or getattr(variante, "descripcion", None)
             if nombre_var:
                 var_txt = f" - Variante: {nombre_var}"
 
-        # 🔢 precio sin decimales
         precio_str = f"{precio_unitario:.0f}"
 
-        # ❌ Sin subtotal, solo cantidad y precio c/u
         lineas.append(
             f"- {nombre}{var_txt} x{cantidad} - ${precio_str} c/u"
         )
@@ -257,11 +244,9 @@ def carrito_whatsapp(request):
     texto = "Hola, estoy interesado en realizar la siguiente compra desde la web:\n\n"
     texto += "\n".join(lineas)
 
-    # Descuento por cupón (si lo hay), sin decimales
     if descuento_cupon > 0:
         texto += f"\n\nDescuento por cupón: -${descuento_cupon:.0f}"
 
-    # Total sin decimales
     texto += f"\n\nTotal a pagar: ${total:.0f}"
 
     telefono = getattr(settings, "WHATSAPP_PHONE", "")
@@ -269,7 +254,6 @@ def carrito_whatsapp(request):
         messages.error(request, "No está configurado el número de WhatsApp. Avisale al administrador de la tienda.")
         return redirect("ver_carrito")
 
-    # Bitácora
     try:
         registrar_evento(
             tipo="carrito_whatsapp",
@@ -291,11 +275,11 @@ def carrito_whatsapp(request):
             },
         )
     except Exception:
-        # Si falla la bitácora, no rompemos el flujo de compra.
         pass
 
     url = f"https://wa.me/{telefono}?text={quote(texto)}"
     return redirect(url)
+
 
 @require_POST
 def aplicar_cupon(request):
@@ -311,7 +295,6 @@ def aplicar_cupon(request):
         request.session["cupon_id"] = cupon.id
         request.session.pop("error_cupon", None)
 
-        # Bitácora: cupón aplicado
         registrar_evento(
             tipo="cupon_aplicado",
             titulo=f"Cupón aplicado: {cupon.codigo}",
@@ -342,10 +325,6 @@ def aplicar_cupon(request):
 
 @require_POST
 def agregar_al_carrito(request, pk):
-    """
-    Ahora obliga a estar logueado.
-    Si no está autenticado, redirige al login con ?next=<página anterior>.
-    """
     if not request.user.is_authenticated:
         messages.info(
             request,
@@ -382,7 +361,6 @@ def agregar_al_carrito(request, pk):
 
     session_key = _ensure_session(request)
 
-    # disponible para este carrito = stock_efectivo + lo que YA tiene reservado este mismo carrito
     mi_hold_qty = (
         StockHold.objects.filter(
             session_key=session_key,
@@ -420,7 +398,6 @@ def agregar_al_carrito(request, pk):
         cantidad = disp_para_mi
         messages.warning(request, f"Solo hay {disp_para_mi} unidades disponibles. Se ajustó la cantidad.")
 
-    # 1) carrito sesión (cap)
     cart = _get_cart(request)
     item_key = _make_key(producto.id, var_id)
     actual = int(cart.get(item_key, 0))
@@ -428,7 +405,6 @@ def agregar_al_carrito(request, pk):
     cart[item_key] = nuevo
     _save_cart(request, cart)
 
-    # 2) hold (reservar) -> guardamos EXACTO lo mismo que el carrito para ese item
     expires = timezone.now() + timedelta(minutes=HOLD_MINUTES)
 
     hold, _created = StockHold.objects.get_or_create(
@@ -447,7 +423,6 @@ def agregar_al_carrito(request, pk):
         hold.user = request.user
     hold.save()
 
-    # Bitácora: producto agregado al carrito
     registrar_evento(
         tipo="carrito_agregar",
         titulo="Producto agregado al carrito",
@@ -478,7 +453,6 @@ def eliminar_del_carrito(request, item_key):
     cart.pop(str(item_key), None)
     _save_cart(request, cart)
 
-    # borrar hold correspondiente
     prod_id, var_id = _parse_key(item_key)
     producto = None
     if prod_id is not None:
@@ -492,7 +466,6 @@ def eliminar_del_carrito(request, item_key):
                 variante=variante,
             ).delete()
 
-            # Bitácora: ítem eliminado del carrito
             registrar_evento(
                 tipo="carrito_eliminar",
                 titulo="Producto eliminado del carrito",
@@ -560,7 +533,6 @@ def actualizar_cantidad(request, item_key):
         )
         return redirect("ver_carrito")
 
-    # limite = stock efectivo + lo reservado por mí
     mi_hold_qty = (
         StockHold.objects.filter(
             session_key=session_key,
@@ -644,7 +616,6 @@ def vaciar_carrito(request):
     tamaño_anterior = len(cart)
     _save_cart(request, {})
 
-    # borrar todos los holds de esta sesión
     session_key = _ensure_session(request)
     StockHold.objects.filter(session_key=session_key).delete()
 
@@ -692,6 +663,7 @@ def mis_favoritos(request):
 
     return render(request, "cliente/favoritos.html", {"items": items})
 
+
 @login_required
 def agregar_favorito(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk)
@@ -736,7 +708,7 @@ def eliminar_favorito(request, pk):
 
 
 # =========================
-# VISTAS: MI CUENTA / MIS COMPRAS / LOGOUT
+# VISTAS: MI CUENTA / LOGOUT
 # =========================
 
 @login_required
@@ -770,125 +742,6 @@ def mi_cuenta(request):
     return render(request, "cliente/mi_cuenta.html", contexto)
 
 
-def _expire_pedidos_queryset(qs):
-    """
-    Marca como SIN_FINALIZAR pedidos CREADO/PENDIENTE viejos (sin cron).
-    """
-    minutes = int(getattr(settings, "MP_EXPIRE_MINUTES", 60))  # configurable
-    cutoff = timezone.now() - timedelta(minutes=minutes)
-
-    qs.filter(
-        estado__in=[Pedido.Estado.CREADO, Pedido.Estado.PENDIENTE],
-        creado_en__lt=cutoff,
-    ).update(estado=Pedido.Estado.SIN_FINALIZAR)
-
-
-@login_required
-@require_GET
-def mis_compras(request):
-    qs = (
-        Pedido.objects
-        .filter(usuario=request.user)
-        .order_by("-creado_en")
-        .prefetch_related("items")
-    )
-
-    # Expirar "creados" viejos
-    _expire_pedidos_queryset(qs)
-
-    return render(request, "cliente/mis_compras.html", {"pedidos": qs})
-
-
-@login_required
-@require_GET
-def mis_compras_detalle(request, pedido_id: int):
-    pedido = get_object_or_404(Pedido, id=pedido_id, usuario=request.user)
-    items = PedidoItem.objects.filter(pedido=pedido).order_by("id")
-
-    registrar_evento(
-        tipo="pedido_ver_detalle",
-        titulo=f"Vista detalle pedido #{pedido.id}",
-        detalle=f"Estado: {pedido.estado}",
-        user=request.user,
-        obj=pedido,
-        extra={"pedido_id": pedido.id, "estado": pedido.estado},
-    )
-
-    return render(request, "cliente/mis_compras_detalle.html", {"pedido": pedido, "items": items})
-
-
-@login_required
-@require_POST
-def pedido_cancelar(request, pedido_id: int):
-    pedido = get_object_or_404(Pedido, id=pedido_id, usuario=request.user)
-
-    # Cancelable solo si todavía no se aprobó
-    if pedido.estado == Pedido.Estado.APROBADO:
-        messages.warning(request, "Un pedido aprobado no se puede cancelar desde acá.")
-
-        registrar_evento(
-            tipo="pedido_cancelar_no_permitido",
-            titulo=f"Intento de cancelar pedido aprobado #{pedido.id}",
-            detalle="El pedido ya está aprobado.",
-            user=request.user,
-            obj=pedido,
-            extra={"pedido_id": pedido.id, "estado": pedido.estado},
-        )
-
-        return redirect("mis_compras")
-
-    pedido.estado = Pedido.Estado.CANCELADO
-    pedido.save(update_fields=["estado"])
-
-    registrar_evento(
-        tipo="pedido_cancelar",
-        titulo=f"Pedido #{pedido.id} cancelado por el cliente",
-        detalle="Estado cambiado a CANCELADO.",
-        user=request.user,
-        obj=pedido,
-        extra={"pedido_id": pedido.id},
-    )
-
-    messages.success(request, f"Pedido #{pedido.id} cancelado.")
-    return redirect("mis_compras")
-
-
-@login_required
-@require_POST
-def pedido_eliminar(request, pedido_id: int):
-    pedido = get_object_or_404(Pedido, id=pedido_id, usuario=request.user)
-
-    # Por seguridad: permitir borrar solo si está CREADO o SIN_FINALIZAR (evita perder historial real)
-    if pedido.estado not in [Pedido.Estado.CREADO, Pedido.Estado.SIN_FINALIZAR]:
-        messages.warning(request, "Solo podés eliminar pedidos no finalizados.")
-
-        registrar_evento(
-            tipo="pedido_eliminar_no_permitido",
-            titulo=f"Intento de eliminar pedido #{pedido.id} con estado {pedido.estado}",
-            detalle="Solo se permiten pedidos CREADO o SIN_FINALIZAR.",
-            user=request.user,
-            obj=pedido,
-            extra={"pedido_id": pedido.id, "estado": pedido.estado},
-        )
-
-        return redirect("mis_compras")
-
-    pedido_id_val = pedido.id
-    estado_prev = pedido.estado
-    pedido.delete()
-
-    registrar_evento(
-        tipo="pedido_eliminar",
-        titulo=f"Pedido #{pedido_id_val} eliminado por el cliente",
-        detalle=f"Estado previo: {estado_prev}",
-        user=request.user,
-        extra={"pedido_id": pedido_id_val, "estado_previo": estado_prev},
-    )
-
-    messages.success(request, f"Pedido #{pedido_id_val} eliminado.")
-    return redirect("mis_compras")
-
-
 @login_required
 def logout_view(request):
     usuario = request.user if request.user.is_authenticated else None
@@ -911,15 +764,12 @@ def logout_view(request):
 # =========================
 
 def registro_view(request):
-    # Si ya está logueado, lo mandamos a su cuenta
     if request.user.is_authenticated:
         return redirect("mi_cuenta")
-    # signup de allauth
     return redirect("account_signup")
 
 
 def login_view(request):
     if request.user.is_authenticated:
         return redirect("mi_cuenta")
-    # login de allauth
     return redirect("account_login")

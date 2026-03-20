@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Caja{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+      <h2 class="fw-bold mb-1">Caja / Resumen de ventas</h2>
+      <p class="text-muted mb-0">Controlá ventas, medios de pago, costos y ganancia estimada.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'owner_venta_rapida_create' %}" class="btn btn-dark rounded-pill">
+        Nueva venta
+      </a>
+      <a href="{% url 'home' %}" class="btn btn-outline-secondary rounded-pill">
+        Panel
+      </a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Desde</label>
+          <input type="date" name="desde" value="{{ desde }}" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Hasta</label>
+          <input type="date" name="hasta" value="{{ hasta }}" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Medio de pago</label>
+          <select name="medio_pago" class="form-select">
+            <option value="">Todos</option>
+            <option value="efectivo" {% if medio_pago == "efectivo" %}selected{% endif %}>Efectivo</option>
+            <option value="transferencia" {% if medio_pago == "transferencia" %}selected{% endif %}>Transferencia</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-grid">
+          <button type="submit" class="btn btn-dark rounded-pill">Filtrar</button>
+        </div>
+        <div class="col-md-3 d-grid">
+          <a href="{% url 'owner_caja_resumen' %}" class="btn btn-outline-secondary rounded-pill">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Vendido hoy</div>
+          <div class="fs-3 fw-bold">$ {{ total_hoy|floatformat:0|intcomma }}</div>
+          <div class="small text-muted">{{ cantidad_hoy }} venta(s) · {{ unidades_hoy }} unidad(es)</div>
+          <div class="small mt-2">
+            <span class="badge text-bg-light">Efectivo: $ {{ total_hoy_efectivo|floatformat:0|intcomma }}</span>
+            <span class="badge text-bg-light">Transferencia: $ {{ total_hoy_transferencia|floatformat:0|intcomma }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Vendido en el período</div>
+          <div class="fs-3 fw-bold">$ {{ total_periodo|floatformat:0|intcomma }}</div>
+          <div class="small text-muted">{{ cantidad_periodo }} venta(s) · {{ unidades_periodo }} unidad(es)</div>
+          <div class="small mt-2">
+            <span class="badge text-bg-light">Efectivo: $ {{ total_efectivo|floatformat:0|intcomma }}</span>
+            <span class="badge text-bg-light">Transferencia: $ {{ total_transferencia|floatformat:0|intcomma }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Ganancia estimada</div>
+          <div class="fs-3 fw-bold">$ {{ ganancia_periodo|floatformat:0|intcomma }}</div>
+          <div class="small text-muted">Costo estimado: $ {{ costo_total_periodo|floatformat:0|intcomma }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-3">Productos más vendidos</h5>
+          {% if productos_mas_vendidos %}
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Unidades</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for p in productos_mas_vendidos %}
+                    <tr>
+                      <td>{{ p.producto__nombre_publico|default:p.producto__sku }}</td>
+                      <td>{{ p.unidades }}</td>
+                      <td>$ {{ p.total_vendido|floatformat:0|intcomma }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No hay datos para mostrar.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-3">Variantes más vendidas</h5>
+          {% if variantes_mas_vendidas %}
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Producto / Variante</th>
+                    <th>Unidades</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for v in variantes_mas_vendidas %}
+                    <tr>
+                      <td>
+                        {{ v.producto__nombre_publico|default:v.producto__sku }}
+                        <div class="small text-muted">{{ v.variante__nombre }}</div>
+                      </td>
+                      <td>{{ v.unidades }}</td>
+                      <td>$ {{ v.total_vendido|floatformat:0|intcomma }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">Todavía no hay variantes vendidas.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+      <h5 class="fw-bold mb-3">Ventas recientes</h5>
+
+      {% if ventas %}
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Producto</th>
+                <th>Pago</th>
+                <th>Cant.</th>
+                <th>P. unit.</th>
+                <th>Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in ventas %}
+                <tr>
+                  <td>{{ v.fecha|date:"d/m/Y H:i" }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ v.producto.nombre_publico|default:v.producto.sku }}</div>
+                    {% if v.variante %}
+                      <div class="small text-muted">Variante: {{ v.variante.nombre }}</div>
+                    {% endif %}
+                    {% if v.observacion %}
+                      <div class="small text-muted">{{ v.observacion }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if v.medio_pago == "efectivo" %}
+                      <span class="badge text-bg-success">Efectivo</span>
+                    {% else %}
+                      <span class="badge text-bg-primary">Transferencia</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ v.cantidad }}</td>
+                  <td>$ {{ v.precio_unitario|floatformat:0|intcomma }}</td>
+                  <td class="fw-semibold">$ {{ v.subtotal|floatformat:0|intcomma }}</td>
+                  <td class="text-end">
+                    <form method="post" action="{% url 'owner_venta_rapida_delete' v.id %}" onsubmit="return confirm('¿Eliminar esta venta y devolver stock?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
+                        Eliminar
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">Todavía no hay ventas registradas para ese filtro.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva venta{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+      <h2 class="fw-bold mb-1">Registrar venta</h2>
+      <p class="text-muted mb-0">Buscá un producto, elegí variante si corresponde y registrá la venta.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'owner_caja_resumen' %}" class="btn btn-outline-dark rounded-pill">
+        Ver caja
+      </a>
+      <a href="{% url 'home' %}" class="btn btn-outline-secondary rounded-pill">
+        Panel
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+          <form method="post" id="ventaForm" autocomplete="off">
+            {% csrf_token %}
+
+            {{ form.producto }}
+
+            <div class="mb-3 position-relative">
+              <label class="form-label fw-semibold">Producto</label>
+              <input
+                type="text"
+                id="buscadorProducto"
+                class="form-control"
+                placeholder="Escribí nombre o SKU..."
+              >
+              <div id="resultadosProducto" class="list-group position-absolute w-100 shadow-sm" style="z-index:20;"></div>
+              {% if form.producto.errors %}
+                <div class="text-danger small mt-1">{{ form.producto.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div id="productoSeleccionadoBox" class="alert alert-light border d-none"></div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Variante</label>
+              {{ form.variante }}
+              {% if form.variante.errors %}
+                <div class="text-danger small mt-1">{{ form.variante.errors }}</div>
+              {% endif %}
+              <div class="form-text">Si el producto no tiene variantes, dejalo vacío.</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Cantidad</label>
+              {{ form.cantidad }}
+              {% if form.cantidad.errors %}
+                <div class="text-danger small mt-1">{{ form.cantidad.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Precio unitario</label>
+              {{ form.precio_unitario }}
+              {% if form.precio_unitario.errors %}
+                <div class="text-danger small mt-1">{{ form.precio_unitario.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Medio de pago</label>
+              {{ form.medio_pago }}
+              {% if form.medio_pago.errors %}
+                <div class="text-danger small mt-1">{{ form.medio_pago.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Observación</label>
+              {{ form.observacion }}
+              {% if form.observacion.errors %}
+                <div class="text-danger small mt-1">{{ form.observacion.errors }}</div>
+              {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-dark w-100 rounded-pill fw-semibold">
+              Guardar venta
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0">Últimas ventas</h5>
+          </div>
+
+          {% if ultimas_ventas %}
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Pago</th>
+                    <th>Cant.</th>
+                    <th>P. unit.</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for v in ultimas_ventas %}
+                    <tr>
+                      <td>{{ v.fecha|date:"d/m/Y H:i" }}</td>
+                      <td>
+                        {{ v.producto.nombre_publico|default:v.producto.sku }}
+                        {% if v.variante %}
+                          <div class="small text-muted">{{ v.variante.nombre }}</div>
+                        {% endif %}
+                      </td>
+                      <td>{{ v.get_medio_pago_display }}</td>
+                      <td>{{ v.cantidad }}</td>
+                      <td>${{ v.precio_unitario }}</td>
+                      <td class="fw-semibold">${{ v.subtotal }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">Todavía no hay ventas cargadas.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const buscador = document.getElementById("buscadorProducto");
+  const resultados = document.getElementById("resultadosProducto");
+  const productoInput = document.getElementById("id_producto");
+  const varianteSelect = document.getElementById("id_variante");
+  const precioInput = document.getElementById("id_precio_unitario");
+  const productoSeleccionadoBox = document.getElementById("productoSeleccionadoBox");
+
+  let debounceTimer = null;
+
+  function limpiarResultados() {
+    resultados.innerHTML = "";
+  }
+
+  function renderVariantes(variantes) {
+    varianteSelect.innerHTML = '<option value="">---------</option>';
+
+    if (!variantes || !variantes.length) {
+      varianteSelect.disabled = false;
+      return;
+    }
+
+    variantes.forEach(v => {
+      const option = document.createElement("option");
+      option.value = v.id;
+      option.textContent = `${v.nombre} | Stock: ${v.stock}` + (v.precio ? ` | $${v.precio}` : "");
+      option.dataset.precio = v.precio || "";
+      varianteSelect.appendChild(option);
+    });
+
+    varianteSelect.disabled = false;
+  }
+
+  function seleccionarProducto(p) {
+    productoInput.value = p.id;
+    buscador.value = `${p.nombre_publico} | SKU: ${p.sku}`;
+    precioInput.value = p.precio;
+    renderVariantes(p.variantes || []);
+
+    productoSeleccionadoBox.classList.remove("d-none");
+    productoSeleccionadoBox.innerHTML = `
+      <div><strong>Producto:</strong> ${p.nombre_publico}</div>
+      <div><strong>SKU:</strong> ${p.sku}</div>
+      <div><strong>Stock:</strong> ${p.stock}</div>
+      <div><strong>Precio base:</strong> $${p.precio}</div>
+    `;
+
+    limpiarResultados();
+  }
+
+  buscador.addEventListener("input", function () {
+    const q = this.value.trim();
+
+    productoInput.value = "";
+    varianteSelect.innerHTML = '<option value="">---------</option>';
+    productoSeleccionadoBox.classList.add("d-none");
+
+    if (q.length < 2) {
+      limpiarResultados();
+      return;
+    }
+
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      fetch(`{% url 'owner_api_product_search_for_sale' %}?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(data => {
+          limpiarResultados();
+
+          if (!data.results || !data.results.length) {
+            const item = document.createElement("div");
+            item.className = "list-group-item small text-muted";
+            item.textContent = "Sin coincidencias";
+            resultados.appendChild(item);
+            return;
+          }
+
+          data.results.forEach(p => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "list-group-item list-group-item-action";
+            item.innerHTML = `
+              <div class="fw-semibold">${p.nombre_publico}</div>
+              <div class="small text-muted">SKU: ${p.sku} | Stock: ${p.stock} | $${p.precio}</div>
+            `;
+            item.addEventListener("click", () => seleccionarProducto(p));
+            resultados.appendChild(item);
+          });
+        });
+    }, 250);
+  });
+
+  varianteSelect.addEventListener("change", function () {
+    const selected = this.options[this.selectedIndex];
+    const precioVariante = selected?.dataset?.precio || "";
+
+    if (precioVariante) {
+      precioInput.value = precioVariante;
+    }
+  });
+
+  document.addEventListener("click", function (e) {
+    if (!resultados.contains(e.target) && e.target !== buscador) {
+      limpiarResultados();
+    }
+  });
+</script>
+{% endblock %}
