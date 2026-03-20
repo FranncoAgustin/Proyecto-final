@@ -6,6 +6,7 @@ import owner.views_theme
 
 from .views import (
     AdminDashboardView,
+    owner_caja_resumen,
     owner_producto_editar,
     owner_producto_eliminar,
     owner_producto_toggle_activo,
@@ -32,6 +33,9 @@ from .views import (
     owner_siteconfig_edit,
     owner_historia_global,
     owner_productos_completar_desde_factura,
+    owner_venta_rapida_create,
+    owner_venta_rapida_delete,
+    owner_api_product_search_for_sale,
 
 )
 
@@ -77,6 +81,10 @@ urlpatterns = [
 
     path("theme.css", owner.views_theme.theme_css, name="theme_css"),
     path("owner/site-config/", owner_siteconfig_edit, name="owner_siteconfig_edit"),
-     path("historia/", owner_historia_global, name="owner_historia_global"),
+    path("historia/", owner_historia_global, name="owner_historia_global"),
     path("productos/completar-desde-factura/",owner_productos_completar_desde_factura,name="owner_productos_completar_desde_factura",),
+    path("ventas/nueva/", owner_venta_rapida_create, name="owner_venta_rapida_create"),
+    path("ventas/caja/", owner_caja_resumen, name="owner_caja_resumen"),
+    path("ventas/<int:pk>/eliminar/", owner_venta_rapida_delete, name="owner_venta_rapida_delete"),
+    path("api/product-search-sale/", owner_api_product_search_for_sale, name="owner_api_product_search_for_sale"),
 ]

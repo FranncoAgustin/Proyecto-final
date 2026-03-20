@@ -389,6 +389,12 @@
             <a class="btn btn-mp primary" href="{% url 'owner_producto_create_ui' %}">
               ➕ Nuevo artículo
             </a>
+            <a class="btn btn-mp warning" href="{% url 'owner_venta_rapida_create' %}">
+              💸 Registrar venta
+            </a>
+            <a class="btn btn-mp success" href="{% url 'owner_caja_resumen' %}">
+              📊 Ver caja
+            </a>
             <a class="btn btn-mp success" href="{% url 'catalogo' %}" target="_blank">
               🛍️ Catálogo público
             </a>
@@ -414,19 +420,19 @@
           </div>
         </a>
 
-        <a class="quick-card warning" href="{% url 'procesar_factura' %}">
-          <div class="quick-icon">🧾</div>
+        <a class="quick-card warning" href="{% url 'owner_venta_rapida_create' %}">
+          <div class="quick-icon">💸</div>
           <div>
-            <div class="quick-title">Procesar factura</div>
-            <p class="quick-desc">Cargar datos y transformar comprobantes en información útil.</p>
+            <div class="quick-title">Registrar venta</div>
+            <p class="quick-desc">Cargar una venta rápida y descontar stock automáticamente.</p>
           </div>
         </a>
 
-        <a class="quick-card success" href="{% url 'factura_crear' %}">
-          <div class="quick-icon">💵</div>
+        <a class="quick-card success" href="{% url 'owner_caja_resumen' %}">
+          <div class="quick-icon">📊</div>
           <div>
-            <div class="quick-title">Generar factura</div>
-            <p class="quick-desc">Emitir comprobantes y dejar lista la venta.</p>
+            <div class="quick-title">Caja / Resumen</div>
+            <p class="quick-desc">Ver ventas, totales, costos y ganancia estimada.</p>
           </div>
         </a>
 
@@ -468,10 +474,12 @@
               <div class="group-icon">💰</div>
               <div>
                 <h2 class="group-title">Ventas y promociones</h2>
-                <p class="group-subtitle">Facturación, descuentos y ofertas activas.</p>
+                <p class="group-subtitle">Facturación, descuentos, caja y ofertas activas.</p>
               </div>
             </div>
             <div class="action-list">
+              <a class="btn btn-mp btn-mp-sm warning" href="{% url 'owner_venta_rapida_create' %}">➕ Nueva venta</a>
+              <a class="btn btn-mp btn-mp-sm success" href="{% url 'owner_caja_resumen' %}">📊 Caja</a>
               <a class="btn btn-mp btn-mp-sm primary" href="{% url 'procesar_factura' %}">🧾 Procesar factura</a>
               <a class="btn btn-mp btn-mp-sm primary" href="{% url 'factura_crear' %}">🧾 Generar factura</a>
               <a class="btn btn-mp btn-mp-sm warning" href="{% url 'owner_cupon_list' %}">🎟️ Cupones</a>

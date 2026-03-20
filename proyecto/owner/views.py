@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum, Count, F, DecimalField, ExpressionWrapper
 from django.forms import inlineformset_factory
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -30,17 +30,19 @@ from pdf.models import (
     SubRubro,
 )
 
-from .models import SiteInfoBlock, SiteConfig, BitacoraEvento
+from .models import SiteCarouselImage, SiteInfoBlock, SiteConfig, BitacoraEvento,VentaRapida
 
 from owner.forms import (
     ProductoVarianteForm,
     ProductoPrecioForm,
     ProductoVarianteFormSet,
     RubroForm,
+    SiteCarouselImageFormSet,
     SubRubroForm,
     SiteConfigForm,
     SiteInfoBlockFormSet,
     ProductoDesdeFacturaBulkForm,
+    VentaRapidaForm,
 )
 
 from ofertas.models import Oferta
@@ -1106,47 +1108,57 @@ def owner_siteinfo_list(request):
         raise PermissionDenied("Solo el dueño puede editar esta sección")
 
     site_cfg = SiteConfig.get_solo()
-    qs = SiteInfoBlock.objects.filter(site=site_cfg).order_by("orden", "id")
-    PREFIX = "info_blocks"
+
+    info_qs = SiteInfoBlock.objects.filter(site=site_cfg).order_by("orden", "id")
+    carousel_qs = SiteCarouselImage.objects.filter(site=site_cfg).order_by("orden", "id")
+
+    INFO_PREFIX = "info_blocks"
+    CAROUSEL_PREFIX = "carousel_images"
 
     if request.method == "POST":
         formset = SiteInfoBlockFormSet(
             request.POST,
-            queryset=qs,
-            prefix=PREFIX,
+            queryset=info_qs,
+            prefix=INFO_PREFIX,
         )
 
-        if formset.is_valid():
-            instances = formset.save(commit=False)
+        carousel_formset = SiteCarouselImageFormSet(
+            request.POST,
+            request.FILES,
+            queryset=carousel_qs,
+            prefix=CAROUSEL_PREFIX,
+        )
 
-            for obj in instances:
+        if formset.is_valid() and carousel_formset.is_valid():
+            info_instances = formset.save(commit=False)
+            for obj in info_instances:
                 obj.site = site_cfg
                 obj.save()
 
             for obj in formset.deleted_objects:
                 obj.delete()
 
+            carousel_instances = carousel_formset.save(commit=False)
+            for obj in carousel_instances:
+                obj.site = site_cfg
+                obj.save()
+
+            for obj in carousel_formset.deleted_objects:
+                obj.delete()
+
             messages.success(request, "Información del sitio actualizada correctamente.")
-
-            registrar_evento(
-                tipo="siteinfo_edit",
-                titulo="Información del sitio actualizada",
-                detalle="Se modificaron los bloques de información del catálogo.",
-                user=request.user,
-                obj=site_cfg,
-            )
-
             return redirect("owner_siteinfo_list")
         else:
-            messages.error(
-                request,
-                "Revisá los errores en los bloques. "
-                "Los que estén en rojo tienen algún problema.",
-            )
+            messages.error(request, "Revisá los errores del formulario.")
     else:
         formset = SiteInfoBlockFormSet(
-            queryset=qs,
-            prefix=PREFIX,
+            queryset=info_qs,
+            prefix=INFO_PREFIX,
+        )
+
+        carousel_formset = SiteCarouselImageFormSet(
+            queryset=carousel_qs,
+            prefix=CAROUSEL_PREFIX,
         )
 
     return render(
@@ -1154,6 +1166,7 @@ def owner_siteinfo_list(request):
         "owner/owner_info_sitio.html",
         {
             "formset": formset,
+            "carousel_formset": carousel_formset,
             "site_cfg": site_cfg,
         },
     )
@@ -1558,8 +1571,54 @@ def owner_siteconfig_edit(request):
     return render(request, "owner/siteconfig_form.html", {"form": form})
 
 
+@require_GET
+@login_required
+def owner_api_product_search_for_sale(request):
+    if not _check_owner(request.user):
+        raise PermissionDenied
+
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+
+    productos = (
+        ProductoPrecio.objects
+        .filter(activo=True)
+        .filter(Q(nombre_publico__icontains=q) | Q(sku__icontains=q))
+        .order_by("nombre_publico", "sku")[:20]
+    )
+
+    results = []
+    for p in productos:
+        variantes = list(
+            p.variantes.filter(activo=True).values("id", "nombre", "stock", "precio")
+        )
+
+        results.append({
+            "id": p.id,
+            "sku": p.sku,
+            "nombre_publico": p.nombre_publico,
+            "precio": str(p.precio),
+            "precio_costo": str(p.precio_costo or "0"),
+            "stock": p.stock,
+            "tiene_variantes": bool(variantes),
+            "variantes": [
+                {
+                    "id": v["id"],
+                    "nombre": v["nombre"],
+                    "stock": v["stock"],
+                    "precio": str(v["precio"]) if v["precio"] is not None else "",
+                }
+                for v in variantes
+            ],
+        })
+
+    return JsonResponse({"results": results})
+
+
 @login_required
 def owner_historia_global(request):
+
     if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para ver la bitácora.")
 
@@ -1619,3 +1678,248 @@ def owner_historia_global(request):
             "f_hasta": hasta,
         },
     )
+
+@login_required
+@login_required
+def owner_venta_rapida_create(request):
+    if not _check_owner(request.user):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        form = VentaRapidaForm(request.POST)
+
+        if form.is_valid():
+            with transaction.atomic():
+                venta = form.save(commit=False)
+                producto = venta.producto
+                variante = venta.variante
+
+                if variante:
+                    stock_disponible = variante.stock or 0
+                    costo_unitario = variante.precio if variante.precio is not None else (producto.precio_costo or Decimal("0.00"))
+                else:
+                    if producto.variantes.filter(activo=True).exists():
+                        messages.error(
+                            request,
+                            "Este producto tiene variantes activas. Elegí una variante para registrar la venta."
+                        )
+                        return redirect("owner_venta_rapida_create")
+
+                    stock_disponible = producto.stock or 0
+                    costo_unitario = producto.precio_costo or Decimal("0.00")
+
+                if stock_disponible < venta.cantidad:
+                    messages.error(
+                        request,
+                        f"No hay stock suficiente. Stock actual: {stock_disponible}."
+                    )
+                    return redirect("owner_venta_rapida_create")
+
+                venta.subtotal = venta.precio_unitario * venta.cantidad
+                venta.costo_unitario = costo_unitario
+                venta.usuario = request.user
+                venta.save()
+
+                if variante:
+                    variante.stock = (variante.stock or 0) - venta.cantidad
+                    variante.save(update_fields=["stock"])
+                else:
+                    producto.stock = (producto.stock or 0) - venta.cantidad
+                    producto.save(update_fields=["stock"])
+
+                nombre_log = producto.nombre_publico or producto.sku
+                if variante:
+                    nombre_log = f"{nombre_log} - {variante.nombre}"
+
+                registrar_evento(
+                    tipo="venta_registrada",
+                    titulo=f"Venta registrada: {nombre_log}",
+                    detalle=(
+                        f"Se vendieron {venta.cantidad} unidad(es) a ${venta.precio_unitario} "
+                        f"por un total de ${venta.subtotal}. Medio de pago: {venta.get_medio_pago_display()}."
+                    ),
+                    user=request.user,
+                    obj=producto,
+                    extra={
+                        "venta_id": venta.id,
+                        "producto_id": producto.id,
+                        "variante_id": variante.id if variante else None,
+                        "sku": producto.sku,
+                        "cantidad": venta.cantidad,
+                        "precio_unitario": str(venta.precio_unitario),
+                        "subtotal": str(venta.subtotal),
+                        "medio_pago": venta.medio_pago,
+                    },
+                )
+
+                messages.success(request, "Venta registrada correctamente.")
+                return redirect("owner_caja_resumen")
+    else:
+        form = VentaRapidaForm()
+
+    ultimas_ventas = VentaRapida.objects.select_related("producto", "variante", "usuario")[:10]
+
+    return render(
+        request,
+        "owner/venta_rapida_form.html",
+        {
+            "form": form,
+            "ultimas_ventas": ultimas_ventas,
+        },
+    )
+
+@login_required
+@login_required
+def owner_caja_resumen(request):
+    if not _check_owner(request.user):
+        raise PermissionDenied
+
+    desde = (request.GET.get("desde") or "").strip()
+    hasta = (request.GET.get("hasta") or "").strip()
+    medio_pago = (request.GET.get("medio_pago") or "").strip()
+
+    ventas = VentaRapida.objects.select_related("producto", "variante", "usuario").all()
+
+    if desde:
+        try:
+            dt_desde = datetime.strptime(desde, "%Y-%m-%d")
+            dt_desde = timezone.make_aware(dt_desde)
+            ventas = ventas.filter(fecha__gte=dt_desde)
+        except ValueError:
+            pass
+
+    if hasta:
+        try:
+            dt_hasta = datetime.strptime(hasta, "%Y-%m-%d") + timedelta(days=1)
+            dt_hasta = timezone.make_aware(dt_hasta)
+            ventas = ventas.filter(fecha__lt=dt_hasta)
+        except ValueError:
+            pass
+
+    if medio_pago in {"efectivo", "transferencia"}:
+        ventas = ventas.filter(medio_pago=medio_pago)
+
+    hoy = timezone.localdate()
+    inicio_hoy = timezone.make_aware(datetime.combine(hoy, datetime.min.time()))
+    fin_hoy = inicio_hoy + timedelta(days=1)
+
+    ventas_hoy = VentaRapida.objects.filter(fecha__gte=inicio_hoy, fecha__lt=fin_hoy)
+
+    total_hoy = ventas_hoy.aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
+    cantidad_hoy = ventas_hoy.aggregate(total=Count("id"))["total"] or 0
+    unidades_hoy = ventas_hoy.aggregate(total=Sum("cantidad"))["total"] or 0
+
+    total_hoy_efectivo = ventas_hoy.filter(medio_pago="efectivo").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
+    total_hoy_transferencia = ventas_hoy.filter(medio_pago="transferencia").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
+
+    total_periodo = ventas.aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
+    cantidad_periodo = ventas.aggregate(total=Count("id"))["total"] or 0
+    unidades_periodo = ventas.aggregate(total=Sum("cantidad"))["total"] or 0
+
+    total_efectivo = ventas.filter(medio_pago="efectivo").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
+    total_transferencia = ventas.filter(medio_pago="transferencia").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
+
+    costo_expr = ExpressionWrapper(
+        F("cantidad") * F("costo_unitario"),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+    costo_total_periodo = ventas.aggregate(total=Sum(costo_expr))["total"] or Decimal("0.00")
+    ganancia_periodo = total_periodo - costo_total_periodo
+
+    productos_mas_vendidos = (
+        ventas.values("producto__id", "producto__nombre_publico", "producto__sku")
+        .annotate(
+            unidades=Sum("cantidad"),
+            total_vendido=Sum("subtotal"),
+        )
+        .order_by("-unidades", "-total_vendido")[:10]
+    )
+
+    variantes_mas_vendidas = (
+        ventas.filter(variante__isnull=False)
+        .values("variante__id", "variante__nombre", "producto__nombre_publico", "producto__sku")
+        .annotate(
+            unidades=Sum("cantidad"),
+            total_vendido=Sum("subtotal"),
+        )
+        .order_by("-unidades", "-total_vendido")[:10]
+    )
+
+    ventas_recientes = ventas.order_by("-fecha")[:100]
+
+    return render(
+        request,
+        "owner/caja_resumen.html",
+        {
+            "ventas": ventas_recientes,
+            "desde": desde,
+            "hasta": hasta,
+            "medio_pago": medio_pago,
+
+            "total_hoy": total_hoy,
+            "cantidad_hoy": cantidad_hoy,
+            "unidades_hoy": unidades_hoy,
+            "total_hoy_efectivo": total_hoy_efectivo,
+            "total_hoy_transferencia": total_hoy_transferencia,
+
+            "total_periodo": total_periodo,
+            "cantidad_periodo": cantidad_periodo,
+            "unidades_periodo": unidades_periodo,
+            "total_efectivo": total_efectivo,
+            "total_transferencia": total_transferencia,
+
+            "costo_total_periodo": costo_total_periodo,
+            "ganancia_periodo": ganancia_periodo,
+
+            "productos_mas_vendidos": productos_mas_vendidos,
+            "variantes_mas_vendidas": variantes_mas_vendidas,
+        },
+    )
+
+@login_required
+@require_POST
+def owner_venta_rapida_delete(request, pk):
+    if not _check_owner(request.user):
+        raise PermissionDenied
+
+    venta = get_object_or_404(
+        VentaRapida.objects.select_related("producto", "variante"),
+        pk=pk
+    )
+    producto = venta.producto
+    variante = venta.variante
+
+    with transaction.atomic():
+        if variante:
+            variante.stock = (variante.stock or 0) + venta.cantidad
+            variante.save(update_fields=["stock"])
+        else:
+            producto.stock = (producto.stock or 0) + venta.cantidad
+            producto.save(update_fields=["stock"])
+
+        nombre_log = producto.nombre_publico or producto.sku
+        if variante:
+            nombre_log = f"{nombre_log} - {variante.nombre}"
+
+        registrar_evento(
+            tipo="venta_eliminada",
+            titulo=f"Venta eliminada: {nombre_log}",
+            detalle=(
+                f"Se eliminó una venta de {venta.cantidad} unidad(es) por ${venta.subtotal}. "
+                f"El stock fue restaurado."
+            ),
+            user=request.user,
+            obj=producto,
+            extra={
+                "venta_id": venta.id,
+                "producto_id": producto.id,
+                "variante_id": variante.id if variante else None,
+                "cantidad": venta.cantidad,
+                "subtotal": str(venta.subtotal),
+            },
+        )
+
+        venta.delete()
+
+    messages.success(request, "Venta eliminada y stock restaurado.")
+    return redirect("owner_caja_resumen")

@@ -15,18 +15,83 @@
             <i class="fa-regular fa-user me-2"></i>Mi cuenta
           </h2>
 
+          <style>
+            .profile-avatar-wrap {
+              position: relative;
+              display: inline-block;
+            }
+
+            .profile-avatar,
+            .profile-avatar-placeholder {
+              width: 110px;
+              height: 110px;
+              border-radius: 50%;
+              object-fit: cover;
+            }
+
+            .profile-avatar-placeholder {
+              background: var(--mp-primary, #0d6efd);
+              color: #fff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 40px;
+              font-weight: 700;
+              box-shadow: 0 .25rem .75rem rgba(0,0,0,.12);
+            }
+
+            .avatar-field {
+              display: none;
+            }
+
+            .avatar-actions {
+              display: flex;
+              justify-content: center;
+              gap: .65rem;
+              flex-wrap: wrap;
+              margin-top: 1rem;
+            }
+
+            .btn-soft-danger {
+              border: 1px solid #f1b0b7;
+              background: #fff5f6;
+              color: #b02a37;
+              transition: .2s ease;
+            }
+
+            .btn-soft-danger:hover {
+              background: #f8d7da;
+              color: #842029;
+            }
+
+            .avatar-help {
+              font-size: .875rem;
+              color: #6c757d;
+              margin-top: .65rem;
+              text-align: center;
+            }
+
+            .account-link {
+              text-decoration: none;
+            }
+
+            .account-link:hover {
+              text-decoration: underline;
+            }
+          </style>
+
           <!-- AVATAR -->
           <div class="text-center mb-4">
-            {% if usuario.profile.avatar %}
-              <img src="{{ usuario.profile.avatar.url }}" alt="Avatar"
-                   class="rounded-circle shadow-sm"
-                   style="width:110px;height:110px;object-fit:cover;">
-            {% else %}
-              <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center shadow-sm"
-                   style="width:110px;height:110px;font-size:40px;">
-                {{ usuario.first_name|default:usuario.username|first|upper }}
-              </div>
-            {% endif %}
+            <div class="profile-avatar-wrap">
+              {% if usuario.profile.avatar %}
+                <img src="{{ usuario.profile.avatar.url }}" alt="Avatar"
+                     class="profile-avatar shadow-sm">
+              {% else %}
+                <div class="profile-avatar-placeholder">
+                  {{ usuario.first_name|default:usuario.username|first|upper }}
+                </div>
+              {% endif %}
+            </div>
 
             <div class="fw-semibold mt-2 fs-5">
               {{ usuario.first_name }} {{ usuario.last_name }}
@@ -37,7 +102,7 @@
           </div>
 
           <!-- FORMULARIO PERFIL -->
-          <form method="post" enctype="multipart/form-data">
+          <form method="post" enctype="multipart/form-data" id="perfil-form">
             {% csrf_token %}
 
             <div class="mb-3">
@@ -50,13 +115,33 @@
               {{ form.localidad|add_class:"form-control" }}
             </div>
 
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Foto de perfil</label>
-              {{ form.avatar|add_class:"form-control" }}
-              <div class="form-text">Opcional. JPG/PNG, tamaño pequeño.</div>
+            <div class="avatar-field" id="avatar-field-wrapper">
+              {{ form.avatar }}
             </div>
 
-            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+            <div class="avatar-actions mb-4">
+              <button type="button"
+                      id="btn-select-avatar"
+                      class="btn btn-outline-primary rounded-pill px-3">
+                <i class="fa-solid fa-image me-1"></i>
+                Cambiar foto
+              </button>
+
+              {% if usuario.profile.avatar %}
+                <button type="button"
+                        id="btn-clear-avatar"
+                        class="btn btn-soft-danger rounded-pill px-3">
+                  <i class="fa-solid fa-trash-can me-1"></i>
+                  Quitar foto actual
+                </button>
+              {% endif %}
+            </div>
+
+            <div class="avatar-help">
+              JPG/PNG, tamaño pequeño.
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold mt-4">
               <i class="fa-solid fa-floppy-disk me-1"></i>
               Guardar cambios
             </button>
@@ -65,12 +150,13 @@
           <hr class="my-4">
 
           <div class="text-center">
-            <a href="{% url 'mis_compras' %}" class="d-block mb-2 fw-semibold">
-              <i class="fa-solid fa-bag-shopping me-1"></i>
-              Ver mis compras
+            
+            <a href="{% url 'catalogo' %}" class="btn btn-primary w-100 py-2 fw-semibold mt-4">
+              <i class="fa-solid fa-right-from-bracket me-1"></i>
+              Catalogo
             </a>
 
-            <a href="{% url 'logout' %}" class="text-danger fw-semibold">
+            <a href="{% url 'logout' %}" class="text-danger fw-semibold account-link">
               <i class="fa-solid fa-right-from-bracket me-1"></i>
               Cerrar sesión
             </a>
@@ -82,4 +168,57 @@
     </div>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('perfil-form');
+    const avatarFieldWrapper = document.getElementById('avatar-field-wrapper');
+    const selectBtn = document.getElementById('btn-select-avatar');
+    const clearBtn = document.getElementById('btn-clear-avatar');
+
+    if (!avatarFieldWrapper || !form) return;
+
+    const fileInput = avatarFieldWrapper.querySelector('input[type="file"]');
+    const clearCheckbox = avatarFieldWrapper.querySelector('input[type="checkbox"]');
+
+    // Ocultar visualmente cualquier texto que Django agregue
+    const links = avatarFieldWrapper.querySelectorAll('a');
+    const labels = avatarFieldWrapper.querySelectorAll('label');
+    const texts = avatarFieldWrapper.childNodes;
+
+    links.forEach(el => el.style.display = 'none');
+    labels.forEach(el => el.style.display = 'none');
+
+    texts.forEach(node => {
+      if (node.nodeType === 3) {
+        node.textContent = '';
+      }
+    });
+
+    if (selectBtn && fileInput) {
+      selectBtn.addEventListener('click', function () {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', function () {
+        if (fileInput.files && fileInput.files.length > 0) {
+          if (clearCheckbox) {
+            clearCheckbox.checked = false;
+          }
+          form.submit();
+        }
+      });
+    }
+
+    if (clearBtn && clearCheckbox) {
+      clearBtn.addEventListener('click', function () {
+        clearCheckbox.checked = true;
+        if (fileInput) {
+          fileInput.value = '';
+        }
+        form.submit();
+      });
+    }
+  });
+</script>
 {% endblock %}

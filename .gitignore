@@ -9,3 +9,8 @@ staticfiles/
 db.sqlite3
 proyecto/credenciales/service_account.json
 proyecto\media\listas_precios
+proyecto\media\facturas
+proyecto\media\ordenes_compra
+proyecto\media\avatares
+proyecto/main/settings.py
+proyecto_final\proyecto\main\settings.py

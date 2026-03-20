@@ -20,11 +20,6 @@ urlpatterns = [
     path("favoritos/eliminar/<int:pk>/", views.eliminar_favorito, name="eliminar_favorito"),
 
     path("mi-cuenta/", views.mi_cuenta, name="mi_cuenta"),
-    path("mis-compras/", views.mis_compras, name="mis_compras"),
-    path("mis-compras/<int:pedido_id>/", views.mis_compras_detalle, name="mis_compras_detalle"),
-
-    path("mis-compras/<int:pedido_id>/cancelar/", views.pedido_cancelar, name="pedido_cancelar"),
-    path("mis-compras/<int:pedido_id>/eliminar/", views.pedido_eliminar, name="pedido_eliminar"),
     path("logout/", views.logout_view, name="logout"),
     path("carrito/whatsapp/", views.carrito_whatsapp, name="carrito_whatsapp"),
     path('catalogo/', pdf_views.mostrar_precios, name='catalogo'),

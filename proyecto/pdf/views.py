@@ -1,4 +1,6 @@
 import os
+
+import unicodedata
 import re
 from io import BytesIO
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -58,7 +60,7 @@ from .models import (
 from .utils import extraer_precios_de_pdf, get_similarity
 from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text, parse_invoice_pdf
 from ofertas.utils import get_precio_con_oferta
-from owner.models import BitacoraEvento
+from owner.models import BitacoraEvento, SiteConfig, SiteCarouselImage
 
 
 Q2 = Decimal("0.01")
@@ -203,6 +205,15 @@ def _norm(s: str) -> str:
 
 def _score(a: str, b: str) -> float:
     return SequenceMatcher(None, _norm(a), _norm(b)).ratio()
+
+def _normalizar_texto_factura(texto):
+    if not texto:
+        return ""
+    texto = str(texto).strip().lower()
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = re.sub(r"\s+", " ", texto)
+    return texto
 
 
 @require_GET
@@ -500,6 +511,12 @@ def mostrar_precios(request):
 def detalle_producto(request, pk):
     producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
 
+    site_cfg = SiteConfig.get_solo()
+    google_fotos = SiteCarouselImage.objects.filter(
+        site=site_cfg,
+        activo=True
+    ).order_by("orden", "id")
+
     # Precio base + oferta a nivel producto
     precio_data = get_precio_con_oferta(producto)
     precio_principal = precio_data["precio_final"]
@@ -524,7 +541,7 @@ def detalle_producto(request, pk):
     variantes_qs = producto.variantes.filter(activo=True).order_by("orden", "id")
 
     for v in variantes_qs:
-        # Si la variante tiene precio propio lo usamos; si no, el del producto (ya con oferta aplicada)
+        # Si la variante tiene precio propio lo usamos; si no, el del producto
         precio_var = getattr(v, "precio", None)
         if precio_var is None:
             precio_final = precio_principal
@@ -553,10 +570,11 @@ def detalle_producto(request, pk):
             "variantes_ui": variantes_ui,
             "stock_inicial": stock_inicial,
             "precio_inicial": precio_inicial,
-            "oferta": precio_data["oferta"],  # badge de oferta
+            "oferta": precio_data["oferta"],
+            "site_cfg": site_cfg,
+            "google_fotos": google_fotos,
         },
     )
-
 
 # ============================================================
 # API CAMBIO DE VARIANTE
@@ -1295,9 +1313,9 @@ def procesar_factura(request):
                 if f"item_{index}_check" not in request.POST:
                     continue
 
-                producto_txt = request.POST.get(
-                    f"item_{index}_producto", item["producto"]
-                ).strip()
+                producto_txt = _normalizar_texto_factura(
+                    request.POST.get(f"item_{index}_producto", item["producto"])
+                )
 
                 cantidad = _to_decimal(
                     request.POST.get(f"item_{index}_cantidad", item["cantidad"]), "1"
@@ -1320,8 +1338,9 @@ def procesar_factura(request):
                 items_creados += 1
 
                 # Vinculación con catálogo
-                sku_input = (request.POST.get(
-                    f"item_{index}_catalogo_sku") or "").strip()
+                sku_input = _normalizar_texto_factura(
+                    request.POST.get(f"item_{index}_catalogo_sku") or ""
+                ).replace(" ", "_").replace("/", "_").replace("-", "_")
 
                 crear = f"item_{index}_crear_si_no_existe" in request.POST
                 upd_stock = f"item_{index}_upd_stock" in request.POST
@@ -1329,10 +1348,10 @@ def procesar_factura(request):
 
                 # Definir SKU
                 if sku_input:
-                    sku = sku_input
+                    sku = sku_input[:50]
                 elif crear:
                     sku = (
-                        producto_txt.lower()
+                        producto_txt
                         .replace(" ", "_")
                         .replace("/", "_")
                         .replace("-", "_")[:50]
@@ -1459,7 +1478,7 @@ def procesar_factura(request):
 
             items = []
             for r in resultado:
-                producto_txt = r.get("producto", "")
+                producto_txt = _normalizar_texto_factura(r.get("producto", ""))
                 cantidad = r.get("cantidad", Decimal("1"))
                 precio = r.get("precio_unitario", Decimal("0"))
 
