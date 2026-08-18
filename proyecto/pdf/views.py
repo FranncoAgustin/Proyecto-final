@@ -12,6 +12,8 @@ from django.core.paginator import Paginator
 from django.conf import settings
 from django.contrib import messages
 from django.db import IntegrityError, transaction
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import F, Q
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -65,11 +67,19 @@ from owner.models import BitacoraEvento, SiteConfig, SiteCarouselImage
 
 Q2 = Decimal("0.01")
 
+def _check_owner(user):
+    return getattr(user, "is_owner", False) or getattr(user, "is_superuser", False)
+
+
+def _check_owner_or_403(user):
+    if not _check_owner(user):
+        raise PermissionDenied
+
 
 # ============================================================
 # Helper bitácora
 # ============================================================
-
+      
 def registrar_evento(tipo, titulo, detalle="", user=None, obj=None, extra=None):
     """
     Registra un evento en la bitácora global.
@@ -219,7 +229,8 @@ def _normalizar_texto_factura(texto):
 @require_GET
 def api_productos(request):
     q = (request.GET.get("q") or "").strip()
-    qs = ProductoPrecio.objects.filter(activo=True)
+
+    qs = ProductoPrecio.objects.all()
 
     if q:
         qs = qs.filter(
@@ -238,6 +249,7 @@ def api_productos(request):
             "precio": str((p.precio or Decimal("0.00")).quantize(Q2)),
             "precio_costo": str((p.precio_costo or Decimal("0.00")).quantize(Q2)),
         })
+
     return JsonResponse({"results": data})
 
 
@@ -773,7 +785,7 @@ def _tech_label(tech: str) -> str:
 # ============================================================
 # IMPORTAR LISTA DE PRECIOS (PDF)
 # ============================================================
-
+@login_required
 def importar_pdf(request):
     """
     Importa / actualiza precios desde un PDF de lista de precios.
@@ -788,6 +800,8 @@ def importar_pdf(request):
     - busca coincidencia exacta por SKU y también por nombre_publico
     - sugiere comparando contra nombre_publico o sku
     """
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
 
     report = {
         "imported": 0,
@@ -1152,8 +1166,10 @@ def importar_pdf(request):
             "listas_procesadas": listas_procesadas,
         },
     )
-
+@login_required
 def owner_productos_completar_desde_pdf(request):
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
     ids = request.session.get("productos_pdf_creados_ids", [])
 
     if not ids:
@@ -1274,9 +1290,10 @@ def owner_productos_completar_desde_pdf(request):
 # ============================================================
 # FACTURAS PROVEEDOR (OCR + linkeo a catálogo)
 # ============================================================
-
+@login_required
 def procesar_factura(request):
-
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
     # ======================================================
     # PASO 2 — CONFIRMAR Y GUARDAR
     # ======================================================
@@ -1535,12 +1552,14 @@ def procesar_factura(request):
 # ============================================================
 # HISTORIA LISTAS
 # ============================================================
-
+@login_required
 def historia_listas(request):
     """
     Historia de ingresos: muestra todas las listas de precios PDF que se importaron,
     ordenadas de más nueva a más vieja.
     """
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
     listas = ListaPrecioPDF.objects.all().order_by("-fecha_subida")
     return render(
         request,
@@ -1552,8 +1571,10 @@ def historia_listas(request):
 # ============================================================
 # FACTURA SIMPLE (PDF para cliente)
 # ============================================================
-
+@login_required
 def factura_crear(request):
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
     # Defaults vendedor
     initial = {
         "vendedor_nombre": "Mundo Personalizado",
@@ -1610,11 +1631,11 @@ def factura_crear(request):
 # ============================================================
 # LISTA DE PRECIOS PDF (con marca de agua fija + mayorista)
 # ============================================================
-
 def _precio_mayorista(unit: Decimal, descuento_pct: Decimal) -> Decimal:
     """
     descuento_pct: 20 => -20% (20% de descuento)
     """
+    
     try:
         d = Decimal(descuento_pct or "0")
     except Exception:
@@ -1628,8 +1649,10 @@ def _precio_mayorista(unit: Decimal, descuento_pct: Decimal) -> Decimal:
     factor = (Decimal("100") - d) / Decimal("100")
     return (unit * factor).quantize(Q2, rounding=ROUND_HALF_UP)
 
-
+@login_required
 def lista_precios_opciones(request):
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
     if request.method == "POST":
         form = ListaPreciosPDFForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1888,8 +1911,10 @@ def lista_precios_opciones(request):
 # ============================================================
 # GENERACIÓN PDF FACTURA (con archivo en bitácora)
 # ============================================================
-
+@login_required
 def _factura_pdf_response(request, data, items, total):
+    if not _check_owner(request.user):
+        raise PermissionDenied("No tienes permiso para hacer esto.")
     filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
 
     # Buffer en memoria para crear el PDF
