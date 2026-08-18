@@ -1583,7 +1583,7 @@ def owner_api_product_search_for_sale(request):
 
     productos = (
         ProductoPrecio.objects
-        .filter(activo=True)
+        ###.filter(activo=True)
         .filter(Q(nombre_publico__icontains=q) | Q(sku__icontains=q))
         .order_by("nombre_publico", "sku")[:20]
     )
@@ -1680,7 +1680,6 @@ def owner_historia_global(request):
     )
 
 @login_required
-@login_required
 def owner_venta_rapida_create(request):
     if not _check_owner(request.user):
         raise PermissionDenied
@@ -1768,7 +1767,6 @@ def owner_venta_rapida_create(request):
         },
     )
 
-@login_required
 @login_required
 def owner_caja_resumen(request):
     if not _check_owner(request.user):

@@ -278,55 +278,105 @@ ProductoVarianteFormSet = inlineformset_factory(
 
 class VentaRapidaForm(forms.ModelForm):
     producto = forms.ModelChoiceField(
-        queryset=ProductoPrecio.objects.filter(activo=True).order_by("nombre_publico", "sku"),
-        required=True,
-        widget=forms.HiddenInput(),
-    )
+    queryset=ProductoPrecio.objects.all().order_by("nombre_publico", "sku"),
+    required=True,
+    widget=forms.HiddenInput(),
+)
 
     variante = forms.ModelChoiceField(
-        queryset=ProductoVariante.objects.filter(activo=True).select_related("producto").order_by("producto__nombre_publico", "nombre"),
+        queryset=ProductoVariante.objects.filter(
+            activo=True
+        ).select_related(
+            "producto"
+        ).order_by(
+            "producto__nombre_publico", "nombre"
+        ),
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
     class Meta:
         model = VentaRapida
-        fields = ["producto", "variante", "cantidad", "precio_unitario", "medio_pago", "observacion"]
+        fields = [
+            "producto",
+            "variante",
+            "cantidad",
+            "precio_unitario",
+            "medio_pago",
+            "observacion",
+        ]
         widgets = {
-            "cantidad": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
-            "precio_unitario": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
-            "medio_pago": forms.Select(attrs={"class": "form-select"}),
-            "observacion": forms.TextInput(attrs={"class": "form-control", "placeholder": "Opcional"}),
+            "cantidad": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1"
+                }
+            ),
+            "precio_unitario": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "step": "0.01",
+                    "min": "0"
+                }
+            ),
+            "medio_pago": forms.Select(
+                attrs={"class": "form-select"}
+            ),
+            "observacion": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Opcional"
+                }
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["variante"].queryset = ProductoVariante.objects.filter(activo=True).select_related("producto").order_by(
-            "producto__nombre_publico", "nombre"
+
+        self.fields["variante"].queryset = (
+            ProductoVariante.objects
+            .filter(activo=True)
+            .select_related("producto")
+            .order_by(
+                "producto__nombre_publico",
+                "nombre"
+            )
         )
 
     def clean_cantidad(self):
         cantidad = self.cleaned_data["cantidad"]
+
         if cantidad <= 0:
-            raise forms.ValidationError("La cantidad debe ser mayor a 0.")
+            raise forms.ValidationError(
+                "La cantidad debe ser mayor a 0."
+            )
+
         return cantidad
 
     def clean_precio_unitario(self):
         precio = self.cleaned_data["precio_unitario"]
+
         if precio is None or precio < 0:
-            raise forms.ValidationError("Ingresá un precio válido.")
+            raise forms.ValidationError(
+                "Ingresá un precio válido."
+            )
+
         return precio
 
     def clean(self):
         cleaned = super().clean()
+
         producto = cleaned.get("producto")
         variante = cleaned.get("variante")
 
         if variante and producto and variante.producto_id != producto.id:
-            self.add_error("variante", "La variante no pertenece al producto seleccionado.")
+            self.add_error(
+                "variante",
+                "La variante no pertenece al producto seleccionado."
+            )
 
         return cleaned
-    
+      
 class SiteCarouselImageForm(forms.ModelForm):
     class Meta:
         model = SiteCarouselImage
