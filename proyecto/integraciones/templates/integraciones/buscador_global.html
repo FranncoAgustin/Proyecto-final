@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm"
+        style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); border-radius: 15px;">
+        <div class="card-body p-4">
+
+            <!-- ================= ACTION BAR ================= -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-3 border-bottom">
+
+                <!-- Botón Volver -->
+                <div>
+                    <a href="javascript:history.back()" class="btn btn-outline-secondary shadow-sm fw-bold">
+                        <i class="bi bi-arrow-left me-1"></i> Volver al menú
+                    </a>
+                </div>
+
+                <!-- Botones de Listas y Sincronización -->
+                <div class="d-flex gap-2 mt-3 mt-md-0">
+                    <!-- REEMPLAZÁ 'nombre_de_url_listas' POR EL NOMBRE REAL DE TU RUTA EN URLS.PY -->
+                    <a href="{% url 'price_sources_list' %}" class="btn btn-info shadow-sm text-white fw-bold">
+                        <i class="bi bi-list-ul me-1"></i> Ver Listas / Fuentes
+                    </a>
+
+
+                </div>
+
+            </div>
+            <!-- ================= FIN ACTION BAR ================= -->
+
+            <h2 class="mb-4"><i class="bi bi-search"></i> Buscador Global de Proveedores</h2>
+
+            <!-- Formulario de Búsqueda y Filtros Checkbox -->
+            <form method="GET" action="" class="mb-4">
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-md-10">
+                        <input type="text" name="q" class="form-control form-control-lg"
+                            placeholder="Ej: Bolígrafo, Taza, 1450..." value="{{ query }}">
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Buscar</button>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-light rounded border">
+                    <label class="form-label fw-bold mb-2">Filtrar por proveedores (si no tildás ninguno, busca en
+                        todos):</label>
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for f in fuentes %}
+                        <div class="form-check">
+                            <input class="form-check-input shadow-sm" type="checkbox" name="fuente" value="{{ f.id }}"
+                                id="fuente_{{ f.id }}" {% if f.id in fuentes_seleccionadas %}checked{% endif %}>
+                            <label class="form-check-label user-select-none cursor-pointer" for="fuente_{{ f.id }}">
+                                {{ f.nombre }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </form>
+
+            <!-- Resultados -->
+            {% if query %}
+            <div class="alert alert-info shadow-sm">
+                Se encontraron <strong>{{ total_encontrados }}</strong> artículos en total para "{{ query }}".
+            </div>
+
+            {% if resultados_agrupados %}
+            <div class="accordion shadow-sm" id="accordionResultados">
+                {% for fuente, items in resultados_agrupados.items %}
+                <div class="accordion-item border-0 mb-2 rounded overflow-hidden">
+
+                    <!-- Cabecera del Acordeón -->
+                    <h2 class="accordion-header" id="heading-{{ forloop.counter }}">
+                        <button
+                            class="accordion-button {% if not forloop.first %}collapsed{% endif %} bg-dark text-white"
+                            type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ forloop.counter }}"
+                            aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                            aria-controls="collapse-{{ forloop.counter }}">
+                            <div class="d-flex justify-content-between w-100 me-3 align-items-center">
+                                <span class="mb-0 fw-bold fs-5">{{ fuente }}</span>
+                                <span class="badge bg-light text-dark rounded-pill px-3 py-2 fs-6">{{ items|length }}
+                                    artículos</span>
+                            </div>
+                        </button>
+                    </h2>
+
+                    <!-- Cuerpo del Acordeón (Tabla) -->
+                    <div id="collapse-{{ forloop.counter }}"
+                        class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                        aria-labelledby="heading-{{ forloop.counter }}" data-bs-parent="#accordionResultados">
+                        <div class="accordion-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 50px;">Fav</th>
+                                            <th style="width: 180px;">Img</th> <!-- Ensanchamos la columna -->
+                                            <th>Artículo / Nombre</th>
+                                            <th>Precio Compra</th>
+                                            <th class="text-end">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in items %}
+                                        <tr>
+                                            <!-- Favorito -->
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-warning border-0"><i
+                                                        class="bi bi-star"></i></button>
+                                            </td>
+
+                                            <!-- Imagen Placeholder o Real -->
+                                            <td>
+                                                {% if item.imagen_url %}
+                                                <div
+                                                    style="width: 160px; height: 160px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background-color: #fff; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                                    <img src="{{ item.imagen_url }}" alt="Img"
+                                                        style="width: 100%; height: 100%; object-fit: contain;">
+                                                </div>
+                                                {% else %}
+                                                <div
+                                                    style="width: 160px; height: 160px; background-color: #e9ecef; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ced4da;">
+                                                    <i class="bi bi-image text-secondary" style="font-size: 3rem;"></i>
+                                                </div>
+                                                {% endif %}
+                                            </td>
+
+                                            <!-- Datos -->
+                                            <td>
+                                                <span class="d-block fw-bold">{{ item.producto }}</span>
+                                                <small class="text-muted">{{ item.art|default:"" }}</small>
+                                            </td>
+
+                                            <!-- Precio formateado para vista -->
+                                            <td>
+                                                <span class="badge bg-success fs-6">
+                                                    $ {{ item.compra|floatformat:"-1" }}
+                                                </span>
+                                            </td>
+
+                                            <!-- Botón Agregar formateado para URL segura (1 solo decimal) -->
+                                            <td class="text-end">
+                                                <a href="{% url 'owner_producto_create_ui' %}?nombre={% if item.producto %}{{ item.producto|urlencode }}{% else %}{{ item.art|urlencode }}{% endif %}&costo={{ item.compra|stringformat:'.2f' }}"
+                                                    class="btn btn-sm btn-primary">
+                                                    <i class="bi bi-plus-lg"></i> Agregar
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-center mt-5 fs-5">No hay coincidencias en los proveedores seleccionados.</p>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

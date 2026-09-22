@@ -853,7 +853,18 @@ def owner_producto_create_ui(request):
         else:
             messages.error(request, "Hay errores en el formulario o en las variantes. Revisá los campos.")
     else:
-        form = ProductoPrecioForm()
+        # ACA ESTÁ LA MAGIA DE LA INTEGRACIÓN
+        initial_data = {}
+        
+        # Atrapamos los parámetros GET que manda el buscador global
+        if "nombre" in request.GET:
+            initial_data["nombre_publico"] = request.GET.get("nombre")
+            
+        if "costo" in request.GET:
+            initial_data["precio_costo"] = request.GET.get("costo")
+
+        # Inicializamos el form principal con los datos precargados
+        form = ProductoPrecioForm(initial=initial_data)
         vformset = ProductoVarianteFormSet(prefix="variants")
 
     return render(
@@ -866,7 +877,6 @@ def owner_producto_create_ui(request):
             "subrubros": subrubros,
         },
     )
-
 
 @login_required
 def owner_productos_completar_desde_factura(request):
