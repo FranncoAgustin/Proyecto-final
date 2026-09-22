@@ -1689,6 +1689,7 @@ def owner_historia_global(request):
         },
     )
 
+
 @login_required
 def owner_venta_rapida_create(request):
     if not _check_owner(request.user):
@@ -1727,6 +1728,22 @@ def owner_venta_rapida_create(request):
                 venta.subtotal = venta.precio_unitario * venta.cantidad
                 venta.costo_unitario = costo_unitario
                 venta.usuario = request.user
+                
+                # ==============================================================
+                # NUEVA LÓGICA DE SEÑA
+                # ==============================================================
+                if request.POST.get("es_senia") == "on":
+                    venta.es_senia = True
+                    venta.pagado_completo = False
+                    venta.monto_senia = Decimal(request.POST.get("monto_senia") or "0.00")
+                    venta.medio_pago_senia = request.POST.get("medio_pago_senia")
+                else:
+                    venta.es_senia = False
+                    venta.pagado_completo = True
+                    venta.monto_senia = Decimal("0.00")
+                    venta.medio_pago_senia = None
+                # ==============================================================
+
                 venta.save()
 
                 if variante:
@@ -1740,13 +1757,16 @@ def owner_venta_rapida_create(request):
                 if variante:
                     nombre_log = f"{nombre_log} - {variante.nombre}"
 
+                detalle_log = f"Se vendieron {venta.cantidad} unidad(es) a ${venta.precio_unitario} por un total de ${venta.subtotal}."
+                if venta.es_senia:
+                    detalle_log += f" Seña ingresada: ${venta.monto_senia} ({venta.get_medio_pago_senia_display()})."
+                else:
+                    detalle_log += f" Medio de pago: {venta.get_medio_pago_display()}."
+
                 registrar_evento(
                     tipo="venta_registrada",
                     titulo=f"Venta registrada: {nombre_log}",
-                    detalle=(
-                        f"Se vendieron {venta.cantidad} unidad(es) a ${venta.precio_unitario} "
-                        f"por un total de ${venta.subtotal}. Medio de pago: {venta.get_medio_pago_display()}."
-                    ),
+                    detalle=detalle_log,
                     user=request.user,
                     obj=producto,
                     extra={
@@ -1758,6 +1778,7 @@ def owner_venta_rapida_create(request):
                         "precio_unitario": str(venta.precio_unitario),
                         "subtotal": str(venta.subtotal),
                         "medio_pago": venta.medio_pago,
+                        "es_senia": venta.es_senia,
                     },
                 )
 
@@ -1777,6 +1798,46 @@ def owner_venta_rapida_create(request):
         },
     )
 
+
+# =========================================================================
+# NUEVA VISTA PARA COMPLETAR EL PAGO
+# =========================================================================
+@login_required
+@require_POST
+def owner_venta_rapida_completar(request, pk):
+    if not _check_owner(request.user):
+        raise PermissionDenied
+
+    venta = get_object_or_404(VentaRapida, pk=pk)
+
+    if venta.es_senia and not venta.pagado_completo:
+        monto_restante = venta.monto_restante
+        venta.pagado_completo = True
+        venta.save(update_fields=["pagado_completo"])
+
+        nombre_log = venta.producto.nombre_publico or venta.producto.sku
+        if venta.variante:
+            nombre_log = f"{nombre_log} - {venta.variante.nombre}"
+
+        registrar_evento(
+            tipo="venta_registrada",
+            titulo=f"Pago completado: {nombre_log}",
+            detalle=f"Se canceló el saldo restante de ${monto_restante} vía {venta.get_medio_pago_display()}.",
+            user=request.user,
+            obj=venta.producto,
+            extra={
+                "venta_id": venta.id,
+                "monto_cobrado": str(monto_restante)
+            }
+        )
+
+        messages.success(request, f"¡Pago completado! Se canceló el saldo restante de ${monto_restante}.")
+    else:
+        messages.warning(request, "Esta venta ya estaba pagada o no tenía seña registrada.")
+
+    return redirect("owner_caja_resumen")
+
+@login_required
 @login_required
 def owner_caja_resumen(request):
     if not _check_owner(request.user):
@@ -1804,36 +1865,72 @@ def owner_caja_resumen(request):
         except ValueError:
             pass
 
+    # Filtro mejorado: busca el medio de pago tanto en el total como en la seña
     if medio_pago in {"efectivo", "transferencia"}:
-        ventas = ventas.filter(medio_pago=medio_pago)
+        ventas = ventas.filter(Q(medio_pago=medio_pago) | Q(medio_pago_senia=medio_pago))
 
     hoy = timezone.localdate()
     inicio_hoy = timezone.make_aware(datetime.combine(hoy, datetime.min.time()))
     fin_hoy = inicio_hoy + timedelta(days=1)
 
-    ventas_hoy = VentaRapida.objects.filter(fecha__gte=inicio_hoy, fecha__lt=fin_hoy)
+    ventas_hoy = ventas.filter(fecha__gte=inicio_hoy, fecha__lt=fin_hoy)
 
-    total_hoy = ventas_hoy.aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
-    cantidad_hoy = ventas_hoy.aggregate(total=Count("id"))["total"] or 0
-    unidades_hoy = ventas_hoy.aggregate(total=Sum("cantidad"))["total"] or 0
+    # --- MOTOR DE CÁLCULO FINANCIERO REAL ---
+    def calcular_totales(queryset):
+        total = Decimal("0.00")
+        efectivo = Decimal("0.00")
+        transf = Decimal("0.00")
+        costo = Decimal("0.00")
+        unidades = 0
+        
+        for v in queryset:
+            costo += v.cantidad * v.costo_unitario
+            unidades += v.cantidad
+            
+            if v.es_senia:
+                if v.pagado_completo:
+                    # Si ya completó, el ingreso real es el total del producto
+                    total += v.subtotal
+                    
+                    # Contabilizamos la seña en su medio de pago original
+                    if v.medio_pago_senia == "efectivo":
+                        efectivo += v.monto_senia
+                    elif v.medio_pago_senia == "transferencia":
+                        transf += v.monto_senia
+                    
+                    # Calculamos manualmente el resto y lo asignamos a su medio de pago
+                    resto = v.subtotal - v.monto_senia
+                    if v.medio_pago == "efectivo":
+                        efectivo += resto
+                    elif v.medio_pago == "transferencia":
+                        transf += resto
+                else:
+                    # Si solo tiene seña, sumamos exclusivamente ese monto
+                    total += v.monto_senia
+                    if v.medio_pago_senia == "efectivo":
+                        efectivo += v.monto_senia
+                    elif v.medio_pago_senia == "transferencia":
+                        transf += v.monto_senia
+            else:
+                # Venta normal de pago en un solo paso
+                total += v.subtotal
+                if v.medio_pago == "efectivo":
+                    efectivo += v.subtotal
+                elif v.medio_pago == "transferencia":
+                    transf += v.subtotal
+                    
+        return total, efectivo, transf, costo, unidades
 
-    total_hoy_efectivo = ventas_hoy.filter(medio_pago="efectivo").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
-    total_hoy_transferencia = ventas_hoy.filter(medio_pago="transferencia").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
+    # Calcular Hoy
+    total_hoy, total_hoy_efectivo, total_hoy_transferencia, _, unidades_hoy = calcular_totales(ventas_hoy)
+    cantidad_hoy = ventas_hoy.count()
 
-    total_periodo = ventas.aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
-    cantidad_periodo = ventas.aggregate(total=Count("id"))["total"] or 0
-    unidades_periodo = ventas.aggregate(total=Sum("cantidad"))["total"] or 0
-
-    total_efectivo = ventas.filter(medio_pago="efectivo").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
-    total_transferencia = ventas.filter(medio_pago="transferencia").aggregate(total=Sum("subtotal"))["total"] or Decimal("0.00")
-
-    costo_expr = ExpressionWrapper(
-        F("cantidad") * F("costo_unitario"),
-        output_field=DecimalField(max_digits=14, decimal_places=2),
-    )
-    costo_total_periodo = ventas.aggregate(total=Sum(costo_expr))["total"] or Decimal("0.00")
+    # Calcular Periodo Histórico
+    total_periodo, total_efectivo, total_transferencia, costo_total_periodo, unidades_periodo = calcular_totales(ventas)
+    cantidad_periodo = ventas.count()
     ganancia_periodo = total_periodo - costo_total_periodo
 
+    # Tablas Inferiores
     productos_mas_vendidos = (
         ventas.values("producto__id", "producto__nombre_publico", "producto__sku")
         .annotate(
