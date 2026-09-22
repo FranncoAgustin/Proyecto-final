@@ -96,15 +96,17 @@ class PriceDocSource(models.Model):
         ("google_sheet", "Google Sheet"),
         ("docx_drive", "DOCX en Drive"),
         ("pdf", "PDF"),
+        ("web_html", "Scraping Web"), # <-- ¡Nueva fuente!
         ("otro", "Otro"),
     ]
 
     nombre = models.CharField(max_length=150)
     url = models.URLField(blank=True, default="")
     doc_id = models.CharField(
-        max_length=255,
-        unique=True,
-        help_text="ID del archivo en Google Drive / Google Docs",
+        max_length=255, 
+        blank=True, 
+        null=True, 
+        help_text="ID del archivo en Drive (Dejar vacío si es web)"
     )
 
     tipo = models.CharField(max_length=30, choices=TIPO_CHOICES, default="google_doc")
@@ -183,6 +185,7 @@ class PriceDocItem(models.Model):
     producto = models.CharField(max_length=255, blank=True, default="")
     descripcion = models.TextField(blank=True, default="")
     compra = models.DecimalField(max_digits=12, decimal_places=2)
+    imagen_url = models.URLField(max_length=500, blank=True, null=True)
 
     def __str__(self):
         return f"{self.art} - {self.compra}"
@@ -267,3 +270,158 @@ class PriceUpdateCandidate(models.Model):
             self.pct_aumento_venta = pct.quantize(Q2)
         else:
             self.pct_aumento_venta = None
+
+class ScrapingProveedor(models.Model):
+    """
+    Proveedor externo del cual obtenemos productos mediante scraping.
+    """
+
+    nombre = models.CharField(max_length=150)
+
+    url = models.URLField(
+        help_text="URL principal del proveedor."
+    )
+
+    activo = models.BooleanField(default=True)
+
+    METODO_CHOICES = [
+        ("manual", "Manual"),
+        ("html", "HTML"),
+        ("api", "API"),
+    ]
+
+    metodo = models.CharField(
+        max_length=20,
+        choices=METODO_CHOICES,
+        default="html",
+    )
+
+    ultima_actualizacion = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+
+class ProductoScrapeado(models.Model):
+    """
+    Producto obtenido desde un proveedor externo.
+
+    NO guarda historial infinito de precios.
+    Solo conserva:
+        - precio_actual
+        - precio_anterior
+
+    Cuando el proveedor cambia el precio:
+
+        precio_anterior = precio_actual
+        precio_actual = nuevo_precio
+    """
+
+    proveedor = models.ForeignKey(
+        ScrapingProveedor,
+        on_delete=models.CASCADE,
+        related_name="productos",
+    )
+
+    nombre = models.CharField(max_length=255)
+
+    precio_actual = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    precio_anterior = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    imagen_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        default="",
+    )
+
+    url_producto = models.URLField(
+        max_length=1000,
+    )
+
+    disponible = models.BooleanField(
+        default=True,
+    )
+
+    actualizado_en = models.DateTimeField(
+        auto_now=True,
+    )
+
+    creado_en = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ["nombre"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["proveedor", "url_producto"],
+                name="unique_producto_scrapeado_proveedor_url",
+            )
+        ]
+
+        indexes = [
+            models.Index(fields=["proveedor", "nombre"]),
+            models.Index(fields=["disponible"]),
+        ]
+
+    def __str__(self):
+        return f"{self.nombre} - {self.proveedor}"
+
+
+class ProductoProveedor(models.Model):
+    """
+    Relaciona un producto de Mundo Personalizado
+    con un producto específico de un proveedor externo.
+    """
+
+    producto_scrapeado = models.OneToOneField(
+        ProductoScrapeado,
+        on_delete=models.CASCADE,
+        related_name="vinculo_catalogo",
+    )
+
+    producto = models.ForeignKey(
+        ProductoPrecio,
+        on_delete=models.CASCADE,
+        related_name="proveedores_scraping",
+    )
+
+    creado_en = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    actualizado_en = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["producto_scrapeado", "producto"],
+                name="unique_producto_proveedor_scraping",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.producto} ← {self.producto_scrapeado}"
