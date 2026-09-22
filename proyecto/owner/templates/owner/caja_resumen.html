@@ -95,28 +95,28 @@
         <div class="card-body p-4">
           <h5 class="fw-bold mb-3">Productos más vendidos</h5>
           {% if productos_mas_vendidos %}
-            <div class="table-responsive">
-              <table class="table align-middle">
-                <thead>
-                  <tr>
-                    <th>Producto</th>
-                    <th>Unidades</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for p in productos_mas_vendidos %}
-                    <tr>
-                      <td>{{ p.producto__nombre_publico|default:p.producto__sku }}</td>
-                      <td>{{ p.unidades }}</td>
-                      <td>$ {{ p.total_vendido|floatformat:0|intcomma }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Unidades</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in productos_mas_vendidos %}
+                <tr>
+                  <td>{{ p.producto__nombre_publico|default:p.producto__sku }}</td>
+                  <td>{{ p.unidades }}</td>
+                  <td>$ {{ p.total_vendido|floatformat:0|intcomma }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
           {% else %}
-            <p class="text-muted mb-0">No hay datos para mostrar.</p>
+          <p class="text-muted mb-0">No hay datos para mostrar.</p>
           {% endif %}
         </div>
       </div>
@@ -127,31 +127,31 @@
         <div class="card-body p-4">
           <h5 class="fw-bold mb-3">Variantes más vendidas</h5>
           {% if variantes_mas_vendidas %}
-            <div class="table-responsive">
-              <table class="table align-middle">
-                <thead>
-                  <tr>
-                    <th>Producto / Variante</th>
-                    <th>Unidades</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for v in variantes_mas_vendidas %}
-                    <tr>
-                      <td>
-                        {{ v.producto__nombre_publico|default:v.producto__sku }}
-                        <div class="small text-muted">{{ v.variante__nombre }}</div>
-                      </td>
-                      <td>{{ v.unidades }}</td>
-                      <td>$ {{ v.total_vendido|floatformat:0|intcomma }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Producto / Variante</th>
+                  <th>Unidades</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for v in variantes_mas_vendidas %}
+                <tr>
+                  <td>
+                    {{ v.producto__nombre_publico|default:v.producto__sku }}
+                    <div class="small text-muted">{{ v.variante__nombre }}</div>
+                  </td>
+                  <td>{{ v.unidades }}</td>
+                  <td>$ {{ v.total_vendido|floatformat:0|intcomma }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
           {% else %}
-            <p class="text-muted mb-0">Todavía no hay variantes vendidas.</p>
+          <p class="text-muted mb-0">Todavía no hay variantes vendidas.</p>
           {% endif %}
         </div>
       </div>
@@ -163,57 +163,93 @@
       <h5 class="fw-bold mb-3">Ventas recientes</h5>
 
       {% if ventas %}
-        <div class="table-responsive">
-          <table class="table align-middle">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Producto</th>
-                <th>Pago</th>
-                <th>Cant.</th>
-                <th>P. unit.</th>
-                <th>Total</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for v in ventas %}
-                <tr>
-                  <td>{{ v.fecha|date:"d/m/Y H:i" }}</td>
-                  <td>
-                    <div class="fw-semibold">{{ v.producto.nombre_publico|default:v.producto.sku }}</div>
-                    {% if v.variante %}
-                      <div class="small text-muted">Variante: {{ v.variante.nombre }}</div>
-                    {% endif %}
-                    {% if v.observacion %}
-                      <div class="small text-muted">{{ v.observacion }}</div>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if v.medio_pago == "efectivo" %}
-                      <span class="badge text-bg-success">Efectivo</span>
-                    {% else %}
-                      <span class="badge text-bg-primary">Transferencia</span>
-                    {% endif %}
-                  </td>
-                  <td>{{ v.cantidad }}</td>
-                  <td>$ {{ v.precio_unitario|floatformat:0|intcomma }}</td>
-                  <td class="fw-semibold">$ {{ v.subtotal|floatformat:0|intcomma }}</td>
-                  <td class="text-end">
-                    <form method="post" action="{% url 'owner_venta_rapida_delete' v.id %}" onsubmit="return confirm('¿Eliminar esta venta y devolver stock?');">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
-                        Eliminar
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Producto</th>
+              <th>Pago</th>
+              <th>Cant.</th>
+              <th>P. unit.</th>
+              <th>Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in ventas %}
+            <tr>
+              <td>{{ v.fecha|date:"d/m/Y H:i" }}</td>
+              <td>
+                <div class="fw-semibold">{{ v.producto.nombre_publico|default:v.producto.sku }}</div>
+                {% if v.variante %}
+                <div class="small text-muted">Variante: {{ v.variante.nombre }}</div>
+                {% endif %}
+                {% if v.observacion %}
+                <div class="small text-muted">{{ v.observacion }}</div>
+                {% endif %}
+              </td>
+
+              <!-- COLUMNA MEDIO DE PAGO (Limpia) -->
+              <td>
+                {% if v.es_senia %}
+                  {% if not v.pagado_completo %}
+                    <span class="badge text-bg-warning mb-1">Señado</span>
+                    <div class="small text-muted">Vía: {{ v.get_medio_pago_senia_display|default:"-" }}</div>
+                  {% else %}
+                    <span class="badge text-bg-success mb-1">Completado</span>
+                    <div class="small text-muted">Seña: {{ v.get_medio_pago_senia_display|default:"-" }}</div>
+                    <div class="small text-muted">Resto: {{ v.get_medio_pago_display|default:"-" }}</div>
+                  {% endif %}
+                {% else %}
+                  {% if v.medio_pago == "efectivo" %}
+                    <span class="badge text-bg-success">Efectivo</span>
+                  {% else %}
+                    <span class="badge text-bg-primary">Transferencia</span>
+                  {% endif %}
+                {% endif %}
+              </td>
+
+              <td>{{ v.cantidad }}</td>
+              <td>$ {{ v.precio_unitario|floatformat:0|intcomma }}</td>
+
+              <!-- COLUMNA TOTALES SEPARADOS -->
+              <td class="text-nowrap">
+                {% if v.es_senia %}
+                  <div class="fw-semibold text-success mb-1">Abonado: $ {{ v.monto_senia|floatformat:0|intcomma }}</div>
+                  {% if not v.pagado_completo %}
+                    <div class="fw-semibold text-danger small mb-1">Falta: $ {{ v.monto_restante|floatformat:0|intcomma }}</div>
+                  {% endif %}
+                  <div class="small text-muted">Total final: $ {{ v.subtotal|floatformat:0|intcomma }}</div>
+                {% else %}
+                  <span class="fw-semibold">$ {{ v.subtotal|floatformat:0|intcomma }}</span>
+                {% endif %}
+              </td>
+
+              <td class="text-end text-nowrap">
+                {% if v.es_senia and not v.pagado_completo %}
+                <form method="post" action="{% url 'owner_venta_rapida_completar' v.id %}" class="d-inline-block me-1">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-success rounded-pill" title="Completar pago">
+                    Completar
+                  </button>
+                </form>
+                {% endif %}
+                <form method="post" action="{% url 'owner_venta_rapida_delete' v.id %}"
+                  onsubmit="return confirm('¿Eliminar esta venta y devolver stock?');" class="d-inline-block">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
+                    Eliminar
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% else %}
-        <p class="text-muted mb-0">Todavía no hay ventas registradas para ese filtro.</p>
+      <p class="text-muted mb-0">Todavía no hay ventas registradas para ese filtro.</p>
       {% endif %}
     </div>
   </div>

@@ -33,6 +33,7 @@ from .views import (
     owner_siteconfig_edit,
     owner_historia_global,
     owner_productos_completar_desde_factura,
+    owner_venta_rapida_completar,
     owner_venta_rapida_create,
     owner_venta_rapida_delete,
     owner_api_product_search_for_sale,
@@ -87,4 +88,5 @@ urlpatterns = [
     path("ventas/caja/", owner_caja_resumen, name="owner_caja_resumen"),
     path("ventas/<int:pk>/eliminar/", owner_venta_rapida_delete, name="owner_venta_rapida_delete"),
     path("api/product-search-sale/", owner_api_product_search_for_sale, name="owner_api_product_search_for_sale"),
+    path("ventas/completar/<int:pk>/", owner_venta_rapida_completar, name="owner_venta_rapida_completar"),
 ]

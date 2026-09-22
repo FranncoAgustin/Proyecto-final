@@ -216,15 +216,14 @@ class VentaRapida(models.Model):
     ]
 
     fecha = models.DateTimeField(auto_now_add=True)
-
     producto = models.ForeignKey(
-        ProductoPrecio,
+        # Recordá importar ProductoPrecio y ProductoVariante si no están arriba
+        'pdf.ProductoPrecio', 
         on_delete=models.PROTECT,
         related_name="ventas_rapidas",
     )
-
     variante = models.ForeignKey(
-        ProductoVariante,
+        'pdf.ProductoVariante',
         on_delete=models.PROTECT,
         related_name="ventas_rapidas",
         null=True,
@@ -241,9 +240,7 @@ class VentaRapida(models.Model):
         choices=MEDIO_PAGO_CHOICES,
         default="transferencia",
     )
-
     observacion = models.CharField(max_length=255, blank=True, default="")
-
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -251,6 +248,26 @@ class VentaRapida(models.Model):
         on_delete=models.SET_NULL,
         related_name="ventas_rapidas_owner",
     )
+
+    # ==========================================
+    # NUEVOS CAMPOS DE SEÑA
+    # ==========================================
+    es_senia = models.BooleanField("¿Es seña?", default=False)
+    monto_senia = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    medio_pago_senia = models.CharField(
+        max_length=20,
+        choices=MEDIO_PAGO_CHOICES,
+        blank=True,
+        null=True,
+    )
+    pagado_completo = models.BooleanField("¿Pagado completo?", default=True)
+
+    @property
+    def monto_restante(self):
+        """Calcula cuánta plata falta cobrar si es una seña."""
+        if self.es_senia and not self.pagado_completo:
+            return self.subtotal - self.monto_senia
+        return Decimal("0.00")
 
     class Meta:
         ordering = ("-fecha", "-id")
