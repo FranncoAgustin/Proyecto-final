@@ -3,7 +3,8 @@
 {% block title %}Cambios de precios desde listas{% endblock %}
 
 {% block content %}
-<div class="container my-4">
+<!-- Pasamos a container-fluid para usar toda la pantalla -->
+<div class="container-fluid px-4 my-4">
 
   <!-- Header -->
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -15,23 +16,12 @@
       </p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-outline-secondary" href="{% url 'home' %}">
-        ⬅ Volver al panel
-      </a>
-
-      <a class="btn btn-outline-dark" href="{% url 'price_sources_list' %}">
-        ⚙️ Gestionar listas
-      </a>
-
-      <!-- BOTON NUEVO -->
-      <a class="btn btn-outline-warning" href="{% url 'diagnostico_match_lista_source' source.id %}">
-        🔎 Diagnóstico de matching
-      </a>
-
+      <a class="btn btn-outline-secondary" href="{% url 'home' %}">⬅ Volver al panel</a>
+      <a class="btn btn-outline-dark" href="{% url 'price_sources_list' %}">⚙️ Gestionar listas</a>
+      <a class="btn btn-outline-warning" href="{% url 'diagnostico_match_lista_source' source.id %}">🔎 Diagnóstico de
+        matching</a>
       {% if source.url %}
-      <a class="btn btn-outline-primary" href="{{ source.url }}" target="_blank" rel="noopener">
-        📄 Abrir fuente
-      </a>
+      <a class="btn btn-outline-primary" href="{{ source.url }}" target="_blank" rel="noopener">📄 Abrir fuente</a>
       {% endif %}
     </div>
   </div>
@@ -43,10 +33,10 @@
   {% endfor %}
   {% endif %}
 
-  <div class="row g-3">
+  <div class="row g-4">
 
-    <!-- Resumen / fuentes -->
-    <div class="col-md-4">
+    <!-- COLUMNA LATERAL (Resumen / fuentes) - Ajustada a col-xl-3 -->
+    <div class="col-xl-3 col-lg-4">
 
       <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold">Resumen</div>
@@ -55,12 +45,10 @@
             <span class="text-muted">Fuente actual:</span><br>
             <strong>{{ source.nombre }}</strong>
           </p>
-
           <p class="mb-1">
             <span class="text-muted">Tipo:</span><br>
             {{ source.get_tipo_display }}
           </p>
-
           <p class="mb-1">
             <span class="text-muted">Estado:</span><br>
             {% if source.activo %}
@@ -69,23 +57,11 @@
             <span class="badge bg-secondary">Inactiva</span>
             {% endif %}
           </p>
-
-          <p class="mb-1">
-            <span class="text-muted">URL origen:</span><br>
-            {% if source.url %}
-            <small class="text-break">{{ source.url }}</small>
-            {% else %}
-            <span class="text-muted">Sin URL</span>
-            {% endif %}
-          </p>
-
           <hr>
-
           <p class="mb-1">
             <span class="text-muted">Cambios pendientes:</span><br>
             <span class="fs-5 fw-semibold">{{ candidatos|length }}</span>
           </p>
-
           <p class="mb-1">
             <span class="text-muted">Última revisión:</span><br>
             {% if source.ultima_revision %}
@@ -94,7 +70,6 @@
             <span class="text-muted">Todavía no sincronizada</span>
             {% endif %}
           </p>
-
           {% if source.ultimo_estado %}
           <p class="mb-1">
             <span class="text-muted">Último estado:</span><br>
@@ -107,11 +82,9 @@
             {% endif %}
           </p>
           {% endif %}
-
           {% if source.ultimo_error %}
           <div class="alert alert-danger py-2 small mt-3 mb-0">
-            <strong>Error:</strong><br>
-            {{ source.ultimo_error }}
+            <strong>Error:</strong><br>{{ source.ultimo_error }}
           </div>
           {% endif %}
         </div>
@@ -130,9 +103,7 @@
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div>
                   <div class="fw-semibold">{{ s.nombre }}</div>
-                  <div class="small text-muted">
-                    {{ s.get_tipo_display }}
-                    {% if s.es_principal %} · Principal{% endif %}
+                  <div class="small text-muted">{{ s.get_tipo_display }} {% if s.es_principal %}· Principal{% endif %}
                   </div>
                   <div class="mt-1">
                     {% if s.activo %}
@@ -149,9 +120,7 @@
                   </a>
                   <form method="post" action="{% url 'price_source_sync' s.id %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-outline-success w-100">
-                      Sync
-                    </button>
+                    <button type="submit" class="btn btn-sm btn-outline-success w-100">Sync</button>
                   </form>
                 </div>
               </div>
@@ -159,173 +128,149 @@
             {% endfor %}
           </div>
           {% else %}
-          <div class="p-3 text-muted small">
-            No hay fuentes cargadas todavía.
-          </div>
+          <div class="p-3 text-muted small">No hay fuentes cargadas todavía.</div>
           {% endif %}
         </div>
         <div class="card-footer bg-white">
           <form method="post" action="{% url 'price_sources_sync_all' %}">
             {% csrf_token %}
-            <button type="submit" class="btn btn-outline-success w-100">
-              🔄 Sincronizar todas las activas
-            </button>
+            <button type="submit" class="btn btn-outline-success w-100">🔄 Sincronizar todas las activas</button>
           </form>
-        </div>
-      </div>
-
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold">Cómo funciona</div>
-        <div class="card-body small">
-          <ul class="mb-2">
-            <li>El sistema compara la lista nueva con la anterior de esa fuente.</li>
-            <li>Si el precio de compra cambió, genera un candidato.</li>
-            <li>Si encuentra el SKU en tu catálogo, calcula el nuevo precio de venta manteniendo el mismo margen.</li>
-          </ul>
-          <p class="mb-0">
-            Marcá en la tabla los artículos que quieras actualizar y hacé clic en
-            <strong>"Aplicar cambios seleccionados"</strong>.
-          </p>
         </div>
       </div>
 
     </div>
 
-    <!-- Tabla de cambios -->
-    <div class="col-md-8">
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <span>Cambios detectados en {{ source.nombre }}</span>
+    <!-- COLUMNA PRINCIPAL (Tabla de cambios) - Ajustada a col-xl-9 -->
+    <div class="col-xl-9 col-lg-8">
+      <div class="card shadow-sm border-0">
+        <div
+          class="card-header bg-white border-bottom fw-semibold d-flex justify-content-between align-items-center p-3">
+          <span class="fs-5">Cambios detectados en {{ source.nombre }}</span>
           <form method="post" action="{% url 'price_source_sync' source.id %}">
             {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-outline-success">
-              🔄 Sincronizar esta fuente
-            </button>
+            <button type="submit" class="btn btn-sm btn-outline-success">🔄 Sincronizar esta fuente</button>
           </form>
         </div>
 
-        <div class="card-body">
+        <div class="card-body p-0">
 
-          <!-- Buscador -->
-          <div class="mb-3">
-            <label class="form-label mb-1">Buscar artículo</label>
-            <input type="text" id="buscarCambiosDoc" class="form-control form-control-sm"
-              placeholder="Filtrá por ART, SKU o nombre de producto...">
-            <div class="form-text">
-              El filtro se aplica sobre el ART del documento, el SKU encontrado y el nombre del producto en tu catálogo.
+          <!-- Buscador y Filtro Switch -->
+          <div class="p-3 bg-light border-bottom">
+            <div class="row align-items-center g-3">
+              <div class="col-md-7">
+                <div class="input-group">
+                  <span class="input-group-text bg-white text-muted">🔍</span>
+                  <input type="text" id="buscarCambiosDoc" class="form-control"
+                    placeholder="Buscar por ART, SKU o producto...">
+                </div>
+              </div>
+              <div class="col-md-5 text-md-end">
+                <div class="form-check form-switch d-inline-block text-start">
+                  <input class="form-check-input" type="checkbox" id="checkSoloVinculados">
+                  <label class="form-check-label text-primary fw-medium" for="checkSoloVinculados">
+                    Solo mostrar listos para aplicar
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
           {% if candidatos %}
-          <form method="post">
+          <form method="post" class="p-3">
             {% csrf_token %}
 
             <div class="table-responsive">
-              <table class="table table-sm align-middle" id="tablaCambiosDoc">
+              <table class="table align-middle table-hover" id="tablaCambiosDoc">
                 <thead class="table-light">
                   <tr>
-                    <th style="width: 35px;">
-                      <input type="checkbox" id="checkAllDoc">
+                    <th style="width: 40px; text-align: center;">
+                      <input type="checkbox" id="checkAllDoc" class="form-check-input">
                     </th>
-                    <th>ART / Doc</th>
-                    <th>Compra (Doc)</th>
-                    <th>SKU / Producto</th>
-                    <th>Venta actual → sugerida</th>
-                    <th class="text-end">% aumento</th>
+                    <th style="min-width: 300px;">Artículo Proveedor (Doc)</th>
+                    <th style="min-width: 140px;">Compra (Doc)</th>
+                    <th style="min-width: 250px;">Producto en Base</th>
+                    <th style="min-width: 160px;">Venta sugerida</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for c in candidatos %}
-                  <tr class="cambio-row {% if not c.producto %}table-warning{% endif %}">
-                    <td>
+
+                  <tr class="cambio-row" data-tiene-producto="{% if c.producto %}true{% else %}false{% endif %}">
+
+                    <td class="text-center">
                       {% if c.producto and c.venta_sugerida %}
-                      <input type="checkbox" name="candidato_id" value="{{ c.id }}" class="check-candidato">
+                      <input type="checkbox" name="candidato_id" value="{{ c.id }}"
+                        class="form-check-input check-candidato">
                       {% else %}
                       <span class="text-muted small">–</span>
                       {% endif %}
                     </td>
 
-                    <td class="small text-break">
-                      <div><strong>{{ c.art }}</strong></div>
+                    <td class="small">
+                      <div class="fw-bold text-dark mb-1">{{ c.art }}</div>
                       {% if c.producto_doc %}
                       <div class="text-muted">{{ c.producto_doc }}</div>
                       {% endif %}
-                      {% if c.descripcion_doc %}
-                      <div class="text-muted">{{ c.descripcion_doc|truncatechars:80 }}</div>
-                      {% endif %}
                     </td>
 
-                    <td class="small">
-                      <div class="text-muted">Antes:</div>
-                      <div>$ {{ c.old_compra }}</div>
-                      <div class="text-muted mt-1">Ahora:</div>
-                      <div class="fw-semibold text-danger">$ {{ c.new_compra }}</div>
+                    <td class="small text-nowrap">
+                      <div class="text-muted text-decoration-line-through">$ {{ c.old_compra }}</div>
+                      <div class="fw-bold text-danger fs-6 mt-1">$ {{ c.new_compra }}</div>
                     </td>
 
                     <td class="small text-break">
                       {% if c.producto %}
-                      <div>
-                        <span class="badge bg-success-subtle border border-success text-success">
-                          SKU: {{ c.sku_match|default:c.producto.sku }}
-                        </span>
-                      </div>
-                      <div>{{ c.producto.nombre_publico }}</div>
-                      {% if c.match_score %}
-                      <div class="text-muted">Match: {{ c.match_score }}%</div>
-                      {% endif %}
+                      <span class="badge bg-success-subtle text-success mb-1 border border-success">SKU: {{
+                        c.sku_match|default:c.producto.sku }}</span>
+                      <div class="fw-medium">{{ c.producto.nombre_publico }}</div>
                       {% else %}
-                      <div class="text-danger small">
-                        Sin producto asociado
+                      <span class="badge bg-warning text-dark mb-1">Falta vincular</span>
+                      <div class="text-muted small">No se encontró coincidencia en tu catálogo.
+                        <a href="{% url 'diagnostico_match_lista_source' source.id %}"
+                          class="text-decoration-none fw-semibold">Ir a vincular</a>
                       </div>
-                      {% if c.sku_match %}
-                      <div class="text-muted">
-                        Intento de SKU: {{ c.sku_match }}
-                      </div>
-                      {% endif %}
                       {% endif %}
                     </td>
 
-                    <td class="small">
+                    <td class="small text-nowrap">
                       {% if c.venta_actual and c.venta_sugerida %}
-                      <div class="text-muted">Actual:</div>
-                      <div>$ {{ c.venta_actual }}</div>
-                      <div class="text-muted mt-1">Sugerido:</div>
-                      <div class="fw-semibold text-primary">$ {{ c.venta_sugerida }}</div>
+                      <div class="text-muted">Actual: $ {{ c.venta_actual }}</div>
+                      <div class="fw-bold text-primary mt-1">Sugerido: $ {{ c.venta_sugerida }}</div>
+                      {% if c.pct_aumento_venta %}
+                      <span class="badge bg-primary-subtle text-primary mt-1">
+                        +{{ c.pct_aumento_venta }}%
+                      </span>
+                      {% endif %}
                       {% else %}
                       <span class="text-muted">–</span>
                       {% endif %}
                     </td>
 
-                    <td class="text-end small">
-                      {% if c.pct_aumento_venta %}
-                      <span class="badge bg-primary-subtle text-primary">
-                        {{ c.pct_aumento_venta }}%
-                      </span>
-                      {% else %}
-                      <span class="text-muted">–</span>
-                      {% endif %}
-                    </td>
                   </tr>
                   {% endfor %}
                 </tbody>
               </table>
             </div>
 
-            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-              <div class="text-muted small">
-                Los renglones en <span class="badge bg-warning-subtle text-dark">amarillo</span> no tienen
-                producto asociado en el catálogo y no se pueden actualizar automáticamente.
+            <!-- Panel Flotante Inferior de guardado -->
+            <div class="card bg-light border-primary mt-3 shadow-sm">
+              <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+                <div class="text-muted small">
+                  Seleccioná los artículos en la tabla usando la casilla de la izquierda.
+                </div>
+                <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                  💾 Aplicar cambios seleccionados
+                </button>
               </div>
-              <button type="submit" class="btn btn-primary">
-                💾 Aplicar cambios seleccionados
-              </button>
             </div>
 
           </form>
           {% else %}
-          <p class="text-muted mb-0">
-            No hay cambios pendientes detectados en esta fuente.
-          </p>
+          <div class="p-5 text-center text-muted">
+            <h4>Todo al día</h4>
+            <p>No hay cambios pendientes detectados en esta fuente.</p>
+          </div>
           {% endif %}
         </div>
       </div>
@@ -337,24 +282,38 @@
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const inputBuscar = document.getElementById("buscarCambiosDoc");
+    const checkSoloVinculados = document.getElementById("checkSoloVinculados");
     const tabla = document.getElementById("tablaCambiosDoc");
     const checkAll = document.getElementById("checkAllDoc");
+    const rows = tabla ? tabla.querySelectorAll("tbody tr.cambio-row") : [];
 
-    if (inputBuscar && tabla) {
-      inputBuscar.addEventListener("input", function () {
-        const term = (inputBuscar.value || "").trim().toLowerCase();
-        const rows = tabla.querySelectorAll("tbody tr.cambio-row");
+    function aplicarFiltros() {
+      if (!tabla) return;
 
-        rows.forEach(row => {
-          const texto = (row.textContent || "").toLowerCase();
-          row.style.display = texto.includes(term) ? "" : "none";
-        });
+      const term = (inputBuscar.value || "").trim().toLowerCase();
+      const soloVinculados = checkSoloVinculados.checked;
+
+      rows.forEach(row => {
+        const texto = (row.textContent || "").toLowerCase();
+        const tieneProducto = row.dataset.tieneProducto === "true";
+
+        const cumpleTexto = !term || texto.includes(term);
+        const cumpleFiltro = !soloVinculados || tieneProducto;
+
+        row.style.display = (cumpleTexto && cumpleFiltro) ? "" : "none";
       });
+    }
+
+    if (inputBuscar) {
+      inputBuscar.addEventListener("input", aplicarFiltros);
+    }
+
+    if (checkSoloVinculados) {
+      checkSoloVinculados.addEventListener("change", aplicarFiltros);
     }
 
     if (checkAll && tabla) {
       checkAll.addEventListener("change", function () {
-        const rows = tabla.querySelectorAll("tbody tr.cambio-row");
         rows.forEach(row => {
           if (row.style.display === "none") return;
           const cb = row.querySelector(".check-candidato");

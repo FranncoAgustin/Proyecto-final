@@ -425,3 +425,12 @@ class ProductoProveedor(models.Model):
 
     def __str__(self):
         return f"{self.producto} ← {self.producto_scrapeado}"
+
+class PriceDocMatch(models.Model):
+    source = models.ForeignKey('PriceDocSource', on_delete=models.CASCADE, related_name='vinculaciones')
+    art_proveedor = models.CharField(max_length=255)
+    producto_local = models.ForeignKey(ProductoPrecio, on_delete=models.CASCADE)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('source', 'art_proveedor')
