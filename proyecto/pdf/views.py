@@ -1,71 +1,70 @@
 import os
-
-import unicodedata
 import re
-from io import BytesIO
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import unicodedata
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from difflib import SequenceMatcher
-
-from django.core.paginator import Paginator
+from io import BytesIO
 
 from django.conf import settings
 from django.contrib import messages
-from django.db import IntegrityError, transaction
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.files.base import ContentFile
+from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
 from django.db.models import F, Q
-from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, redirect, get_object_or_404
+from django.forms import inlineformset_factory, modelformset_factory
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
-    SimpleDocTemplate,
+    Image,
+    PageBreak,
     Paragraph,
+    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
-    Image,
-    PageBreak,
 )
 
-from django.core.files.base import ContentFile
-
-from django.forms import modelformset_factory, inlineformset_factory
-
+from ofertas.utils import get_precio_con_oferta
 from owner.forms import ProductoDesdeFacturaBulkForm, ProductoVarianteFormSet
- 
+from owner.models import BitacoraEvento, SiteCarouselImage, SiteConfig
 
 from .forms import (
-    ListaPrecioForm,
-    FacturaProveedorForm,
-    ListaPreciosPDFForm,
     FacturaForm,
+    FacturaProveedorForm,
+    ListaPrecioForm,
+    ListaPreciosPDFForm,
 )
 from .models import (
-    ListaPrecioPDF,
-    ProductoPrecio,
     FacturaProveedor,
     ItemFactura,
+    ListaPrecioPDF,
+    PDFBranding,
+    ProductoPrecio,
     ProductoVariante,
     Rubro,
-    PDFBranding,
     SubRubro,
 )
 from .utils import extraer_precios_de_pdf, get_similarity
-from .utils_facturas import extraer_texto_factura_simple, parse_invoice_text, parse_invoice_pdf
-from ofertas.utils import get_precio_con_oferta
-from owner.models import BitacoraEvento, SiteConfig, SiteCarouselImage
-
+from .utils_facturas import (
+    extraer_texto_factura_simple,
+    parse_invoice_pdf,
+    parse_invoice_text,
+)
 
 Q2 = Decimal("0.01")
+
 
 def _check_owner(user):
     return getattr(user, "is_owner", False) or getattr(user, "is_superuser", False)
@@ -79,7 +78,7 @@ def _check_owner_or_403(user):
 # ============================================================
 # Helper bitácora
 # ============================================================
-      
+
 def registrar_evento(tipo, titulo, detalle="", user=None, obj=None, extra=None):
     """
     Registra un evento en la bitácora global.
@@ -95,7 +94,7 @@ def registrar_evento(tipo, titulo, detalle="", user=None, obj=None, extra=None):
     obj_model = ""
     obj_id = ""
     if obj is not None:
-        obj_model = obj._meta.label  # "app.Model"
+        obj_model = obj._meta.label
         obj_id = str(getattr(obj, "pk", ""))
 
     if user is not None and getattr(user, "is_authenticated", False):
@@ -183,11 +182,9 @@ def catalogo_suggest(request):
 
     results = []
     for p in productos:
-        # Precio con oferta aplicada (si la hay)
         precio_info = get_precio_con_oferta(p)
         precio_final = precio_info.get("precio_final") or Decimal("0.00")
 
-        # Imagen segura
         imagen_url = ""
         if getattr(p, "imagen", None):
             try:
@@ -215,6 +212,7 @@ def _norm(s: str) -> str:
 
 def _score(a: str, b: str) -> float:
     return SequenceMatcher(None, _norm(a), _norm(b)).ratio()
+
 
 def _normalizar_texto_factura(texto):
     if not texto:
@@ -307,6 +305,7 @@ def _to_decimal(v, default="0"):
     except (InvalidOperation, ValueError):
         return Decimal(default)
 
+
 def _slug_sku_base(texto: str) -> str:
     texto = (texto or "").strip().lower()
     texto = texto.replace("ñ", "n")
@@ -324,39 +323,12 @@ def _sku_unico(base: str) -> str:
         n += 1
     return sku
 
+
 # ============================================================
 # CATÁLOGO / LISTAS
 # ============================================================
 
 def _build_filtros_menu():
-    """
-    Devuelve estructura para el menú de filtros:
-
-    [
-      {
-        key: 'LAS',
-        label: 'Grabado láser',
-        rubros: [
-          {
-            key: 'Mate imperial',         # Rubro.nombre
-            label: 'Mate imperial',
-            count: X,                     # productos con rubro = 'Mate imperial'
-            subrubros: [
-              {
-                key: 'Mate imperial de calabaza',
-                label: 'Mate imperial de calabaza',
-                count: Y,                 # productos con rubro + subrubro
-              },
-              ...
-            ],
-          },
-          ...
-        ]
-      },
-      ...
-    ]
-    """
-
     techs = [
         ("LAS", "Grabado láser"),
         ("SUB", "Sublimación"),
@@ -367,33 +339,27 @@ def _build_filtros_menu():
     filtros = []
 
     for tech_key, tech_label in techs:
-        # Productos activos por técnica
         base = ProductoPrecio.objects.filter(activo=True, tech=tech_key)
-
         rubros_data = []
 
-        # Rubros en BD para esa técnica
         rubros = Rubro.objects.filter(
             tech=tech_key,
             activo=True,
         ).order_by("orden", "nombre")
 
         for rubro in rubros:
-            # Productos que matchean el rubro por nombre (CharField en ProductoPrecio)
             qs_r = base.filter(rubro__iexact=rubro.nombre)
-
-            # Subrubros asociados a ese Rubro
             subs_data = []
             for sub in rubro.subrubros.filter(activo=True).order_by("orden", "nombre"):
                 qs_sub = qs_r.filter(subrubro__iexact=sub.nombre)
                 subs_data.append({
-                    "key": sub.nombre,        # se usará en ?subrubro=<nombre>
+                    "key": sub.nombre,
                     "label": sub.nombre,
                     "count": qs_sub.count(),
                 })
 
             rubros_data.append({
-                "key": rubro.nombre,          # ?rubro=<nombre>
+                "key": rubro.nombre,
                 "label": rubro.nombre,
                 "count": qs_r.count(),
                 "subrubros": subs_data,
@@ -416,7 +382,6 @@ def mostrar_precios(request):
     producto_id = (request.GET.get("prod") or "").strip()
     per_page_raw = (request.GET.get("per_page") or "28").strip()
 
-    # solo permitimos 20 o 28
     try:
         per_page = int(per_page_raw)
     except ValueError:
@@ -425,28 +390,27 @@ def mostrar_precios(request):
     if per_page not in (20, 28):
         per_page = 20
 
-    productos_qs = ProductoPrecio.objects.filter(activo=True)
+    productos_qs = (
+        ProductoPrecio.objects
+        .filter(activo=True)
+        .prefetch_related("variantes")
+    )
 
-    # Búsqueda libre
     if q:
         productos_qs = productos_qs.filter(
             Q(nombre_publico__icontains=q) |
             Q(sku__icontains=q)
         )
 
-    # Técnica
     if tech_filter:
         productos_qs = productos_qs.filter(tech=tech_filter)
 
-    # Rubro
     if rubro_filter:
         productos_qs = productos_qs.filter(rubro__iexact=rubro_filter)
 
-    # Subrubro
     if subrubro_filter:
         productos_qs = productos_qs.filter(subrubro__iexact=subrubro_filter)
 
-    # Producto puntual
     if producto_id:
         try:
             productos_qs = productos_qs.filter(pk=int(producto_id))
@@ -458,7 +422,7 @@ def mostrar_precios(request):
         precio_data = get_precio_con_oferta(producto)
         stock_principal = get_stock_disponible(producto, 0)
 
-        variantes_activas = list(producto.variantes.filter(activo=True))
+        variantes_activas = [v for v in producto.variantes.all() if v.activo]
 
         if variantes_activas:
             stock_total_variantes = sum(v.stock for v in variantes_activas)
@@ -486,7 +450,6 @@ def mostrar_precios(request):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    # Para filtros rápidos de técnica
     tech_cards = [
         {"value": "", "label": "Todos", "icon": "fa-solid fa-border-all"},
         {"value": "LAS", "label": "Grabado láser", "icon": "fa-solid fa-fire"},
@@ -526,17 +489,14 @@ def detalle_producto(request, pk):
     site_cfg = SiteConfig.get_solo()
     google_fotos = SiteCarouselImage.objects.filter(
         site=site_cfg,
-        activo=True
+        activo=True,
     ).order_by("orden", "id")
 
-    # Precio base + oferta a nivel producto
     precio_data = get_precio_con_oferta(producto)
     precio_principal = precio_data["precio_final"]
 
-    # Stock del producto “principal”
     stock_principal = get_stock_disponible(producto, 0)
 
-    # Variante “principal” (sin variante seleccionada)
     variante_principal = {
         "id": 0,
         "nombre": "Principal",
@@ -548,17 +508,11 @@ def detalle_producto(request, pk):
     }
 
     variantes_ui = [variante_principal]
-
-    # Variantes activas
     variantes_qs = producto.variantes.filter(activo=True).order_by("orden", "id")
 
     for v in variantes_qs:
-        # Si la variante tiene precio propio lo usamos; si no, el del producto
         precio_var = getattr(v, "precio", None)
-        if precio_var is None:
-            precio_final = precio_principal
-        else:
-            precio_final = precio_var
+        precio_final = precio_principal if precio_var is None else precio_var
 
         variantes_ui.append({
             "id": v.id,
@@ -570,7 +524,6 @@ def detalle_producto(request, pk):
             "precio_final": precio_final,
         })
 
-    # Valores iniciales para la primera opción (principal)
     stock_inicial = variantes_ui[0]["stock"]
     precio_inicial = variantes_ui[0]["precio_final"]
 
@@ -588,15 +541,13 @@ def detalle_producto(request, pk):
         },
     )
 
+
 # ============================================================
 # API CAMBIO DE VARIANTE
 # ============================================================
 
 @require_GET
 def api_stock_variante(request, pk):
-    """
-    Para que el front, al cambiar la variante, consulte stock real y actualice leyendas.
-    """
     producto = get_object_or_404(ProductoPrecio, pk=pk, activo=True)
     var_id = request.GET.get("variante_id", "0")
     try:
@@ -604,7 +555,6 @@ def api_stock_variante(request, pk):
     except ValueError:
         var_id = 0
 
-    # validar que variante pertenezca al producto si no es principal
     if var_id:
         ok = ProductoVariante.objects.filter(
             pk=var_id,
@@ -637,7 +587,6 @@ def agregar_al_carrito(request, pk):
 
     variante = None
 
-    # Si el producto tiene variantes, obligamos a elegir una válida
     if tiene_variantes:
         if not variante_id:
             messages.error(request, "Tenés que elegir una variante antes de agregar al carrito.")
@@ -647,12 +596,9 @@ def agregar_al_carrito(request, pk):
         if not variante:
             messages.error(request, "La variante seleccionada no es válida.")
             return redirect("detalle_producto", pk=pk)
-
     else:
-        # Si no tiene variantes, ignoramos cualquier variante_id que venga
         variante_id = 0
 
-    # Cantidad
     try:
         cantidad = int(request.POST.get("cantidad", 1))
     except (ValueError, TypeError):
@@ -680,7 +626,6 @@ def agregar_al_carrito(request, pk):
     cart[key] = min(stock_disp, cart.get(key, 0) + cantidad)
     _save_cart(request, cart)
 
-    # Bitácora
     if tiene_variantes and variante is not None:
         detalle_evento = f"{producto.nombre_publico or producto.sku} - {variante.nombre} x{cantidad}"
     else:
@@ -707,15 +652,12 @@ def agregar_al_carrito(request, pk):
 
     return redirect("detalle_producto", pk=pk)
 
+
 # ============================================================
 # UTIL: verificar SKU existente (para input editable)
 # ============================================================
 
 def verificar_producto_existente(request):
-    """
-    Endpoint usado por el input editable del template para chequear
-    si un SKU ya existe y traer el precio actual.
-    """
     nombre = request.GET.get("nombre", "").strip()
     if not nombre:
         return JsonResponse({"existe": False})
@@ -736,16 +678,11 @@ def verificar_producto_existente(request):
 # ============================================================
 
 def _safe_img(img_field, max_w_cm=1.7, max_h_cm=1.7):
-    """
-    Clave para que NO se pise con el texto:
-    - tamaño fijo real (Image)
-    - centrado
-    """
     if not img_field:
         return ""
 
     try:
-        path = img_field.path  # ImageField local
+        path = img_field.path
         if not os.path.exists(path):
             return ""
         img = Image(path, width=max_w_cm * cm, height=max_h_cm * cm)
@@ -756,10 +693,6 @@ def _safe_img(img_field, max_w_cm=1.7, max_h_cm=1.7):
 
 
 class TechHeaderDoc(SimpleDocTemplate):
-    """
-    Detecta el último Heading1 dibujado (la técnica),
-    lo guarda en self.current_tech y onPage lo imprime arriba SIEMPRE.
-    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.current_tech = ""
@@ -785,21 +718,9 @@ def _tech_label(tech: str) -> str:
 # ============================================================
 # IMPORTAR LISTA DE PRECIOS (PDF)
 # ============================================================
+
 @login_required
 def importar_pdf(request):
-    """
-    Importa / actualiza precios desde un PDF de lista de precios.
-
-    Flujo:
-    - Paso 1: subir PDF y generar preview
-    - Paso 2: confirmar acciones
-      * existentes -> actualiza precio
-      * nuevos -> crea borradores inactivos para completar luego
-
-    Mejora importante:
-    - busca coincidencia exacta por SKU y también por nombre_publico
-    - sugiere comparando contra nombre_publico o sku
-    """
     if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para hacer esto.")
 
@@ -818,9 +739,6 @@ def importar_pdf(request):
     msg = ""
     update_only = request.POST.get("update_only") in ("on", "true", "1")
 
-    # ============================================================
-    # PASO 2: CONFIRMAR E IMPORTAR
-    # ============================================================
     if request.method == "POST" and request.POST.get("confirm"):
         productos_a_revisar = request.session.pop("productos_a_revisar", [])
         lista_pdf_id = request.session.pop("lista_pdf_id", None)
@@ -882,7 +800,6 @@ def importar_pdf(request):
                     except ProductoPrecio.DoesNotExist:
                         producto_existente_db = None
 
-                # Buscar por sku o por nombre público
                 if not producto_existente_db:
                     producto_existente_db = ProductoPrecio.objects.filter(
                         Q(sku__iexact=nombre_final) |
@@ -901,7 +818,6 @@ def importar_pdf(request):
                         "price": f"{precio_nuevo:.2f}",
                     })
 
-                # IGNORAR
                 if accion == "ignore":
                     report["skipped"] += 1
                     report["skipped_items"].append({
@@ -910,7 +826,6 @@ def importar_pdf(request):
                     })
                     continue
 
-                # SOLO ACTUALIZAR Y NO EXISTE
                 if update_only and not producto_existente_db:
                     report["skipped"] += 1
                     report["not_found"].append(nombre_final)
@@ -920,9 +835,6 @@ def importar_pdf(request):
                     })
                     continue
 
-                # =====================================================
-                # EXISTE -> ACTUALIZAR PRECIO
-                # =====================================================
                 if producto_existente_db:
                     prev_price = producto_existente_db.precio
                     changed = (prev_price != precio_nuevo)
@@ -948,9 +860,6 @@ def importar_pdf(request):
 
                     continue
 
-                # =====================================================
-                # NO EXISTE -> CREAR BORRADOR INCOMPLETO
-                # =====================================================
                 base_sku = _slug_sku_base(nombre_final)
                 sku_nuevo = _sku_unico(base_sku)
 
@@ -974,7 +883,6 @@ def importar_pdf(request):
                     continue
 
                 productos_pdf_creados_ids.append(nuevo.id)
-
                 report["imported"] += 1
                 item_reporte.update({
                     "sku_temporal": sku_nuevo,
@@ -982,7 +890,6 @@ def importar_pdf(request):
                 })
                 report["imported_items"].append(item_reporte)
 
-        # Productos existentes en DB que no aparecieron en este PDF
         todos_skus = list(
             ProductoPrecio.objects
             .exclude(sku__isnull=True)
@@ -1023,7 +930,7 @@ def importar_pdf(request):
             request.session["productos_pdf_creados_ids"] = productos_pdf_creados_ids
             messages.success(
                 request,
-                "Se generaron productos borrador. Ahora completá sus datos."
+                "Se generaron productos borrador. Ahora completá sus datos.",
             )
             return redirect("owner_productos_completar_desde_pdf")
 
@@ -1038,9 +945,6 @@ def importar_pdf(request):
             },
         )
 
-    # ============================================================
-    # PASO 1: SUBIR PDF Y PREVIEW
-    # ============================================================
     if request.method == "POST" and request.FILES.get("file"):
         archivo_pdf = request.FILES["file"]
 
@@ -1092,7 +996,6 @@ def importar_pdf(request):
                 })
 
             contador_nombres[sku_original] = contador_nombres.get(sku_original, 0) + 1
-
             clave_pdf = sku_original.strip().lower()
 
             exact_match = (
@@ -1151,9 +1054,6 @@ def importar_pdf(request):
             },
         )
 
-    # ============================================================
-    # GET / FORM VACÍO
-    # ============================================================
     listas_procesadas = ListaPrecioPDF.objects.all().order_by("-fecha_subida")[:5]
     return render(
         request,
@@ -1166,6 +1066,8 @@ def importar_pdf(request):
             "listas_procesadas": listas_procesadas,
         },
     )
+
+
 @login_required
 def owner_productos_completar_desde_pdf(request):
     if not _check_owner(request.user):
@@ -1220,7 +1122,6 @@ def owner_productos_completar_desde_pdf(request):
                 obj.rubro = rubro_nombre
                 obj.subrubro = subrubro_nombre
 
-                # seguridad mínima
                 if not obj.nombre_publico or not obj.sku:
                     obj.activo = False
 
@@ -1287,18 +1188,17 @@ def owner_productos_completar_desde_pdf(request):
         },
     )
 
+
 # ============================================================
 # FACTURAS PROVEEDOR (OCR + linkeo a catálogo)
 # ============================================================
+
 @login_required
 def procesar_factura(request):
     if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para hacer esto.")
-    # ======================================================
-    # PASO 2 — CONFIRMAR Y GUARDAR
-    # ======================================================
-    if request.method == "POST" and "confirmar_factura" in request.POST:
 
+    if request.method == "POST" and "confirmar_factura" in request.POST:
         factura_id = request.session.get("factura_id")
         items_sesion = request.session.get("items_factura", [])
 
@@ -1308,7 +1208,6 @@ def procesar_factura(request):
 
         factura = get_object_or_404(FacturaProveedor, pk=factura_id)
 
-        # Fecha editable
         fecha_str = request.POST.get("fecha_factura")
         if fecha_str:
             try:
@@ -1324,9 +1223,7 @@ def procesar_factura(request):
         productos_creados_ids = []
 
         with transaction.atomic():
-
             for index, item in enumerate(items_sesion):
-
                 if f"item_{index}_check" not in request.POST:
                     continue
 
@@ -1344,7 +1241,6 @@ def procesar_factura(request):
 
                 subtotal = cantidad * precio
 
-                # Guardar ítem de factura
                 ItemFactura.objects.create(
                     factura=factura,
                     producto=producto_txt,
@@ -1354,7 +1250,6 @@ def procesar_factura(request):
                 )
                 items_creados += 1
 
-                # Vinculación con catálogo
                 sku_input = _normalizar_texto_factura(
                     request.POST.get(f"item_{index}_catalogo_sku") or ""
                 ).replace(" ", "_").replace("/", "_").replace("-", "_")
@@ -1363,7 +1258,6 @@ def procesar_factura(request):
                 upd_stock = f"item_{index}_upd_stock" in request.POST
                 upd_precio = f"item_{index}_upd_precio" in request.POST
 
-                # Definir SKU
                 if sku_input:
                     sku = sku_input[:50]
                 elif crear:
@@ -1378,7 +1272,6 @@ def procesar_factura(request):
 
                 producto = ProductoPrecio.objects.filter(sku__iexact=sku).first()
 
-                # Crear producto si no existe
                 if not producto and crear:
                     producto = ProductoPrecio.objects.create(
                         sku=sku,
@@ -1386,7 +1279,7 @@ def procesar_factura(request):
                         precio=precio,
                         precio_costo=precio,
                         stock=0,
-                        activo=False,  # mejor dejarlo incompleto hasta revisarlo
+                        activo=False,
                     )
                     productos_creados += 1
                     productos_creados_ids.append(producto.id)
@@ -1394,24 +1287,20 @@ def procesar_factura(request):
                 if not producto:
                     continue
 
-                # Actualizar stock
                 if upd_stock:
                     ProductoPrecio.objects.filter(pk=producto.pk).update(
                         stock=F("stock") + int(cantidad)
                     )
                     productos_stock_actualizado += 1
 
-                # Actualizar costo (precio_costo)
                 if upd_precio:
                     producto.precio_costo = precio
                     producto.save(update_fields=["precio_costo"])
                     productos_costo_actualizado += 1
 
-        # limpiar sesión de factura
         request.session.pop("factura_id", None)
         request.session.pop("items_factura", None)
 
-        # Bitácora
         registrar_evento(
             tipo="factura_proveedor_confirmada",
             titulo=f"Factura de proveedor procesada (ID {factura.pk})",
@@ -1431,24 +1320,20 @@ def procesar_factura(request):
             },
         )
 
-        # Si hubo productos creados, redirigir a la carga masiva
         if productos_creados_ids:
             request.session["productos_factura_creados_ids"] = productos_creados_ids
             messages.success(
                 request,
-                "Factura guardada. Ahora completá los datos de los productos creados."
+                "Factura guardada. Ahora completá los datos de los productos creados.",
             )
             return redirect("owner_productos_completar_desde_factura")
 
         messages.success(
             request,
-            "Factura guardada y artículos procesados correctamente."
+            "Factura guardada y artículos procesados correctamente.",
         )
         return redirect("procesar_factura")
 
-    # ======================================================
-    # PASO 1 — SUBIR Y ANALIZAR
-    # ======================================================
     if request.method == "POST" and "archivo" in request.FILES:
         form = FacturaProveedorForm(request.POST, request.FILES)
 
@@ -1456,7 +1341,6 @@ def procesar_factura(request):
             factura = form.save()
             path = os.path.join(settings.MEDIA_ROOT, factura.archivo.name)
 
-            # Bitácora
             registrar_evento(
                 tipo="factura_proveedor_subida",
                 titulo=f"Factura de proveedor subida (ID {factura.pk})",
@@ -1480,10 +1364,8 @@ def procesar_factura(request):
                 factura_url = factura.archivo.url
                 es_pdf = True
 
-                # Primero intentamos parser por posición del PDF
                 resultado = parse_invoice_pdf(path)
 
-                # Fallback: si no encontró nada, usamos texto plano
                 if not resultado:
                     resultado = parse_invoice_text(raw_text)
 
@@ -1537,9 +1419,6 @@ def procesar_factura(request):
                 },
             )
 
-    # ======================================================
-    # GET — FORMULARIO INICIAL
-    # ======================================================
     form = FacturaProveedorForm()
     ultimas = FacturaProveedor.objects.order_by("-fecha_subida")[:5]
 
@@ -1549,15 +1428,13 @@ def procesar_factura(request):
         {"form": form, "ultimas_facturas": ultimas},
     )
 
+
 # ============================================================
 # HISTORIA LISTAS
 # ============================================================
+
 @login_required
 def historia_listas(request):
-    """
-    Historia de ingresos: muestra todas las listas de precios PDF que se importaron,
-    ordenadas de más nueva a más vieja.
-    """
     if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para hacer esto.")
     listas = ListaPrecioPDF.objects.all().order_by("-fecha_subida")
@@ -1571,11 +1448,12 @@ def historia_listas(request):
 # ============================================================
 # FACTURA SIMPLE (PDF para cliente)
 # ============================================================
+
 @login_required
 def factura_crear(request):
     if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para hacer esto.")
-    # Defaults vendedor
+
     initial = {
         "vendedor_nombre": "Mundo Personalizado",
         "vendedor_whatsapp": "11 5663-7260",
@@ -1586,7 +1464,6 @@ def factura_crear(request):
     if request.method == "POST":
         form = FacturaForm(request.POST)
         if form.is_valid():
-            # leer items dinámicos
             nombres = request.POST.getlist("item_nombre[]")
             precios = request.POST.getlist("item_precio[]")
             cantidades = request.POST.getlist("item_cantidad[]")
@@ -1619,7 +1496,6 @@ def factura_crear(request):
                     "subtotal": subtotal,
                 })
 
-            # generar PDF + registrar en bitácora (con adjunto)
             return _factura_pdf_response(request, form.cleaned_data, items, total)
 
     else:
@@ -1631,11 +1507,11 @@ def factura_crear(request):
 # ============================================================
 # LISTA DE PRECIOS PDF (con marca de agua fija + mayorista)
 # ============================================================
+
 def _precio_mayorista(unit: Decimal, descuento_pct: Decimal) -> Decimal:
     """
     descuento_pct: 20 => -20% (20% de descuento)
     """
-    
     try:
         d = Decimal(descuento_pct or "0")
     except Exception:
@@ -1649,10 +1525,12 @@ def _precio_mayorista(unit: Decimal, descuento_pct: Decimal) -> Decimal:
     factor = (Decimal("100") - d) / Decimal("100")
     return (unit * factor).quantize(Q2, rounding=ROUND_HALF_UP)
 
+
 @login_required
 def lista_precios_opciones(request):
     if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para hacer esto.")
+
     if request.method == "POST":
         form = ListaPreciosPDFForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1660,6 +1538,7 @@ def lista_precios_opciones(request):
             incluir_sku = form.cleaned_data["incluir_sku"]  # bool
             descuento = form.cleaned_data["descuento_mayorista"]  # Decimal
             lista_mayorista = form.cleaned_data.get("lista_mayorista", False)
+            incluir_costo = form.cleaned_data.get("incluir_costo", False) # ✅ Nuevo campo
 
             reemplazar_marca_agua = form.cleaned_data.get("reemplazar_marca_agua", False)
             marca_agua_upload = form.cleaned_data.get("marca_agua")
@@ -1668,7 +1547,7 @@ def lista_precios_opciones(request):
             whatsapp_url = form.cleaned_data.get("whatsapp_url") or ""
 
             # =========================
-            # ✅ Marca de agua fija (DB)
+            # Marca de agua fija (DB)
             # =========================
             branding, _ = PDFBranding.objects.get_or_create(pk=1)
 
@@ -1676,7 +1555,6 @@ def lista_precios_opciones(request):
                 branding.watermark = marca_agua_upload
                 branding.save()
 
-            # Cargar watermark actual (si existe)
             watermark_reader = None
             if branding.watermark and getattr(branding.watermark, "path", None):
                 try:
@@ -1712,7 +1590,6 @@ def lista_precios_opciones(request):
 
             styles = getSampleStyleSheet()
 
-            # Estilo para SKU dentro del producto (chiquito gris)
             sku_style = ParagraphStyle(
                 "SkuSmall",
                 parent=styles["Normal"],
@@ -1726,17 +1603,17 @@ def lista_precios_opciones(request):
 
                 page_w, page_h = A4
 
-                # ===== Marca de agua =====
+                # Marca de agua
                 if watermark_reader:
                     try:
-                        # 🔸 Menos transparente (se ve más): antes 0.08
                         canvas.setFillAlpha(0.16)
                     except Exception:
                         pass
 
                     canvas.drawImage(
                         watermark_reader,
-                        0, 0,
+                        0,
+                        0,
                         width=page_w,
                         height=page_h,
                         preserveAspectRatio=True,
@@ -1749,7 +1626,7 @@ def lista_precios_opciones(request):
                     except Exception:
                         pass
 
-                # ===== Header: técnica SIEMPRE =====
+                # Header técnica
                 tech_txt = getattr(doc_, "current_tech", "") or ""
                 if tech_txt:
                     canvas.setFont("Helvetica-Bold", 12)
@@ -1762,17 +1639,16 @@ def lista_precios_opciones(request):
                         doc_.leftMargin,
                         page_h - 2.35 * cm,
                         page_w - doc_.rightMargin,
-                        page_h - 2.35 * cm
+                        page_h - 2.35 * cm,
                     )
 
-                # ===== Footer botones =====
+                # Footer botones
                 y = 0.9 * cm
                 btn_w = 5.6 * cm
                 btn_h = 1.0 * cm
 
                 canvas.setFont("Helvetica-Bold", 9)
 
-                # WhatsApp izquierda
                 if whatsapp_url:
                     x = doc_.leftMargin
                     canvas.setFillColorRGB(0.13, 0.75, 0.38)
@@ -1781,7 +1657,6 @@ def lista_precios_opciones(request):
                     canvas.drawCentredString(x + btn_w / 2, y + btn_h / 2 - 3, "📱 WhatsApp")
                     canvas.linkURL(whatsapp_url, (x, y, x + btn_w, y + btn_h), relative=0)
 
-                # Instagram derecha
                 if instagram_url:
                     x = page_w - doc_.rightMargin - btn_w
                     canvas.setFillColorRGB(0.86, 0.26, 0.55)
@@ -1790,14 +1665,12 @@ def lista_precios_opciones(request):
                     canvas.drawCentredString(x + btn_w / 2, y + btn_h / 2 - 3, "📸 Instagram")
                     canvas.linkURL(instagram_url, (x, y, x + btn_w, y + btn_h), relative=0)
 
-                # Número de página
                 canvas.setFillColor(colors.grey)
                 canvas.setFont("Helvetica", 8)
                 canvas.drawCentredString(page_w / 2, y - 0.35 * cm, f"Página {doc_.page}")
 
                 canvas.restoreState()
 
-            # Margen arriba un poco mayor para header “técnica”
             doc = TechHeaderDoc(
                 resp,
                 pagesize=A4,
@@ -1818,27 +1691,28 @@ def lista_precios_opciones(request):
                 if not items:
                     continue
 
-                # Heading1 “setea” current_tech para TODAS las páginas de esa sección
                 story.append(Paragraph(_tech_label(tech_code), styles["Heading1"]))
                 story.append(Spacer(1, 0.15 * cm))
 
-                # ===== 3 columnas SIEMPRE =====
-                # Imagen | Producto(+SKU opcional) | Precio (minorista o mayorista)
                 header_precio = "Mayorista" if lista_mayorista else "Unitario"
-                data = [["Imagen", "Producto", header_precio]]
 
-                # 🔸 Columnas ajustadas:
-                # - Imagen más ancha
-                # - Producto un poco más angosto (fuerza 2 renglones si es largo)
-                # - Precio más ancho
-                colw = [3.0 * cm, 9.0 * cm, 4.0 * cm]
+                # ✅ Configuración dinámica de columnas según checkbox
+                if incluir_costo:
+                    data = [["Imagen", "Producto", "Precio Costo", header_precio]]
+                    colw = [2.6 * cm, 7.6 * cm, 3.2 * cm, 3.2 * cm]
+                    align_cols = (2, 0), (3, -1)  # Alinea derecha a costo y venta
+                    img_size = 2.2
+                else:
+                    data = [["Imagen", "Producto", header_precio]]
+                    colw = [3.0 * cm, 9.6 * cm, 4.0 * cm]
+                    align_cols = (2, 0), (2, -1)  # Alinea derecha solo a venta
+                    img_size = 2.4
 
                 for p in items:
                     unit = (p.precio or Decimal("0.00")).quantize(Q2)
                     may = _precio_mayorista(unit, descuento)
                     precio = may if lista_mayorista else unit
 
-                    # Producto: nombre grande + SKU chico debajo (opcional)
                     nombre_paragraph = Paragraph(
                         f"<b>{p.nombre_publico}</b>",
                         styles["Normal"],
@@ -1852,43 +1726,46 @@ def lista_precios_opciones(request):
                     else:
                         prod_cell = nombre_paragraph
 
-                    # Precio más grande y en negrita
                     precio_paragraph = Paragraph(
                         f"<b>$ {precio:.2f}</b>",
                         styles["Normal"],
                     )
 
-                    data.append([
-                        # Imagen más grande
-                        _safe_img(p.imagen, max_w_cm=2.4, max_h_cm=2.4),
+                    # ✅ Armado dinámico de la fila
+                    fila = [
+                        _safe_img(p.imagen, max_w_cm=img_size, max_h_cm=img_size),
                         prod_cell,
-                        precio_paragraph,
-                    ])
+                    ]
+
+                    if incluir_costo:
+                        costo = (getattr(p, "precio_costo", None) or Decimal("0.00")).quantize(Q2)
+                        costo_paragraph = Paragraph(
+                            f"<b>$ {costo:.2f}</b>",
+                            styles["Normal"],
+                        )
+                        fila.append(costo_paragraph)
+
+                    fila.append(precio_paragraph)
+                    data.append(fila)
 
                 table = Table(data, colWidths=colw, repeatRows=1)
 
-                # 🔧 Estilos: más fuente, más padding, menos filas por hoja
                 table.setStyle(TableStyle([
-                    ("GRID",       (0, 0), (-1, -1), 0.3, colors.grey),
-
+                    ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
                     ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-                    ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE",   (0, 0), (-1, 0), 11),  # header más grande
-                    ("FONTSIZE",   (0, 1), (-1, -1), 10),  # cuerpo un poquito más grande
-
-                    ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
-                    ("ALIGN",      (2, 1), (2, -1), "RIGHT"),
-
-                    # Padding general (más altura de fila → menos ítems por página)
-                    ("TOPPADDING",    (0, 0), (-1, -1), 9),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
-
-                    # Separar texto del borde
-                    ("LEFTPADDING", (1, 0), (1, -1), 10),
-
-                    # Imagen: un toque más de padding
-                    ("LEFTPADDING",  (0, 0), (0, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (0, -1), 6),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 10),
+                    ("FONTSIZE", (0, 1), (-1, -1), 9),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    
+                    # ✅ Alineación dinámica (aplica a las columnas de precios correspondientes)
+                    ("ALIGN", align_cols[0], align_cols[1], "RIGHT"),
+                    
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ("LEFTPADDING", (1, 0), (1, -1), 8),
+                    ("LEFTPADDING", (0, 0), (0, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (0, -1), 4),
                 ]))
 
                 story.append(table)
@@ -1907,17 +1784,17 @@ def lista_precios_opciones(request):
 
     return render(request, "pdf/lista_precios_opciones.html", {"form": form})
 
-
 # ============================================================
 # GENERACIÓN PDF FACTURA (con archivo en bitácora)
 # ============================================================
+
 @login_required
 def _factura_pdf_response(request, data, items, total):
     if not _check_owner(request.user):
         raise PermissionDenied("No tienes permiso para hacer esto.")
+
     filename = f"factura_{timezone.localdate().strftime('%Y-%m-%d')}.pdf"
 
-    # Buffer en memoria para crear el PDF
     buffer = BytesIO()
 
     styles = getSampleStyleSheet()
@@ -1932,11 +1809,9 @@ def _factura_pdf_response(request, data, items, total):
 
     story = []
 
-    # Helper para texto seguro en Paragraph (evitar problemas con <, >, &)
     def _rl_safe(text):
         return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    # Logo
     logo_path = os.path.join(settings.MEDIA_ROOT, "branding", "logo.png")
 
     left = []
@@ -1976,7 +1851,6 @@ def _factura_pdf_response(request, data, items, total):
     story.append(header)
     story.append(Spacer(1, 0.5 * cm))
 
-    # Cliente (cajita)
     cliente = Table(
         [[
             Paragraph(
@@ -2002,7 +1876,6 @@ def _factura_pdf_response(request, data, items, total):
     story.append(cliente)
     story.append(Spacer(1, 0.5 * cm))
 
-    # Items (nombre + descripción debajo)
     table_data = [["Producto", "Cant.", "Unitario", "Subtotal"]]
 
     for it in items:
@@ -2074,13 +1947,11 @@ def _factura_pdf_response(request, data, items, total):
         )
     )
 
-    # Construimos el PDF en el buffer
     doc.build(story)
 
     pdf_bytes = buffer.getvalue()
     buffer.close()
 
-    # Registrar evento con adjunto
     usuario = request.user if request.user.is_authenticated else None
 
     items_resumen = [
@@ -2115,10 +1986,8 @@ def _factura_pdf_response(request, data, items, total):
         extra=extra,
     )
 
-    # Guardamos el PDF como archivo adjunto del evento
     evento.archivo.save(filename, ContentFile(pdf_bytes))
 
-    # Respuesta HTTP con el PDF
     resp = HttpResponse(content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     resp.write(pdf_bytes)
