@@ -53,6 +53,13 @@ class ListaPreciosPDFForm(forms.Form):
         label="Lista mayorista (mostrar precio mayorista)"
     )
 
+    incluir_costo = forms.BooleanField(
+    required=False,
+    initial=True,
+    label="Incluir columna de costo",
+    widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
     # ✅ NUEVO: marca de agua fija (solo se reemplaza si tildás esto)
     reemplazar_marca_agua = forms.BooleanField(
         required=False,
