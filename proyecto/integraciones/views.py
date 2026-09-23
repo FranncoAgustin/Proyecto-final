@@ -1,4 +1,5 @@
 # integraciones/views.py
+import json
 from decimal import Decimal
 import logging
 import os
@@ -10,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -23,7 +25,7 @@ from pdf.models import ProductoPrecio
 from pdf.utils import get_similarity
 
 from .forms import PriceDocSourceForm
-from .models import PriceDocSource, PriceDocSnapshot, PriceDocItem, PriceUpdateCandidate, Q2
+from .models import PriceDocSource, PriceDocSnapshot, PriceDocItem, PriceUpdateCandidate, Q2, PriceDocMatch
 from .services_price_doc import (
     sync_all_price_sources,
     sync_price_doc_and_build_candidates,
@@ -96,59 +98,45 @@ def _get_selected_source_or_default(source_id=None):
 
 
 def _build_match_result_for_art(art: str, skus_db: list[dict]):
-    """
-    Devuelve el resultado del match para un ART de la lista contra ProductoPrecio.
-    """
     art_norm = (art or "").strip()
     if not art_norm:
-        return {
-            "producto": None,
-            "sku_match": "",
-            "match_score": None,
-            "estado_match": "sin_match",
-        }
+        return {"producto": None, "sku_match": "", "match_score": None, "estado_match": "sin_match"}
 
     # Match exacto
     for p in skus_db:
         sku = (p.get("sku") or "").strip()
-        if not sku:
-            continue
-        if sku.lower() == art_norm.lower():
-            return {
-                "producto": p,
-                "sku_match": sku,
-                "match_score": Decimal("100.00"),
-                "estado_match": "exacto",
-            }
+        if sku and sku.lower() == art_norm.lower():
+            return {"producto": p, "sku_match": sku, "match_score": Decimal("100.00"), "estado_match": "exacto"}
 
-    # Fuzzy
+    # Buscar mejor coincidencia
     best = None
     best_score = 0
     for p in skus_db:
         sku = (p.get("sku") or "").strip()
         if not sku:
             continue
-
         score = get_similarity(art_norm, sku)
         if score > best_score:
             best_score = score
             best = p
 
-    if best and best_score >= 90:
-        return {
-            "producto": best,
-            "sku_match": (best.get("sku") or "").strip(),
-            "match_score": Decimal(str(best_score)).quantize(Q2),
-            "estado_match": "fuzzy",
-        }
+    # Nuevos umbrales solicitados:
+    # >= 75% -> Match a confirmar
+    # >= 25% -> Fuzzy
+    # < 25%  -> Sin match
+    if best and best_score >= 75:
+        estado = "match_confirmar"
+    elif best and best_score >= 25:
+        estado = "fuzzy"
+    else:
+        estado = "sin_match"
 
     return {
-        "producto": None,
-        "sku_match": "",
-        "match_score": None,
-        "estado_match": "sin_match",
+        "producto": best,
+        "sku_match": (best.get("sku") or "").strip() if best else "",
+        "match_score": Decimal(str(best_score)).quantize(Q2) if best else None,
+        "estado_match": estado,
     }
-
 
 def _limpiar_historial_snapshots(source):
     """
@@ -572,17 +560,44 @@ def diagnostico_match_lista(request, source_id=None):
             "integraciones/price_source_match_diagnostico.html",
             {
                 "source": source, "sources": sources, "snapshot": None,
-                "rows": [], "resumen": {"total_items": 0, "exactos": 0, "fuzzy": 0, "sin_match": 0,},
+                "rows": [], "resumen": {"total_items": 0, "exactos": 0, "vinculados": 0, "match_confirmar": 0, "fuzzy": 0, "sin_match": 0},
             },
         )
 
     skus_db = list(ProductoPrecio.objects.filter(activo=True).values("id", "sku", "nombre_publico", "precio"))
+    
+    vinculos_manuales = {
+        v.art_proveedor: v.producto_local
+        for v in PriceDocMatch.objects.filter(source=source).select_related('producto_local')
+    }
 
-    rows, exactos, fuzzy, sin_match = [], 0, 0, 0
+    rows, exactos, match_confirmar, fuzzy, sin_match, vinculados = [], 0, 0, 0, 0, 0
 
     for item in snapshot.items.all():
+        art_norm = (item.art or "").strip()
+        
+        # 1. Vinculación manual prioritaria
+        if art_norm in vinculos_manuales:
+            prod_vinculado = vinculos_manuales[art_norm]
+            vinculados += 1
+            rows.append({
+                "item": item,
+                "producto_db": {
+                    "id": prod_vinculado.id, 
+                    "sku": prod_vinculado.sku, 
+                    "nombre_publico": prod_vinculado.nombre_publico, 
+                    "precio": prod_vinculado.precio
+                },
+                "sku_match": prod_vinculado.sku,
+                "match_score": Decimal("100.00"),
+                "estado_match": "vinculado",
+            })
+            continue
+
+        # 2. Búsqueda automática con los nuevos umbrales
         match = _build_match_result_for_art(item.art, skus_db)
         if match["estado_match"] == "exacto": exactos += 1
+        elif match["estado_match"] == "match_confirmar": match_confirmar += 1
         elif match["estado_match"] == "fuzzy": fuzzy += 1
         else: sin_match += 1
 
@@ -599,10 +614,38 @@ def diagnostico_match_lista(request, source_id=None):
         "integraciones/price_source_match_diagnostico.html",
         {
             "source": source, "sources": sources, "snapshot": snapshot,
-            "rows": rows, "resumen": {"total_items": len(rows), "exactos": exactos, "fuzzy": fuzzy, "sin_match": sin_match},
+            "rows": rows, "resumen": {
+                "total_items": len(rows), 
+                "exactos": exactos, 
+                "vinculados": vinculados, 
+                "match_confirmar": match_confirmar,
+                "fuzzy": fuzzy, 
+                "sin_match": sin_match
+            },
+            "skus_db": skus_db, 
         },
     )
 
+@login_required
+@require_http_methods(["POST"])
+def vincular_item_proveedor(request):
+    try:
+        data = json.loads(request.body)
+        producto_local_id = data.get('producto_id')
+        source_id = data.get('source_id')
+        art_proveedor = data.get('art')
+        
+        # AHORA SÍ GUARDAMOS EN BASE DE DATOS
+        PriceDocMatch.objects.update_or_create(
+            source_id=source_id,
+            art_proveedor=art_proveedor,
+            defaults={'producto_local_id': producto_local_id}
+        )
+        
+        return JsonResponse({"status": "success", "message": "Producto vinculado correctamente."})
+    except Exception as e:
+        logger.error(f"Error al vincular producto: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
 
 def fetch_instagram_media():
     """ Devuelve una lista de posts recientes de Instagram (Uso con API / Access token). """

@@ -78,5 +78,14 @@ urlpatterns = [
         views.diagnostico_match_lista,
         name="diagnostico_match_lista_source",
     ),
+    
+    # -------------------------------
+    # VINCULACIÓN MANUAL
+    # -------------------------------
+    path(
+        "integraciones/vincular-item/",
+        views.vincular_item_proveedor,
+        name="vincular_item_proveedor",
+    ),
 
 ]
